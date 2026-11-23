@@ -56,4 +56,31 @@ import Foundation
     @Test func doesNotMatchUnrelatedText() {
         #expect(!SearchMatch.matches("xcodes", in: "Xcode"))
     }
+
+    @Test func appNamePrefixesLeadSubstringsAndExcludeBundleIDNoise() {
+        let apps: [(name: String, bundleID: String?)] = [
+            ("AdGuard", "com.adguard.mac"),
+            ("Amp", "dev.amp"),
+            ("Microsoft Word", "com.microsoft.Word"),
+            ("Mac Mouse Fix", nil),
+            ("Gemini", nil),
+        ]
+        let matches = SearchMatch.rankedApps(" ｍ ", in: apps, name: \.name, bundleID: \.bundleID)
+        #expect(matches.apps.map(\.name) == ["Microsoft Word", "Mac Mouse Fix", "Amp", "Gemini"])
+        #expect(matches.bundleIDOnly.isEmpty)
+        let unfiltered = SearchMatch.rankedApps("  ", in: apps, name: \.name, bundleID: \.bundleID)
+        #expect(unfiltered.apps.map(\.name) == apps.map(\.name))
+        #expect(unfiltered.bundleIDOnly.isEmpty)
+    }
+
+    @Test func dottedQueriesKeepBundleIDsAfterNameMatches() {
+        let apps: [(name: String, bundleID: String?)] = [
+            ("Google Chrome", "com.google.Chrome"),
+            ("My com.google Inspector", nil),
+            ("com.google Tool", "com.google.Chrome"),
+        ]
+        let matches = SearchMatch.rankedApps("ＣＯＭ．ＧＯＯＧＬＥ", in: apps, name: \.name, bundleID: \.bundleID)
+        #expect(matches.apps.map(\.name) == ["com.google Tool", "My com.google Inspector", "Google Chrome"])
+        #expect(matches.bundleIDOnly.map(\.name) == ["Google Chrome"])
+    }
 }

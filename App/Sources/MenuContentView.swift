@@ -94,17 +94,17 @@ struct MenuContentView: View {
         !SearchMatch.trimmed(searchText).isEmpty
     }
 
-    private var visible: [UpdateResult] {
+    private var visible: SearchMatch.AppMatches<UpdateResult> {
         // The apps an interrupted install left gone first: they have no scanned
         // row, and the way back is the most urgent thing the list offers.
         let standIns = model.interruptedStandIns
         // While searching, look across every app (not just pending ones): typing a
         // name should find an up-to-date app too, not come back empty.
         if isSearching {
-            let query = SearchMatch.trimmed(searchText)
-            return (standIns + model.results).filter { matches($0, query) }
+            return SearchMatch.rankedApps(searchText, in: standIns + model.results,
+                                          name: \.app.name, bundleID: \.app.bundleID)
         }
-        return standIns + (showAll ? model.results
+        return .init(apps: standIns + (showAll ? model.results
             : model.results.filter {
                 // The same predicate the menu-bar badge counts, so what the list
                 // shows and what the badge says can't drift apart — everything below
@@ -125,14 +125,7 @@ struct MenuContentView: View {
                     // Cut off by an earlier update: it offers Restore whatever
                     // its check says (`RowActionState.interruptedInstall`).
                     || model.interruptedInstall(for: $0) != nil
-            })
-    }
-
-    /// Match the query against an app's name and bundle id (so "com.google" finds
-    /// Chrome), by the rule every search field shares — the workbench's and the
-    /// Settings sidebar's too (`SearchMatch`: case, diacritics and width folded).
-    private func matches(_ result: UpdateResult, _ query: String) -> Bool {
-        SearchMatch.matches(query, in: [result.app.name, result.app.bundleID])
+            }))
     }
 
     var body: some View {
@@ -174,7 +167,7 @@ struct MenuContentView: View {
             // 2026-10-24 — and the placeholder showed through the page.
             // One strip of the two, moved as one: offset apart, the
             // placeholder kept still while the page slid over it.
-            content
+            content(visible)
                 .frame(width: MenuLayoutMetrics.width)
                 .allowsHitTesting(!toolsPageOpen)
                 .accessibilityHidden(toolsPageOpen)
@@ -285,14 +278,14 @@ struct MenuContentView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(_ matches: SearchMatch.AppMatches<UpdateResult>) -> some View {
         // `isRoundInFlight`, not `isScanning`: a user-present refresh clears the
         // saved release notes BEFORE it raises `isScanning`, and that await lets
         // a cold launch paint here with no rows yet — which read "No apps yet"
         // over a scan that was about to start (#253's gap, one surface over).
         switch PopoverListContent.decide(
             hasRows: !model.results.isEmpty,
-            visibleIsEmpty: visible.isEmpty,
+            visibleIsEmpty: matches.apps.isEmpty,
             isSearching: isSearching,
             isRoundInFlight: model.listActivity.isRoundInFlight,
             answeredThisLaunch: model.answeredThisLaunch,
@@ -319,7 +312,7 @@ struct MenuContentView: View {
             placeholder(String(localized: "Everything is up to date"), systemImage: "checkmark.seal.fill",
                         description: Text("Toggle “Show all” to see every app."))
         case .rows:
-            rowList
+            rowList(matches)
         }
     }
 
@@ -341,10 +334,12 @@ struct MenuContentView: View {
         .frame(height: 200)
     }
 
-    private var rowList: some View {
+    private func rowList(_ matches: SearchMatch.AppMatches<UpdateResult>) -> some View {
         ScrollViewReader { proxy in
-            scrollingRows(proxy)
+            scrollingRows(matches, proxy: proxy)
         }
+        // Search results start at the top whenever the ranked rows change.
+        .id(isSearching ? matches.apps.map(\.id) : nil)
         // Each filter mode owns its scroll position and lazy row layout. Reusing
         // them after a scrolled Show-all list shrinks can leave every pending
         // row outside the realized viewport, even after scrolling back to the top.
@@ -368,8 +363,8 @@ struct MenuContentView: View {
     }
 
     @ViewBuilder
-    private func scrollingRows(_ proxy: ScrollViewProxy) -> some View {
-        if listOverflows {
+    private func scrollingRows(_ matches: SearchMatch.AppMatches<UpdateResult>, proxy: ScrollViewProxy) -> some View {
+        if listOverflows(matches.apps.count) {
             // Long enough that it scrolls no matter how the rows measure, so there
             // is nothing left for the measurement below to decide: pin the frame and
             // let a LazyVStack realize only the rows actually on screen.
@@ -380,7 +375,7 @@ struct MenuContentView: View {
             // asking every row for its size (sample, 2026-08-23) — on every toggle,
             // not just the first.
             scrollingToTarget(ScrollView {
-                LazyVStack(spacing: 0) { rows }
+                LazyVStack(spacing: 0) { rows(matches) }
             }, proxy)
             .frame(height: Self.maxListHeight)
         } else {
@@ -389,7 +384,7 @@ struct MenuContentView: View {
                 // the *full* content height — a LazyVStack only reports realized rows,
                 // which would feed back a too-short frame. Only reached for lists too
                 // short to fill the cap, so sizing every row is cheap here.
-                VStack(spacing: 0) { rows }
+                VStack(spacing: 0) { rows(matches) }
                     .background(GeometryReader { geo in
                         Color.clear.preference(key: ListHeightKey.self, value: geo.size.height)
                     })
@@ -409,8 +404,9 @@ struct MenuContentView: View {
     /// rows' measured height up to the cap: the page's until it has measured
     /// its own.
     private var toolsPageHeight: CGFloat {
-        if visible.isEmpty { return 200 }
-        if listOverflows { return Self.maxListHeight }
+        let count = visible.apps.count
+        if count == 0 { return 200 }
+        if listOverflows(count) { return Self.maxListHeight }
         return min(Self.maxListHeight, listContentHeight == 0 ? 54 : listContentHeight)
     }
 
@@ -432,19 +428,19 @@ struct MenuContentView: View {
     /// Whether the list must scroll whatever the rows measure. `count * minRowHeight`
     /// is a floor on the content height, so this is only ever true when it genuinely
     /// overflows — never a guess that hides rows behind a too-short frame.
-    private var listOverflows: Bool {
-        CGFloat(visible.count) * Self.minRowHeight >= Self.maxListHeight
+    private func listOverflows(_ count: Int) -> Bool {
+        CGFloat(count) * Self.minRowHeight >= Self.maxListHeight
     }
 
     @ViewBuilder
-    private var rows: some View {
-        if model.prefs.appGrouping == .source {
+    private func rows(_ matches: SearchMatch.AppMatches<UpdateResult>) -> some View {
+        if !isSearching && model.prefs.appGrouping == .source {
             // One section per update source, the same sections as the
             // workbench's (`AppListSection`), always open: the list is short
             // unless "Show all" is on, and a closed section here would hide an
             // update the menu-bar badge still counts.
             let sections = AppListSection.sections(
-                visible, standIns: Set(model.interruptedStandIns.map(\.id)),
+                matches.apps, standIns: Set(model.interruptedStandIns.map(\.id)),
                 grouping: .source, group: model.sourceGroup(for:))
             ForEach(sections) { section in
                 if let group = section.group {
@@ -453,16 +449,17 @@ struct MenuContentView: View {
                 rowRun(section.rows)
             }
         } else {
-            rowRun(visible)
+            rowRun(matches.apps, bundleIDOnly: Set(matches.bundleIDOnly.map(\.id)))
         }
     }
 
-    private func rowRun(_ list: [UpdateResult]) -> some View {
+    private func rowRun(_ list: [UpdateResult], bundleIDOnly: Set<String> = []) -> some View {
         ForEach(Array(list.enumerated()), id: \.element.id) { index, result in
             // Divider *between* rows only — a trailing one after the last row left
             // a dangling line floating over the empty space below a short list.
             if index > 0 { Divider() }
-            AppRow(result: result, model: model)
+            AppRow(result: result, model: model,
+                   matchedBundleID: bundleIDOnly.contains(result.id) ? result.app.bundleID : nil)
         }
     }
 
@@ -1851,6 +1848,7 @@ struct StagedVersionUnknownMark: View {
 private struct AppRow: View {
     let result: UpdateResult
     @Bindable var model: AppListModel
+    let matchedBundleID: String?
     @Environment(\.openWindow) private var openWindow
 
     /// Opens the workbench on this app, selected and scrolled to — the row's
@@ -2068,6 +2066,9 @@ private struct AppRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     nameLine
                     versionLine
+                    if let matchedBundleID {
+                        BundleIDSearchMatchLabel(bundleID: matchedBundleID)
+                    }
                 }
                 Spacer()
                 // Minimum-width action slot, trailing-aligned: every control ends on
@@ -2219,20 +2220,19 @@ private struct AppRow: View {
         // trailing control into. Nothing about the row's appearance changes here.
         //
         // `nil` — natural height — for the rows this was NOT measured on. An install
-        // error or a note adds a second line to the `VStack` above, and none of the
-        // 161 was in that state, so those rows keep sizing themselves. They are rare
-        // and transient, so the fast path still covers essentially the whole list.
+        // error, note, or Bundle ID match adds another line. These rows keep
+        // sizing themselves, while the ordinary rows still use the fast path.
         //
         // ⚠️ A frame does not clip: content taller than this OVERFLOWS and draws over
-        // the row below. The condition above only knows the two things that stack
-        // UNDER the name line, so trailing content that grows past the icon's 30pt —
+        // the row below. The condition accounts for lines below the name and
+        // version, so trailing content that grows past the icon's 30pt —
         // a two-line status, a stacked readout — would overlap silently. Every
         // inline branch of `PopoverRowAction` is a single-line `HStack` today (the
         // tall `VStack`s in that file are `.popover` content, not row content), but
         // that is an audit, not a gate: `make gallery` draws the trailing control
         // into its own forced 44pt slot, so it would clip such a control too and
         // still pass. Re-measure the row rather than assume, if one is added.
-        .frame(height: installError == nil && note == nil ? Self.plainRowHeight : nil)
+        .frame(height: installError == nil && note == nil && matchedBundleID == nil ? Self.plainRowHeight : nil)
         .contentShape(Rectangle())
         .contextMenu { rowMenu }
     }

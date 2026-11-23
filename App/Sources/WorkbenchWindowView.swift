@@ -36,9 +36,8 @@ struct WorkbenchWindowView: View {
     ///
     /// It has to be claimed explicitly. Measured on the shipping window: it opened
     /// with `AXFocusedUIElement` on the search field (the sidebar's first AppKit
-    /// view, which AppKit auto-focuses) or on nothing at all — either way the arrow
-    /// keys had no destination. `defaultFocus` alone did not move it; setting this
-    /// once the first results land does.
+    /// view, which AppKit auto-focuses) or on nothing at all. Claim it at startup
+    /// and when the selection changes outside search editing.
     ///
     /// Which list rather than whether: a tab's list is kept once built
     /// (`builtTabs`), so the hidden ones are alive beside the one on screen.
@@ -177,15 +176,9 @@ struct WorkbenchWindowView: View {
             .sorted { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }
     }
 
-    /// `apps` narrowed by the search field. A blank query passes everything through;
-    /// otherwise we match the query against the app name and bundle id (so
-    /// "com.google" finds Chrome too), by the rule every search field shares
-    /// (`SearchMatch`: case, diacritics and width folded).
     private var searchQuery: String { SearchMatch.trimmed(searchText) }
 
-    private func matchesSearch(_ result: UpdateResult) -> Bool {
-        SearchMatch.matches(searchQuery, in: [result.app.name, result.app.bundleID])
-    }
+    private var appGrouping: RowOrder.Grouping { searchQuery.isEmpty ? model.prefs.appGrouping : .none }
 
     private func matchesSearch(_ name: String) -> Bool {
         SearchMatch.matches(searchQuery, in: name)
@@ -239,6 +232,7 @@ struct WorkbenchWindowView: View {
         /// query that matches nothing empties the Homebrew group like the other two.
         let homebrewSelfUpdate: HomebrewSelfUpdate?
         let rollbackable: [UpdateResult]
+        let bundleIDOnly: Set<String>
         /// The CLI tab has anything to show: Homebrew, or an install of another tool.
         let hasCLI: Bool
         /// Each tab's count before the search, which the count's slot is sized to so
@@ -265,21 +259,23 @@ struct WorkbenchWindowView: View {
         // list's empty state has to say ignored apps exist even when none matches
         // the query.
         var ignoredCount = 0
-        var rows: [UpdateResult] = []
-        rows.reserveCapacity(allApps.count)
+        let query = searchQuery
+        var searchableApps: [UpdateResult] = []
+        searchableApps.reserveCapacity(allApps.count)
         for row in allApps {
             let ignored = model.prefs.isIgnored(row.app)
             if ignored { ignoredCount += 1 }
             // While searching, an ignored app is a match like any other; while
             // browsing it is managed in Settings and does not appear.
-            guard searchQuery.isEmpty ? !ignored : matchesSearch(row) else { continue }
-            rows.append(row)
+            if !ignored || !query.isEmpty { searchableApps.append(row) }
         }
+        let appMatches = SearchMatch.rankedApps(query, in: searchableApps, name: \.app.name, bundleID: \.app.bundleID)
+        let rollbackMatches = SearchMatch.rankedApps(query, in: allRollbackable, name: \.app.name, bundleID: \.app.bundleID)
         let standInIDs = Set(model.interruptedStandIns.map(\.id))
         return SidebarLists(
-            filteredApps: rows,
+            filteredApps: appMatches.apps,
             appSections: AppListSection.sections(
-                rows, standIns: standInIDs, grouping: model.prefs.appGrouping,
+                appMatches.apps, standIns: standInIDs, grouping: appGrouping,
                 group: model.sourceGroup(for:)),
             ignoredAppCount: ignoredCount,
             cliTools: CLIToolPresentation.groups(cliTools.filter(matchesSearch)).flatMap(\.statuses),
@@ -287,7 +283,8 @@ struct WorkbenchWindowView: View {
             brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
             brewLifecycleCasks: model.brewAppLessCaskLifecycles.filter { matchesSearch($0.token) },
             homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
-            rollbackable: allRollbackable.filter(matchesSearch),
+            rollbackable: rollbackMatches.apps,
+            bundleIDOnly: Set(appMatches.bundleIDOnly.map(\.id) + rollbackMatches.bundleIDOnly.map(\.id)),
             hasCLI: brewTotal > 0 || !cliTools.isEmpty,
             appsTotal: allApps.count,
             cliTotal: brewTotal + cliTools.count,
@@ -460,6 +457,9 @@ struct WorkbenchWindowView: View {
             applyRequestedHomebrew()
             applyRequestedCLITool()
             applyRequestedHomebrewCask()
+            // The sidebar exists while the refresh runs. Claim focus now so a
+            // refresh that finishes during typing leaves the field's editor alone.
+            if searchText.isEmpty { listFocus = shownTab(sidebarLists) }
             // Every lane decides what an open calls for (`AppListModel.refreshes`):
             // the apps a full check with no data or while TestFlight is still
             // owed a read, otherwise a network-free rescan (`AppsRefreshPolicy`);
@@ -471,9 +471,6 @@ struct WorkbenchWindowView: View {
                 selection = apps.first?.id
                 detailSelection = selection   // first show is immediate, no debounce
             }
-            // Claim the keyboard only now: before the rows exist there is no list to
-            // focus, and the search field has already taken it by default.
-            listFocus = shownTab(sidebarLists)
         }
         // Refocus → re-read on-disk versions. Scoped to THIS window: the
         // notification carries whichever window became key, and with `object: nil`
@@ -530,16 +527,12 @@ struct WorkbenchWindowView: View {
         // 120 ms for a deliberate single step. Scrubbing through 40 apps then fires
         // one detail build instead of 40.
         .onChange(of: selection) { _, newValue in
-            // A selection change means the user is working in the list — by arrow
-            // key (already focused) or by clicking a row after the detail pane took
-            // the keyboard, which is the case that left arrows dead until now.
-            //
-            // Only claim the keyboard when we do not already hold it. Re-asserting it
-            // on a selection we caused by arrow key pushes focus down to AppKit again
-            // mid-keystroke, and the outline drops the `scrollRowToVisible` that
-            // normally follows an arrow-key selection — the highlight walks off the
-            // bottom of the viewport and never comes back, even after the keys stop.
-            if listFocus == nil { listFocus = shownTab(sidebarLists) }
+            // Typing can change selection as the old row drops out. AppKit's
+            // field editor stays authoritative, even when the query was cleared.
+            if listFocus == nil, let window = NSApp.keyWindow, Self.isWorkbenchWindow(window),
+               !Self.hasSearchEditor(in: window) {
+                listFocus = shownTab(lists)
+            }
             let name = model.results.first { $0.id == newValue }?.app.name
             Log.changelog.info("perf selection → \(name ?? newValue ?? "nil", privacy: .public)")
             // Adaptive settle. A fixed 160 ms was shorter than a key REPEAT (~240 ms
@@ -602,6 +595,11 @@ struct WorkbenchWindowView: View {
         return window.identifier?.rawValue.contains(Self.windowID) ?? false
     }
 
+    private static func hasSearchEditor(in window: NSWindow) -> Bool {
+        guard let editor = window.firstResponder as? NSTextView, editor.isFieldEditor else { return false }
+        return editor.delegate is NSSearchField
+    }
+
     /// Honor a pending "Changelog" deep-link to a specific app, then clear it so the
     /// selection isn't forced again on the next open. Bypasses the arrow-key debounce
     /// (sets `detailSelection` directly) — a deliberate jump should land instantly.
@@ -612,7 +610,9 @@ struct WorkbenchWindowView: View {
         // would then move the selection to the tab's first row and open a different
         // app, or, with the tab unchanged, the detail would show a row the list
         // does not.
-        if let result = model.results.first(where: { $0.id == id }), !matchesSearch(result) {
+        if !searchQuery.isEmpty,
+           let result = apps.first(where: { $0.id == id }),
+           SearchMatch.rankedApps(searchQuery, in: [result], name: \.app.name, bundleID: \.app.bundleID).apps.isEmpty {
             searchText = ""
         }
         // Every app row is on the Apps tab, Homebrew-updated ones included. The
@@ -765,7 +765,7 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private func sidebar(_ lists: SidebarLists) -> some View {
         let tab = shownTab(lists)
-        let showsCategoryBar = tab == .cli || (tab == .apps && model.prefs.appGrouping == .source)
+        let showsCategoryBar = tab == .cli || (tab == .apps && appGrouping == .source)
         VStack(spacing: 0) {
             // The whole row picks one layout: one line per tab while every tab fits,
             // two lines for all of them otherwise. Deciding per tab would stack
@@ -1013,7 +1013,7 @@ struct WorkbenchWindowView: View {
     /// would undo.
     private func rollbackListView(_ lists: SidebarLists, isShown: Bool) -> some View {
         WorkbenchRollbackList(
-            apps: lists.rollbackable, searchText: searchText, isShown: isShown,
+            apps: lists.rollbackable, bundleIDOnly: lists.bundleIDOnly, searchText: searchText, isShown: isShown,
             model: model, selection: $selection, focus: $listFocus)
             .equatable()
     }
@@ -1488,7 +1488,7 @@ struct WorkbenchWindowView: View {
     /// Settings), and the row's menu still offers Stop ignoring.
     private func appsListView(_ lists: SidebarLists, isShown: Bool) -> some View {
         WorkbenchAppsList(
-            apps: lists.filteredApps, sections: appSections(lists),
+            apps: lists.filteredApps, sections: appSections(lists), bundleIDOnly: lists.bundleIDOnly,
             toggleSection: { group in inOneFrame { toggleSourceGroup(group) } },
             ignoredAppCount: lists.ignoredAppCount,
             searchText: searchText, isShown: isShown,
@@ -1499,16 +1499,13 @@ struct WorkbenchWindowView: View {
     // MARK: - Update-source sections
 
     /// The Apps list's sections with whether each is drawn open: open unless the
-    /// user closed it in this window, or while a search is typed (a search finds
-    /// rows, and closing their section would hide them) or one of its rows is
-    /// selected, as `managerLevelExpanded` holds a manager's level open.
+    /// user closed it in this window, or one of its rows is selected.
     private func appSections(_ lists: SidebarLists) -> [AppListSection] {
         lists.appSections.map { section in
             var section = section
             if let group = section.group {
-                let held = !searchQuery.isEmpty || section.rows.contains { $0.id == selection }
+                let held = section.rows.contains { $0.id == selection }
                 section.expanded = held || !collapsedSourceGroups.contains(group)
-                section.toggleDisabled = !searchQuery.isEmpty
             }
             return section
         }
@@ -1804,6 +1801,7 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
     let apps: [UpdateResult]
     /// `apps` in the sections they are drawn in (`AppListSection`).
     let sections: [AppListSection]
+    let bundleIDOnly: Set<String>
     /// A click on a section's header. Not compared: the window builds it anew
     /// each pass, and what it does follows from `sections`.
     let toggleSection: (UpdateSourceGroup) -> Void
@@ -1822,6 +1820,7 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
         // to a hidden tab would rebuild its scroll layout offscreen.
         if !lhs.isShown { return true }
         return lhs.apps == rhs.apps && lhs.sections == rhs.sections
+            && lhs.bundleIDOnly == rhs.bundleIDOnly
             && lhs.ignoredAppCount == rhs.ignoredAppCount
             && lhs.searchText == rhs.searchText
     }
@@ -1876,7 +1875,8 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
                     groupHeader(group, section: section, isFixed: false)
                         .id(entry.id)
                 case .app(let result, _):
-                    WorkbenchAppRow(result: result, model: model)
+                    WorkbenchAppRow(result: result, model: model,
+                                    matchedBundleID: bundleIDOnly.contains(result.id) ? result.app.bundleID : nil)
                         .equatable()
                         .sidebarRow(result.id, selection: $selection)
                 }
@@ -1909,8 +1909,7 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
     ) -> some View {
         AppSourceGroupHeader(
             group: group, count: section.rows.count, updates: section.updateCount,
-            expanded: section.expanded, toggleDisabled: section.toggleDisabled,
-            isFixed: isFixed, toggle: { toggleSection(group) })
+            expanded: section.expanded, isFixed: isFixed, toggle: { toggleSection(group) })
             // `WorkbenchWindowView.sectionHeaderTrailingInset`.
             .padding(.trailing, 14)
             .sidebarFixedAppHeader(inlineID: isFixed ? nil : AppSourceGroupHeader.scrollID(group))
@@ -1924,14 +1923,16 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
 private struct WorkbenchAppRow: View, @MainActor Equatable {
     let result: UpdateResult
     let model: AppListModel
+    let matchedBundleID: String?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.result == rhs.result && lhs.model === rhs.model
+        lhs.result == rhs.result && lhs.model === rhs.model && lhs.matchedBundleID == rhs.matchedBundleID
     }
 
     var body: some View {
         WorkbenchSidebarRow(
             result: result,
+            matchedBundleID: matchedBundleID,
             checkAgain: { Task { await model.retry(result) } },
             isChecking: model.installing[result.id] != nil,
             isRunning: model.isRunning(result),
@@ -1961,6 +1962,7 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
 /// `WorkbenchAppsList`.
 private struct WorkbenchRollbackList: View, @MainActor Equatable {
     let apps: [UpdateResult]
+    let bundleIDOnly: Set<String>
     let searchText: String
     let isShown: Bool
     let model: AppListModel
@@ -1971,7 +1973,7 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         guard lhs.isShown == rhs.isShown, lhs.model === rhs.model else { return false }
         if !lhs.isShown { return true }
-        return lhs.apps == rhs.apps && lhs.searchText == rhs.searchText
+        return lhs.apps == rhs.apps && lhs.bundleIDOnly == rhs.bundleIDOnly && lhs.searchText == rhs.searchText
     }
 
     var body: some View {
@@ -1979,7 +1981,8 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
                     label: String(localized: "Restore"), focus: focus, focusValue: .rollback,
                     isShown: isShown, isSearching: !SearchMatch.trimmed(searchText).isEmpty) {
             ForEach(apps) { result in
-                WorkbenchRollbackRow(result: result, model: model)
+                WorkbenchRollbackRow(result: result, model: model,
+                                     matchedBundleID: bundleIDOnly.contains(result.id) ? result.app.bundleID : nil)
                     .sidebarRow(result.id, selection: $selection)
             }
         }
@@ -2026,6 +2029,7 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
 
 private struct WorkbenchSidebarRow: View {
     let result: UpdateResult
+    let matchedBundleID: String?
     /// Re-check just this app, and whether it is busy already. Passed in as a
     /// closure and a flag rather than the model itself: this row is deliberately
     /// value-typed — every one of ~145 of them re-renders on any model change if
@@ -2124,6 +2128,9 @@ private struct WorkbenchSidebarRow: View {
                     }
                 }
                 subtitle
+                if let matchedBundleID {
+                    BundleIDSearchMatchLabel(bundleID: matchedBundleID)
+                }
             }
             Spacer()
         }
@@ -2271,7 +2278,8 @@ private struct WorkbenchSidebarRow: View {
 /// same one every pass, about `result`, which is compared.
 extension WorkbenchSidebarRow: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.result == rhs.result && lhs.isChecking == rhs.isChecking && lhs.isRunning == rhs.isRunning
+        lhs.result == rhs.result && lhs.matchedBundleID == rhs.matchedBundleID
+            && lhs.isChecking == rhs.isChecking && lhs.isRunning == rhs.isRunning
             && lhs.versionLineState == rhs.versionLineState && lhs.runningSide == rhs.runningSide
             && lhs.showsRuntime == rhs.showsRuntime
             && lhs.showsBrewFallback == rhs.showsBrewFallback && lhs.brewFallbackChoice == rhs.brewFallbackChoice
@@ -2291,6 +2299,7 @@ extension WorkbenchSidebarRow: @MainActor Equatable {
 private struct WorkbenchRollbackRow: View {
     let result: UpdateResult
     @Bindable var model: AppListModel
+    let matchedBundleID: String?
 
     /// The version the backup restores to; "previous" when its marketing version
     /// wasn't recorded. Read here rather than handed in: the list above is skipped
@@ -2314,6 +2323,9 @@ private struct WorkbenchRollbackRow: View {
                 } else {
                     Text("v\(result.app.shortVersion ?? "?") → \(targetLabel)")
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if let matchedBundleID {
+                    BundleIDSearchMatchLabel(bundleID: matchedBundleID)
                 }
             }
             Spacer()

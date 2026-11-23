@@ -38,7 +38,14 @@ public enum SearchMatch {
     static func matches(_ query: String, in text: String, locale: Locale) -> Bool {
         let needle = trimmed(query)
         guard !needle.isEmpty else { return true }
-        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        return contains(needle, in: text, locale: locale)
+    }
+
+    private static func contains(
+        _ needle: String, in text: String, locale: Locale, anchored: Bool = false
+    ) -> Bool {
+        var options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        if anchored { options.insert(.anchored) }
         return text.range(of: needle, options: options) != nil
             || text.range(of: needle, options: options, locale: locale) != nil
     }
@@ -48,5 +55,41 @@ public enum SearchMatch {
     public static func matches(_ query: String, in texts: [String?]) -> Bool {
         guard !trimmed(query).isEmpty else { return true }
         return texts.contains { $0.map { matches(query, in: $0) } ?? false }
+    }
+
+    public struct AppMatches<App> {
+        public let apps: [App]
+        public let bundleIDOnly: [App]
+
+        public init(apps: [App], bundleIDOnly: [App] = []) {
+            self.apps = apps
+            self.bundleIDOnly = bundleIDOnly
+        }
+    }
+
+    /// Name prefixes, then name substrings, then bundle IDs for dotted queries.
+    /// Each tier keeps the caller's order. A blank query returns the input as is.
+    public static func rankedApps<App>(
+        _ query: String, in apps: [App], name: (App) -> String,
+        bundleID: (App) -> String? = { _ in nil }
+    ) -> AppMatches<App> {
+        let needle = trimmed(query)
+        guard !needle.isEmpty else { return AppMatches(apps: apps) }
+        let searchesBundleID = needle.range(of: ".", options: .widthInsensitive) != nil
+        let locale = Locale.current
+        var prefixes: [App] = []
+        var substrings: [App] = []
+        var bundleMatches: [App] = []
+        for app in apps {
+            let title = name(app)
+            if contains(needle, in: title, locale: locale, anchored: true) {
+                prefixes.append(app)
+            } else if contains(needle, in: title, locale: locale) {
+                substrings.append(app)
+            } else if searchesBundleID, let id = bundleID(app), contains(needle, in: id, locale: locale) {
+                bundleMatches.append(app)
+            }
+        }
+        return AppMatches(apps: prefixes + substrings + bundleMatches, bundleIDOnly: bundleMatches)
     }
 }

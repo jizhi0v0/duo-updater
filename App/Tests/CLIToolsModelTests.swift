@@ -76,7 +76,7 @@ struct CLIToolsModelTests {
             detail = .antigravityCLI(AntigravityCLIInstall(path: path, version: version, signature: .vendor))
         case .leaf: detail = .leaf(LeafInstall(path: path, binary: path, version: version, target: "aarch64-apple-darwin"))
         case .fixStorage: detail = .fixStorage(FixStorageInstall(path: path, version: version ?? "0.1.0"))
-        case .multica: preconditionFailure("Multica statuses are constructed from real files in MulticaTests")
+        case .multica, .nospeaker: preconditionFailure("These statuses are constructed from real files in Core tests")
         case .terminalMac: detail = .terminalMac(TerminalMacInstall(path: path, version: version, build: "1"))
         case .managed:
             // A managed row by its path alone: its key is the directory's name,
@@ -134,6 +134,7 @@ struct CLIToolsModelTests {
         case .leaf: context = .leaf
         case .fixStorage: context = .fixStorage
         case .multica: context = .multica
+        case .nospeaker: context = .nospeaker
         case .antigravityCLI: context = .antigravityCLI
         case .pnpm: context = .pnpm
         case .yarn: context = .yarn

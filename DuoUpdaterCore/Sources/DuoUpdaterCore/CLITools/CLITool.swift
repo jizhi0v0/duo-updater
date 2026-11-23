@@ -80,6 +80,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case fixStorage = "fix-storage"
     /// Multica's standalone, GitHub-distributed agent CLI.
     case multica
+    case nospeaker
     /// Every item any manager keeps — mise's tools, uv's tools and Pythons,
     /// pipx venvs, nvm's and fnm's Nodes, pyenv's and rbenv's lines, cargo's
     /// and go's installs (`CLITools/Managed/`). Which manager is a value on
@@ -125,6 +126,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .leaf: return "Leaf"
         case .fixStorage: return "fix-storage"
         case .multica: return "Multica"
+        case .nospeaker: return "nospeaker"
         case .pnpm: return "pnpm"
         case .yarn: return "Yarn"
         // Never a row's title: a managed row is named by its item, its group
@@ -313,6 +315,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         case leaf(LeafInstall)
         case fixStorage(FixStorageInstall)
         case multica(MulticaInstall)
+        case nospeaker(NospeakerInstall)
         /// Any manager's item (`CLITools/Managed/`).
         case managed(ManagedItem)
     }
@@ -419,6 +422,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case leaf
         case fixStorage
         case multica
+        case nospeaker
         case pnpm
         case yarn
         /// A manager and the installs of it the check found (`ManagedProvider`).

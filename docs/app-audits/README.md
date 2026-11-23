@@ -98,6 +98,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**Antigravity CLI**](antigravity-cli.md) · 独立版 `agy` · 官方 manifest、内置一键更新、结构化日志、品牌图标 · 2026-11-21
 - [x] [**fix-storage**](fix-storage.md) · 官方脚本默认安装 · GitHub 稳定版检测、结构化日志、手动更新 · 2026-11-21
+- [x] [**nospeaker**](nospeaker.md) · 官方脚本默认安装 · GitHub 稳定版检测、结构化发布说明、签名校验后原位更新 · 2026-11-23
 
 ## Multi-channel families (audit covers all channels)
 

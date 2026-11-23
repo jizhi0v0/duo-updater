@@ -43,7 +43,7 @@ public struct MulticaInstall: Sendable, Equatable {
     public let path: String
     let executable: String
     let binary: MulticaBinary
-    let file: MulticaFileStamp
+    let file: StandaloneCLIFileStamp
     let directory: CLIToolProcesses.FileID
     let linked: Bool
     let writable: Bool
@@ -53,39 +53,6 @@ public struct MulticaInstall: Sendable, Equatable {
     var target: CLIToolProcesses.Target { .init(executable: executable) }
 
     var canReplace: Bool { !linked && writable && !quarantined && file.links == 1 }
-}
-
-/// Detect a rename and in-place edits, including changes made while an archive
-/// is downloading. lstat is used at the original path, including at commit.
-struct MulticaFileStamp: Sendable, Equatable {
-    let identity: CLIToolProcesses.FileID
-    let links: UInt16
-    let owner: uid_t
-    let group: gid_t
-    let mode: mode_t
-    let bytes: off_t
-    let changedSeconds: Int
-    let changedNanoseconds: Int
-
-    init?(_ info: stat) {
-        guard (info.st_mode & S_IFMT) == S_IFREG, info.st_size > 0,
-              info.st_size <= MulticaArchive.maximumExecutableBytes, info.st_mode & 0o111 != 0
-        else { return nil }
-        identity = .init(device: Int64(info.st_dev), inode: UInt64(info.st_ino))
-        links = info.st_nlink
-        owner = info.st_uid
-        group = info.st_gid
-        mode = info.st_mode
-        bytes = info.st_size
-        changedSeconds = info.st_ctimespec.tv_sec
-        changedNanoseconds = info.st_ctimespec.tv_nsec
-    }
-
-    static func read(at path: String) -> Self? {
-        var info = stat()
-        guard lstat(path, &info) == 0 else { return nil }
-        return Self(info)
-    }
 }
 
 struct MulticaScanner: Sendable {
@@ -130,15 +97,15 @@ struct MulticaScanner: Sendable {
     private func read(_ path: String) -> MulticaInstall? {
         guard let executable = CLIToolProcesses.realpath(path),
               !externallyOwned(path), !externallyOwned(executable),
-              let file = MulticaFileStamp.read(at: executable),
+              let file = StandaloneCLIFileStamp.read(at: executable),
               let binary = MulticaBinary.read(at: URL(fileURLWithPath: executable)),
               let directory = CLIToolProcesses.fileID((executable as NSString).deletingLastPathComponent),
               CLIToolProcesses.realpath(path) == executable,
-              MulticaFileStamp.read(at: executable) == file
+              StandaloneCLIFileStamp.read(at: executable) == file
         else { return nil }
 
         let parent = (executable as NSString).deletingLastPathComponent
-        let linked = MulticaFileStamp.read(at: path) != file
+        let linked = StandaloneCLIFileStamp.read(at: path) != file
         let writable = file.owner == geteuid() && (file.mode & 0o7000) == 0
             && access(executable, W_OK) == 0 && access(parent, W_OK | X_OK) == 0
         return MulticaInstall(

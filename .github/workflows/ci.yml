@@ -357,6 +357,8 @@ jobs:
         run: make test-scripts
 
       - name: make test-app
+        env:
+          DUO_HANG_REPORT_SCOPE: ${{ runner.environment == 'self-hosted' && 'job' || 'machine' }}
         run: scripts/run-with-hang-report.sh 1200 make test-app
 
       # The App tests and localization extraction compile Debug. Core's Release

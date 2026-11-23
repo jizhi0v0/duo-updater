@@ -16,6 +16,8 @@ macOS 的两个公开版本沿用同一身份。README 把 Mac 用户指向 GitH
 
 2026-11-23 挂载官方 1.0.0 和 1.1.0 DMG，两个包的严格签名校验均通过。两包 `CFBundleShortVersionString` 分别为 1.0.0、1.1.0，构建号分别为 1、2。构建脚本用 Developer ID 签名并导出公证 App。 [Mac 发布脚本](https://github.com/burakgon/OpenScreens/blob/v1.1.0/scripts/release-mac.sh)
 
+Apple Silicon macOS 27.2 (26B123) VM 上，Developer ID 签名 Release CLI 检测并原位升级官方 1.0.0 → 1.1.0。安装后签名、公证和再次检查均通过。对官方 1.0.0 DMG 的 `channel-verify` 运行确认 1.1.0 的结构化发布说明有 1 条版本记录、9 项变更。
+
 ## 夜扫覆盖
 
-GitHub 注册表枚举 macOS Stable，记录 ID 为 `github:burakgon/OpenScreens:stable`。
+GitHub 注册表枚举 macOS Stable，记录 ID 为 `github:burakgon/OpenScreens:stable`。VM 中用 `--only com.burakgon.openscreens,com.zeabur.oss.desktop` 运行 `duo verify --github --no-installed` 和 `duo verify-install --full`，合计检查三条规则，均通过。此规则下载并检查了 1.1.0 DMG。

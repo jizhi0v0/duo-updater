@@ -36,4 +36,6 @@ ZIP 内只有根目录的 `nospeaker`，本地摘要与 GitHub asset 一致，`c
 签名 Release CLI 在 Apple Silicon macOS 27.3 的隔离目录里以真包运行
 `duo check nospeaker --all --json`，返回 installed 1.0、latest 1.0、upToDate。
 Core 用模拟发布包验证了历史版本识别、摘要错误、指纹写入失败、并发冲突与 ACL 保留。
-签名 App Release 已构建，CLI 工作台的波形图标本轮未完成目视验收。
+Apple Silicon macOS 27.2 (26B123) VM 运行签名 App Release（源码 `43a99169`），
+从菜单栏打开 CLI 工作台并选择真包副本。列表和详情标题均显示波形图标。详情显示
+Version 1.0、Latest 1.0、Up to date 以及结构化 GitHub 发布说明。

@@ -181,8 +181,8 @@ struct GeneralSettingsPage: View {
             SettingsCard {
                 SettingsToggle(
                     "Check other sources for Homebrew apps",
-                    detail: "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first. When off, only apps that update themselves are checked this way.",
-                    info: "This is the default for apps Homebrew installed. Apps whose official Homebrew cask says they update themselves check other sources even when this is off; apps from other taps do not. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when an install from another source is refused for its signature, until that source offers a newer release. For another edition of an app, such as a community build, choose Homebrew Only.",
+                    detail: "When Homebrew has no newer version, GitHub and other sources may offer one.",
+                    info: "This is the default for apps Homebrew installed. Apps whose official Homebrew cask says they update themselves check other sources even when this is off; apps from other taps do not. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when an install from another source is refused for its signature, until that source offers a newer release. For another edition of an app, such as a community build, choose Homebrew Only. For the official Athas cask with Beta selected in Athas, right-click and use Update Source. That copy follows Beta even when this setting is off, unless you choose Homebrew Only.",
                     isOn: $prefs.brewFallbackByDefault)
                     .settingsAnchor(.brewFallback)
                     .onChange(of: prefs.brewFallbackByDefault) { model.brewFallbackDefaultChanged() }

@@ -209,7 +209,9 @@ jobs:
           echo "SWIFTPM_TEST_SCRATCH=$scratch" >> "$GITHUB_ENV"
           # These diagnostics print or copy apps selected from the machine's
           # actual inventory. The vendor signature gate uses a fixed app list.
-          echo 'CORE_TEST_FLAGS=--skip "(listUnknownApps|liveFullCheckSmoke|installPipelineDryRun|anAppStoreAppRestoresOverItself)"' >> "$GITHUB_ENV"
+          skip='listUnknownApps|liveFullCheckSmoke|installPipelineDryRun'
+          skip="$skip|anAppStoreAppRestoresOverItself|noAppAlreadyInstalledOnThisMacWouldBeRefused"
+          printf 'CORE_TEST_FLAGS=--skip "(%s)"\n' "$skip" >> "$GITHUB_ENV"
 
       - name: Toolchain
         run: |
@@ -311,7 +313,7 @@ jobs:
           DUO_HANG_REPORT_SCOPE: ${{ runner.environment == 'self-hosted' && 'job' || 'machine' }}
           # GitHub API tests on the mini use the job token in place of the
           # desktop user's gh sign-in.
-          GITHUB_TOKEN: ${{ runner.environment == 'self-hosted' && github.token || '' }}
+          CORE_TEST_GITHUB_TOKEN: ${{ runner.environment == 'self-hosted' && github.token || '' }}
         run: ${{ runner.environment == 'github-hosted' && 'scripts/run-unclamped.sh' || '' }} scripts/run-with-hang-report.sh 1800 make test-swift
 
       # After a failed test too: the build itself is sound, and main's failures

@@ -115,9 +115,10 @@ SWIFTPM_TEST_SCRATCH ?= $(CURDIR)/DuoUpdaterCore/.build
 
 # The two SwiftPM packages, plus the application-test harness built against them.
 test-swift:
-	cd DuoUpdaterCore && swift test --scratch-path "$(SWIFTPM_TEST_SCRATCH)" $(RESOLVED_ONLY) $(CORE_TEST_FLAGS)
-	swift test --package-path CLI --scratch-path "$(SWIFTPM_TEST_SCRATCH)" $(RESOLVED_ONLY)
-	swift build --package-path application-test --scratch-path "$(SWIFTPM_TEST_SCRATCH)" $(RESOLVED_ONLY)
+	@if [ -n "$$CORE_TEST_GITHUB_TOKEN" ]; then export GITHUB_TOKEN="$$CORE_TEST_GITHUB_TOKEN"; fi; \
+		swift test --package-path DuoUpdaterCore --scratch-path "$(SWIFTPM_TEST_SCRATCH)" $(RESOLVED_ONLY) $(CORE_TEST_FLAGS)
+	env -u CORE_TEST_GITHUB_TOKEN swift test --package-path CLI --scratch-path "$(SWIFTPM_TEST_SCRATCH)" $(RESOLVED_ONLY)
+	env -u CORE_TEST_GITHUB_TOKEN swift build --package-path application-test --scratch-path "$(SWIFTPM_TEST_SCRATCH)" $(RESOLVED_ONLY)
 
 # App/Sources through xcodebuild. check_localizable_keys.py builds the app again
 # with loc-string emission on, and reads the .xcodeproj app-tests.sh generates.

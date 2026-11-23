@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.29-beta.2
+
+**Uygulama araması en uygun sonuçları önce gösterir ve Workbench’te klavye odağını korur.**
+
+**Athas, Zeabur Desktop, OpenScreens, Multica Desktop ve Trina AX için güncelleme desteği eklendi.** Yüklü Athas sürümü kanalları destekliyorsa seçili kanalı izler.
+
+**CLI Tools, ayrı kurulan Multica CLI ve nospeaker’ı güncelleyebilir.**
+
+**kitty, SwiftVM ve Private Internet Access sürüm notları iyileştirildi.** SwiftVM etkin kanalın notlarını gösterir.
+
 ## 0.5.29-beta.1
 
 **DuoUpdater artık Windscribe, Private Internet Access, BlockBlock, McBopomofo ve Backblaze için doğrulanmış yükleyicileri açabiliyor.** Yükleyiciyi indirip açmak için gri «Güncelle» düğmesine tıklayın, ardından güncellemeyi yükleyici penceresinde tamamlayın.

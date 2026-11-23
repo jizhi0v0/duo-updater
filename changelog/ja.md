@@ -2,6 +2,16 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.5.29-beta.2
+
+**アプリ検索では一致度の高い結果が先に表示され、Workbench の検索欄にキーボードフォーカスが残ります。**
+
+**Athas、Zeabur Desktop、OpenScreens、Multica Desktop、Trina AX の更新に対応しました。** インストール済みの Athas がチャンネル切り替えに対応している場合は、選択中のチャンネルに従います。
+
+**CLI Tools で個別にインストールした Multica CLI と nospeaker を更新できます。**
+
+**kitty、SwiftVM、Private Internet Access のリリースノートを改善しました。** SwiftVM は現在のチャンネルのリリースノートを表示します。
+
 ## 0.5.29-beta.1
 
 **Windscribe、Private Internet Access、BlockBlock、McBopomofo、Backblaze の検証済みインストーラを DuoUpdater から開けるようになりました。** グレーの「アップデート」ボタンでインストーラをダウンロードして開き、そのウインドウで更新を完了してください。

@@ -2,6 +2,16 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.29-beta.2
+
+**La ricerca delle app mostra prima i risultati più pertinenti e mantiene il focus della tastiera in Workbench.**
+
+**Aggiunto il supporto per gli aggiornamenti di Athas, Zeabur Desktop, OpenScreens, Multica Desktop e Trina AX.** Athas segue il canale selezionato se la versione installata supporta i canali.
+
+**CLI Tools può aggiornare installazioni autonome di Multica CLI e nospeaker.**
+
+**Migliorate le note di rilascio di kitty, SwiftVM e Private Internet Access.** SwiftVM mostra le note del canale attivo.
+
 ## 0.5.29-beta.1
 
 **DuoUpdater può aprire i programmi di installazione verificati di Windscribe, Private Internet Access, BlockBlock, McBopomofo e Backblaze.** Fai clic sul pulsante grigio «Aggiorna» per scaricare e aprire il programma di installazione, poi completa l’aggiornamento nella sua finestra.

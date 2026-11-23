@@ -234,6 +234,7 @@ public enum AppRecipeIndex {
         com_supercmd_app.set,
         com_superultra_kiln.set,
         com_surteesstudios_Bartender.set,
+        com_swiftvm_app.set,
         com_t3tools_t3code.set,
         com_tableplus_VMPal.set,
         com_tclementdev_timemachineeditor_application.set,

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Carbon.HIToolbox
 import Observation
 
 /// The workbench's sidebar lists (Apps, CLI, Rollback): a lazily built scroll of
@@ -23,8 +24,8 @@ import Observation
 /// - each row is an accessibility element with its selected state, and the list
 ///   a labelled container.
 ///
-/// Apps track the current group with visible row IDs and draw its title in
-/// a fixed overlay. CLI derives its fixed title from native section pinning.
+/// Apps and CLI track the current group with visible row IDs and draw its
+/// title in a fixed overlay.
 struct SidebarList<Content: View, FocusValue: Hashable>: View {
     @Binding var selection: String?
     /// The selectable rows' ids in the order they are drawn: what the keys walk.
@@ -95,17 +96,17 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
             .focusable(isShown, interactions: .edit)
             .focused(focus, equals: focusValue)
             .focusEffectDisabled()
+            .background {
+                SidebarArrowKeys { move in
+                    guard isShown, focus.wrappedValue == focusValue else { return false }
+                    moveSelection(move, proxy: proxy)
+                    return true
+                }
+                .accessibilityHidden(true)
+            }
             .onKeyPress(keys: [.upArrow, .downArrow, .home, .end, .pageUp, .pageDown]) { press in
                 guard let move = Self.move(for: press.key) else { return .ignored }
-                let pageSize = SidebarSelection.pageSize(
-                    viewportHeight: viewportHeight, rowHeight: SidebarRowMetrics.height)
-                if let next = SidebarSelection.target(of: move, from: selection, in: order, pageSize: pageSize) {
-                    keyboardScroll.target = next
-                    selection = next
-                    // No anchor: the least scroll that shows it, as a table scrolls
-                    // to a selection made by key.
-                    proxy.scrollTo(next)
-                }
+                moveSelection(move, proxy: proxy)
                 return .handled
             }
             .accessibilityElement(children: .contain)
@@ -115,6 +116,18 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
         // rows unrealized even at offset zero. Give each ordered result set
         // its own layout, reusing it when more typing matches the same rows.
         .id(isSearching ? order : nil)
+    }
+
+    private func moveSelection(_ move: SidebarMove, proxy: ScrollViewProxy) {
+        let pageSize = SidebarSelection.pageSize(
+            viewportHeight: viewportHeight, rowHeight: SidebarRowMetrics.height)
+        guard let next = SidebarSelection.target(of: move, from: selection, in: order, pageSize: pageSize) else {
+            return
+        }
+        keyboardScroll.target = next
+        selection = next
+        // With no anchor, the proxy scrolls just far enough to show the row.
+        proxy.scrollTo(next)
     }
 
     @ViewBuilder
@@ -170,6 +183,56 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
     }
 }
 
+/// Route plain arrows through AppKit so a held key uses the same handler for
+/// the first press and every repeat.
+private struct SidebarArrowKeys: NSViewRepresentable {
+    let onMove: (SidebarMove) -> Bool
+
+    func makeNSView(context: Context) -> MonitorView { MonitorView() }
+
+    func updateNSView(_ view: MonitorView, context: Context) {
+        view.onMove = onMove
+    }
+
+    static func dismantleNSView(_ view: MonitorView, coordinator: ()) {
+        view.removeMonitor()
+    }
+
+    final class MonitorView: NSView {
+        var onMove: ((SidebarMove) -> Bool)?
+        private var monitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            removeMonitor()
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                self?.handles(event) == true ? nil : event
+            }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        func removeMonitor() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+
+        private func handles(_ event: NSEvent) -> Bool {
+            guard let window, window.isKeyWindow, event.window == nil || event.window === window,
+                  !(window.firstResponder is NSTextView),
+                  event.modifierFlags.intersection([.shift, .control, .option, .command]).isEmpty else {
+                return false
+            }
+            switch Int(event.keyCode) {
+            case kVK_UpArrow: return onMove?(.up) == true
+            case kVK_DownArrow: return onMove?(.down) == true
+            default: return false
+            }
+        }
+    }
+}
+
 /// The sidebar `List`'s row geometry, kept so the rows look as they did: content
 /// 16 pt from the column's edge and its selection 10 pt in, the selection the
 /// row's full height (measured on a `.sidebar` List, 2026-10-10).
@@ -186,9 +249,7 @@ enum SidebarSectionMetrics {
     static let coordinateSpace = "sidebar-scroll"
     static let verticalPadding: CGFloat = 10
     // The existing 20 pt small header control plus the two vertical insets.
-    static let fixedAppHeight: CGFloat = 20 + 2 * verticalPadding
-    static let firstGap: CGFloat = 0
-    static let betweenGap: CGFloat = 0
+    static let fixedHeaderHeight: CGFloat = 20 + 2 * verticalPadding
 }
 
 struct SidebarFixedGroupHeaders {
@@ -209,7 +270,7 @@ private final class SidebarFixedHeaderState {
     @ObservationIgnored var visibleIDs: [String] = []
 
     var height: CGFloat {
-        headerID == nil ? 0 : SidebarSectionMetrics.fixedAppHeight
+        headerID == nil ? 0 : SidebarSectionMetrics.fixedHeaderHeight
     }
 
     func update(using headers: SidebarFixedGroupHeaders, useInitialWhenMissing: Bool) {
@@ -377,10 +438,10 @@ extension View {
         SidebarSectionHeader(id: id, content: self, isInitial: isInitial)
     }
 
-    /// Apps use the same height for the ordinary in-list title and the overlay.
-    func sidebarFixedAppHeader(inlineID: String? = nil) -> some View {
+    /// Keep the same height for the ordinary in-list title and the overlay.
+    func sidebarFixedHeader(inlineID: String? = nil) -> some View {
         sidebarHeaderStyle()
-            .frame(height: SidebarSectionMetrics.fixedAppHeight)
+            .frame(height: SidebarSectionMetrics.fixedHeaderHeight)
             .modifier(SidebarFixedHeaderVisibility(inlineID: inlineID))
     }
 

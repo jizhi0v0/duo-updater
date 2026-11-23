@@ -49,3 +49,16 @@ struct AppSearchField: NSViewRepresentable {
         }
     }
 }
+
+struct BundleIDSearchMatchLabel: View {
+    let bundleID: String
+
+    var body: some View {
+        Text("By Bundle ID", comment: "Short label on an app search result matched by its bundle ID alone")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .help(Text(verbatim: bundleID))
+            .accessibilityValue(Text(verbatim: bundleID))
+    }
+}

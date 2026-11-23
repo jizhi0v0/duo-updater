@@ -288,7 +288,8 @@ struct SelfChangelogHistoryView: View {
                         order: changelog.entries.indices.map(String.init),
                         label: String(localized: "Releases"),
                         focus: $focusedHistory, focusValue: true) {
-                ForEach(changelog.entries.indices, id: \.self) { index in
+                // Match sidebarRow's string ID so offscreen releases are reachable.
+                ForEach(changelog.entries.indices, id: \.description) { index in
                     let entry = changelog.entries[index]
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 8) {

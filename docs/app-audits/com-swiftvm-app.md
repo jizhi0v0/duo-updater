@@ -98,18 +98,10 @@ stable 副本只读 stable feed，那里没有 beta item，不存在跨轨。
 - 阻塞项: 厂商不发
 
 ## Changelog
-- 来源: **无**。feed 没有 `<description>`、没有 `<sparkle:releaseNotesLink>`，只有
-  `<sparkle:fullReleaseNotesLink>` 指向 GitHub release 页；而那三个 release 的正文都是空的。
-- 结构化（2026-10-12，`channel-verify` 的 `changelog pane` 行，三个包相同）:
-  `changelog pane  none — the pane says there are no release notes`
-- 为什么是空的（settled from source）: 两个 release workflow 都用 GitHub 的
-  `releases/generate-notes` 生成正文，再经 `scripts/clean-changelog.sh` 去掉 `**Full Changelog**`
-  行、New Contributors 段和「by @x in …」尾巴。该 API 按合并的 PR 列条目；仓库至今 0 个 PR
-  （2026-10-12），于是只剩被删掉的那一行。GitHub API 对 v1.0.0、v1.0.0-beta.16、v1.0.0-beta.12
-  返回 `"body": null`。仓库里也没有 CHANGELOG 文件，官网（`website/`）没有更新日志页。
-- `fullReleaseNotesLink` 不被 `SparkleAppcastSource` 读取（只读 `releaseNotesLink`）；就算读了，指向的也是空页。
-- 跟随 channel: 不适用（目前没有说明）
-- Recipe 状态: **暂不需要**——厂商没发说明，recipe 只会解析出零条。重开条件与做法见「建议下一步」。
+
+- Stable 和 Beta 各有一条 `.gitHubReleases` recipe，从同一份 GitHub Releases JSON 读取各自的版本正文。版本标签分别匹配 `vX.Y.Z` 和 `vX.Y.Z-beta.N`，辅助发布和空正文由现有解析器跳过。
+- Appcast 的 `sparkle:fullReleaseNotesLink` 指向每个版本的 GitHub Release。Duo Updater 通过 recipe 取得正文，读取失败时可回退到 [GitHub Releases](https://github.com/swiftvm-app/swiftvm/releases)。
+- 版本探测沿用两个 Sparkle feed。Stable 和 Beta 的安装身份已分别登记在 `verify/identities.json`，日志随 recipe 纳入夜间扫描。
 
 ## 一键安装
 - 状态: 走 Sparkle 通用一键路径（enclosure = GitHub release 的 `SwiftVM-<v>.dmg`，带 `sparkle:edSignature`；
@@ -176,8 +168,7 @@ swift test --package-path DuoUpdaterCore --filter SwiftVMChannelTests
   没有 binding 得到 nil（红），有 binding 得到 1.0.0-beta.16（绿）。变异：resolver 改答 `.stable`
   让它与 `theBetaFeedResolvesTheDerivedBetaTag` 变红。
 
-## 建议下一步
-1. changelog 重开条件：任一版本 release 正文非空。届时照 `Recipes/com-robinebers-openusage.swift`
-   加两条 `.gitHubReleases` recipe（stable / beta），**都要** `tagPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?)$"#`，
-   否则 beta recipe 会把 `beta-channel` 那个 prerelease 的一句话当成一个版本；beta recipe **不要**
-   `includesPromotedStable`（beta 副本不会被推 stable）。先看真实正文的标题结构再定。
+## 历史与实测
+
+- 2026-10-12 首次接入时，v1.0.0、v1.0.0-beta.16 和 v1.0.0-beta.12 的 GitHub Release 正文为空，三份真包的 `channel-verify` 均报告无更新日志。当时的发布流程使用 GitHub `releases/generate-notes`，再删去比较链接等元数据。
+- 2026-11-23 复查，最早有正文的 Stable 版本是 1.1.0。Releases API 的前 50 条含 14 个有正文的 Stable 版本和 26 个有正文的 Beta 版本。1.14.0 和 1.14.0-beta.99 均有 4 条说明。Stable 与 Beta appcast 仍只提供指向相应 release 的 `sparkle:fullReleaseNotesLink`。

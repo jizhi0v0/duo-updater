@@ -7,6 +7,10 @@ import Testing
 @Suite struct NospeakerTests {
     private enum FixtureError: Error { case zip, unexpectedRequest(URL) }
 
+    // ZIP fixtures still spawn tar under the fully parallel Core suite. Keep
+    // the production refresh deadline out of tests that assert lookup results.
+    private let fixtureLookupBudget: Duration = .seconds(300)
+
     private func release(_ tag: String, zip: Data, includesDigest: Bool = true) throws -> Data {
         let sha = SHA256.hash(data: zip).map { String(format: "%02x", $0) }.joined()
         var asset = ["name": "nospeaker.zip"]
@@ -77,7 +81,7 @@ import Testing
                     return oldZIP
                 default: throw FixtureError.unexpectedRequest(url)
                 }
-            }, isVendorBinary: { _ in true }))
+            }, isVendorBinary: { _ in true }), lookupBudget: fixtureLookupBudget)
         let sighting = try #require(await original.scan().first)
         #expect(sighting.version == nil)
         let current = try #require(await original.check().statuses.first)
@@ -164,7 +168,7 @@ import Testing
                 case "/os6/nospeaker/releases/download/v1.1/nospeaker.zip": return oldZIP
                 default: throw FixtureError.unexpectedRequest(url)
                 }
-            }, isVendorBinary: { _ in true }), manualBin: manualBin)
+            }, isVendorBinary: { _ in true }), manualBin: manualBin, lookupBudget: fixtureLookupBudget)
         let offer = try #require(await provider.check().statuses.first)
         #expect(offer.path == manual.path)
         #expect(offer.installedVersion == "1.1")
@@ -223,7 +227,7 @@ import Testing
                 case "releases": throw CLIToolReleaseNotesError.rateLimited
                 default: throw FixtureError.unexpectedRequest(url)
                 }
-            }, isVendorBinary: { _ in true }), manualBin: manualBin)
+            }, isVendorBinary: { _ in true }), manualBin: manualBin, lookupBudget: fixtureLookupBudget)
         let statuses = await provider.check().statuses
         #expect(statuses.first { $0.path == manual.path }?.state == .upToDate)
         #expect(statuses.first { $0.path == vendor.path }?.withheld == .rateLimited)

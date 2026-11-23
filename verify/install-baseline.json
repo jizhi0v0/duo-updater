@@ -426,6 +426,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:burakgon\/OpenScreens:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:chekusu\/yomado:stable" : {
       "closedAt" : "2026-10-29T03:05:32Z",
       "consecutiveActionable" : 0,
@@ -942,6 +948,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:multica-ai\/multica:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:musescore\/MuseScore:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1322,6 +1334,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:trina-app\/trina-ax:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:tropy\/tropy:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1413,6 +1431,18 @@
       "sweepsSinceComment" : 0
     },
     "install:github:yetone\/magpie-releases:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:zeabur-oss\/zeabur:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:zeabur-oss\/zeabur:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1857,14 +1887,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 25,
+      "consecutiveActionable" : 26,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-22T14:22:27Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 2
+      "sweepsSinceComment" : 3
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2036,10 +2066,9 @@
     },
     "install:vendor:com.deepseek.dsh:alpha" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-11-23T04:42:35Z",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:vendor:com.docker.docker:nightly" : {
       "consecutiveActionable" : 0,
@@ -2648,11 +2677,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.youqu.todesk.mac:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 2201,
+      "lastCommentedAt" : "2026-11-23T17:32:30Z",
       "lastSignature" : "install.content",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "install.content",
+      "sweepsSinceComment" : 0
     },
     "install:vendor:com.zarifpour.superconductor:nightly" : {
       "consecutiveActionable" : 0,
@@ -2880,10 +2912,10 @@
     },
     "install:vendor:org.inkscape.Inkscape:stable" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 2,
       "consecutiveInstallTransient" : 0,
       "infraSince" : "2026-11-22T23:31:57Z",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 2
     },
     "install:vendor:org.krita:stable:download-page" : {
       "consecutiveActionable" : 0,
@@ -2893,9 +2925,10 @@
     },
     "install:vendor:org.krita:stable:krita6" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
+      "consecutiveInfra" : 1,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "infraSince" : "2026-11-23T17:32:21Z",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:org.libreoffice.script:stable" : {
       "consecutiveActionable" : 0,
@@ -3013,5 +3046,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-23T04:42:40Z"
+  "updatedAt" : "2026-11-23T17:32:30Z"
 }

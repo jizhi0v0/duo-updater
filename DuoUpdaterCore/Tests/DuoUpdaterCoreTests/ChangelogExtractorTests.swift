@@ -2439,6 +2439,26 @@ Tuesday, October 6, 2026
     #expect(ChangelogExtractor.anEntrySwallowsAnother(in: chromeDesktopStableLabelFixture, using: recipe) == false)
 }
 
+@Test func athasChangelogSeparatesTheCurrentTracksFromTheRetiredPreview() throws {
+    let body = #"""
+    [
+      {"tag_name":"v0.19.0-beta.4","draft":false,"prerelease":true,"published_at":"2026-11-22T11:17:10Z","body":"Athas v0.19.0-beta.4: the native (GPUI) Athas."},
+      {"tag_name":"v0.17.0","draft":false,"prerelease":false,"published_at":"2026-10-15T14:07:41Z","body":"* Add Cloud Agents for running agents in the cloud"},
+      {"tag_name":"v0.14.1-preview.5","draft":false,"prerelease":true,"published_at":"2026-09-08T00:24:30Z","body":"* Remove continuous agent bot icons"}
+    ]
+    """#
+    for (channel, expected) in [
+        (ReleaseChannel.stable, ["0.17.0"]), (.beta, ["0.19.0-beta.4", "0.17.0"]),
+    ] {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: AthasChannel.bundleID, channel: channel))
+        let format = try #require(recipe.structuredFormat)
+        let changelog = try #require(StructuredChangelogDecoder.decode(
+            body, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries,
+            includesPromotedStable: recipe.includesPromotedStable, tagPattern: recipe.tagPattern))
+        #expect(changelog.entries.map(\.version) == expected)
+    }
+}
+
 // TablePro deliberately has no recipe any more — the app's Sparkle appcast carries
 // the notes inline, so the pane reads them from the feed we already fetch. Pin that
 // absence: a future "add a changelog for TablePro" would silently preempt the feed.

@@ -2256,6 +2256,7 @@ private struct AppRow: View {
             BrewFallbackMenu(
                 choice: model.brewFallbackOverride(for: result),
                 checksByDefault: model.brewFallbackChecksByDefault(for: result),
+                followsAppChannel: BrewFallbackPolicy.followsAthasBeta(result.app, cask: result.homebrewSourceIdentifier),
                 withheldForSigning: result.brewFallbackWithheldForSigning,
                 set: { model.setBrewFallbackOverride($0, for: result) })
                 .disabled(stage != nil)
@@ -2524,14 +2525,16 @@ extension UpdateResult {
 struct BrewFallbackMenu: View {
     let choice: BrewFallbackPolicy.Override?
     let checksByDefault: Bool
+    var followsAppChannel = false
     /// `UpdateResult.brewFallbackWithheldForSigning`: say why the row is still
     /// Homebrew's although other sources are allowed.
     var withheldForSigning = false
     let set: (BrewFallbackPolicy.Override?) -> Void
 
     var body: some View {
-        Menu("When Homebrew Has No Update") {
-            Picker("When Homebrew Has No Update", selection: Binding(get: { choice }, set: set)) {
+        let title: LocalizedStringKey = followsAppChannel ? "Update Source" : "When Homebrew Has No Update"
+        Menu(title) {
+            Picker(title, selection: Binding(get: { choice }, set: set)) {
                 Text(checksByDefault
                     ? "Use Settings (Check Other Sources)"
                     : "Use Settings (Homebrew Only)")

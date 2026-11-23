@@ -531,18 +531,24 @@ public struct UpdateChecker: Sendable {
                 result.homebrewSelfUpdating = brewAnswer?.homebrewSelfUpdating ?? false
                 if source.name == "Homebrew" {
                     let key = InstallPreferenceKey.key(for: app)
-                    // These self-updating casks publish Stable. An opted-in copy
-                    // checks its own feed even when the cask is newer.
+                    // A copy that opts into a vendor track can use that feed
+                    // even when the stable cask has an update of its own.
                     let bundleID = app.bundleID?.lowercased()
-                    let followsVendorChannel = remote.homebrewSelfUpdating && remote.offeredChannel == .stable
+                    let athasBeta = remote.offeredChannel == .stable
+                        && BrewFallbackPolicy.followsAthasBeta(app, cask: remote.sourceIdentifier)
+                    let followsSelfUpdatingChannel = remote.homebrewSelfUpdating
                         && ((bundleID == ClaudeDesktopChannel.bundleID && app.releaseChannel == .latest)
                             || (bundleID == DockerDesktopChannel.bundleID && app.releaseChannel == .nightly))
+                    let followsVendorChannel = athasBeta
+                        || (remote.offeredChannel == .stable && followsSelfUpdatingChannel)
                     // A self-updating cask can advertise a separate new generation.
                     // Keep checking the installed generation's own update feed
                     // when this copy allows non-Brew checks.
                     let offersManualMigration = remote.homebrewSelfUpdating && result.manualMajorUpgradePage != nil
-                    let checksOtherSources = (status == .upToDate || followsVendorChannel || offersManualMigration)
-                        && brewFallback.checksOtherSources(key, selfUpdating: remote.homebrewSelfUpdating)
+                    let allowsOtherSources = brewFallback.checksOtherSources(
+                        key, selfUpdating: remote.homebrewSelfUpdating, followsAppChannel: athasBeta)
+                    let checksOtherSources = allowsOtherSources
+                        && (status == .upToDate || followsVendorChannel || offersManualMigration)
                     if checksOtherSources && followsVendorChannel {
                         result = UpdateResult(app: app, remote: nil, status: .unknown)
                     }

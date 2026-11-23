@@ -242,6 +242,7 @@ struct AutomaticInstallTests {
             launch.yield(())
             launch.finish()
             // Yielding only schedules the task; the process may not exist yet.
+            // offpool-lint:allow — rotateContents calls this hook in its offCooperativePool exchange.
             try #require(launched.wait(timeout: .now() + 15) == .success,
                          "The real helper must launch before testing its guard")
             var observed: [NestedAppGuard.RunningProcess] = []

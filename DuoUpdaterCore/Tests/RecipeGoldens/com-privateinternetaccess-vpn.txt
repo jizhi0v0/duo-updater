@@ -128,7 +128,7 @@ changelogs[0].source = URL("https://www.privateinternetaccess.com/pages/changelo
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
-changelogs[0].entryPattern = "<article class=\"changelog-release\">(?:(?!</?article\\b).)*?<h3\\b[^>]*>\\s*v(?<version>[0-9]+(?:\\.[0-9]+)+)\\s*</h3>(?:(?!</?article\\b|Release Date:|<ul\\b).)*(?:Release Date:\\s*(?<date>[A-Za-z]+\\s+[0-9]{1,2},\\s+[0-9]{4}))?(?<body>(?:(?!</?article\\b).)*)</article>"
+changelogs[0].entryPattern = "<article class=\"changelog-release\">(?:(?!</?article\\b).)*?<h3\\b[^>]*>\\s*v(?<version>[0-9]+(?:\\.[0-9]+)+)\\s*</h3>(?:(?!</?article\\b|Release Date:|<ul\\b).)*+(?:Release Date:\\s*(?<date>[A-Za-z]+\\s+[0-9]{1,2},\\s+[0-9]{4}))?(?<body>(?:(?!</?article\\b).)*)</article>"
 changelogs[0].itemPatterns = Array(count: 1)
 changelogs[0].itemPatterns[0] = "<li\\b[^>]*>(?<item>.*?)</li>"
 changelogs[0].stripTags = true
@@ -176,7 +176,8 @@ supersededFeeds = Dictionary(count: 0)
 
 loginWalls = Dictionary(count: 0)
 
-changelogPages = Dictionary(count: 0)
+changelogPages = Dictionary(count: 1)
+changelogPages["com.privateinternetaccess.vpn"] = URL("https://www.privateinternetaccess.com/pages/changelog")
 
 oneClickGates = Array(count: 0)
 

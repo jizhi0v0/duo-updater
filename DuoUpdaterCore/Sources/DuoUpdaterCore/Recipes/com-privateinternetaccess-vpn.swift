@@ -34,7 +34,8 @@ enum com_privateinternetaccess_vpn {
                 entryPattern:
                     #"<article class="changelog-release">"#
                     + #"(?:(?!</?article\b).)*?<h3\b[^>]*>\s*v(?<version>[0-9]+(?:\.[0-9]+)+)\s*</h3>"#
-                    + #"(?:(?!</?article\b|Release Date:|<ul\b).)*"#
+                    // Stop at the first date, list or article boundary.
+                    + #"(?:(?!</?article\b|Release Date:|<ul\b).)*+"#
                     + #"(?:Release Date:\s*(?<date>[A-Za-z]+\s+[0-9]{1,2},\s+[0-9]{4}))?"#
                     + #"(?<body>(?:(?!</?article\b).)*)</article>"#,
                 itemPatterns: [
@@ -44,7 +45,8 @@ enum com_privateinternetaccess_vpn {
         channelProofs: [
             ChannelProofKey(bundleID, .beta):
                 .recipeAnchor(#"/(?:pages/changelog|clients/desktop/beta\.json)$"#, in: ["url"]),
-        ])
+        ],
+        changelogPages: [bundleID: changelog])
 
     private static func stableRecipe(channel: ReleaseChannel) -> VendorProbeRecipe {
         let macFilename = #"pia-macos-[0-9]+(?:\.[0-9]+)+-[0-9]+\.zip"#

@@ -96,6 +96,20 @@ struct PrivateInternetAccessChangelogTests {
         #expect(changelog.entries[0].items == ["Second release's notes"])
     }
 
+    @Test func unterminatedPreambleDoesNotHideTheNextRelease() throws {
+        let page = """
+        <article class="changelog-release">
+          <h3>v3.8.0</h3>
+          \(String(repeating: "<p>Release overview</p>", count: 200))
+        <article class="changelog-release">
+          <h3>v3.7.2</h3><ul class="log-list"><li>Connectivity improvements</li></ul>
+        </article>
+        """
+        let changelog = try #require(ChangelogExtractor.extract(from: page, using: Self.recipe()))
+        #expect(changelog.entries.map(\.version) == ["3.7.2"])
+        #expect(changelog.entries.first?.items == ["Connectivity improvements"])
+    }
+
     @Test func unrelatedMarkupDegradesToNil() throws {
         let recipe = try Self.recipe()
         #expect(ChangelogExtractor.extract(from: "<main>Unrecognised page</main>", using: recipe) == nil)

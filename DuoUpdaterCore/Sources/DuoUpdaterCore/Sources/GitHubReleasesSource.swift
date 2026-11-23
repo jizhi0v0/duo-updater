@@ -1861,7 +1861,10 @@ public struct GitHubReleasesSource: UpdateSource {
                     // handful of platform-partial releases is normal; a run of
                     // them means the pattern stopped matching, which is a recipe
                     // failure and has to surface as one.
-                    if skippedForMissingAsset.count > Self.maxReleasesWithoutMacOSAsset { break }
+                    // For exact tag-named DMGs, the bounded page can contain
+                    // other products. Keep their diagnostics, but let the
+                    // highest desktop candidate on that page answer.
+                    if !pinsDMGToTag, skippedForMissingAsset.count > Self.maxReleasesWithoutMacOSAsset { break }
                     continue
                 }
                 // The vendor says this release is not for this host's

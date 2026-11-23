@@ -146,16 +146,19 @@ struct GitHubListProbeTests {
         #expect(ByURLProtocol.script.urls == [endpoint, GitHubReleasesSource.latestEndpoint(rule)])
     }
 
-    @Test func openScreensSkipsAReleaseWithAnEarlierDMG() async throws {
+    @Test func openScreensTakesTheHighestStableReleaseWithItsOwnDMG() async throws {
         let rule = try #require(GitHubReleaseRegistry.rules.first { $0.bundleID == "com.burakgon.openscreens" })
         let latest = GitHubReleasesSource.latestEndpoint(rule)
         let list = GitHubReleasesSource.listEndpoint(rule, pageSize: rule.listPageSize)
         let misplaced = Self.release("v1.2.0", assets: ["OpenScreens-1.1.0.dmg"], prerelease: false)
         let published = Self.release("v1.1.0", assets: ["OpenScreens-1.1.0.dmg"], prerelease: false)
         let older = Self.release("v1.0.0", assets: ["OpenScreens-1.0.0.dmg"], prerelease: false)
+        let mobileOnly = (3...7).map {
+            Self.release("v1.\($0).0", assets: ["OpenScreens-1.\($0).0.ipa"], prerelease: false)
+        }
         ByURLProtocol.script.load([
             latest: .init(body: misplaced, etag: nil),
-            list: .init(body: Self.page([misplaced, older, published]), etag: nil),
+            list: .init(body: Self.page([misplaced, older, published] + mobileOnly), etag: nil),
         ])
         let source = GitHubReleasesSource(rules: [rule], session: Self.session())
         let result = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)

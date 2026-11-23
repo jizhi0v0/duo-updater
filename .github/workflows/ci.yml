@@ -24,8 +24,9 @@
 # runners are billed even on public repositories.
 #
 # DUO_MINI_APP_CI=enabled permits only the repository owner's same-repo PRs
-# to run the App job on the mini. Autofix branches stay hosted. The desktop
-# account's root-owned hook independently checks the event and head repo.
+# to run the App job on the mini. Autofix branches stay hosted.
+# Keep GitHub's collaborators-only PR creation policy while the desktop
+# runners are available. Their root-owned hook also checks the event and repo.
 # Assign duo-mini-app to one runner to limit concurrency on the shared disk.
 # The mini uses per-job build directories and leaves hosted caches alone.
 name: CI

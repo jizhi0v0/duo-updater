@@ -23,7 +23,11 @@ if ! cmp -s "$APP_DIR/Package.resolved" "$pins_dir/Package.resolved"; then
     cp "$APP_DIR/Package.resolved" "$pins_dir/Package.resolved"
 fi
 
-PACKAGE_ARGS=(COMPILER_INDEX_STORE_ENABLE=NO)
+# Debug App tests share this DerivedData with Release. Xcode's default
+# GeneratedModuleMaps path omits the configuration, so switching builds rewrites
+# the package module maps and invalidates the optimized Swift compilation.
+PACKAGE_ARGS=(COMPILER_INDEX_STORE_ENABLE=NO
+    'GENERATED_MODULEMAP_DIR=$(OBJROOT)/GeneratedModuleMaps$(EFFECTIVE_PLATFORM_NAME)/$(CONFIGURATION)')
 if [ -n "${XCODE_CLONED_SOURCE_PACKAGES:-}" ]; then
     PACKAGE_ARGS+=(-clonedSourcePackagesDirPath "$XCODE_CLONED_SOURCE_PACKAGES")
 fi

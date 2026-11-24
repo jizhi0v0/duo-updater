@@ -10256,6 +10256,21 @@ final class AppListModel {
         }
     }
 
+    // MARK: - Per-app update choices
+
+    func ollamaChannel(for result: UpdateResult) -> ReleaseChannel? {
+        guard result.app.bundleID == OllamaUpdateChannel.bundleID,
+              !result.app.isMASApp, !result.app.isTestFlightApp else { return nil }
+        return prefs.ollamaChannel(for: result.app)
+    }
+
+    func setOllamaChannel(_ channel: ReleaseChannel, for result: UpdateResult) {
+        guard !isChecking, installing[result.id] == nil, let previous = ollamaChannel(for: result),
+              previous != channel else { return }
+        prefs.setOllamaChannel(channel, for: result.app)
+        Task { await retry(result) }
+    }
+
     // MARK: - Ignore / skip
 
     /// Whether a row's menu offers the "When Homebrew has no update" choice:

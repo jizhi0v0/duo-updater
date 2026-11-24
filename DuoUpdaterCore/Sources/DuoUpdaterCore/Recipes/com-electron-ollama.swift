@@ -1,8 +1,23 @@
 import Foundation
 
 enum com_electron_ollama {
+    private static let bundleID = OllamaUpdateChannel.bundleID
+    private static let releases = URL(string: "https://github.com/ollama/ollama/releases")!
+    private static let archivePrefix = #"https://github\.com/ollama/ollama/releases/download/v"#
+    private static let releaseVersion = #"[0-9]+(?:\.[0-9]+)+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"#
+    private static let archiveSuffix = #"/Ollama-darwin\.zip"#
+
     static let set = AppRecipeSet(
         family: "com-electron-ollama",
+        probes: [
+            // History: docs/app-audits/com-electron-ollama.md#历史与实测
+            // Ollama's desktop updater asks its own API about the running version.
+            // The service decides whether to offer a release. Take both the full
+            // version (including any suffix) and ZIP URL from that same answer.
+            // The ZIP is installed through the normal Developer ID checks.
+            updateProbe(channel: .stable),
+            updateProbe(channel: .preview),
+        ],
         changelogs: [
         // History: docs/app-audits/com-electron-ollama.md#历史与实测
         // Ollama — GitHub releases page. Each release is a <section> with an
@@ -22,14 +37,14 @@ enum com_electron_ollama {
         // Pre-releases are skipped: the h2 is the release NAME, not the tag, and
         // Ollama names its release candidates after the version they lead up to
         // (e.g. tag `v0.40.0-rc3` carries the h2 `v0.40.0`), so `[\d.]+` reads an
-        // rc as a final release. The detection source is `/releases/latest`, which
-        // excludes prereleases, so the pane ran ahead of it (#872). The section's
+        // rc as a final release. The structured history therefore selects
+        // the stable releases (#872). The section's
         // "Pre-release" label sits between the h2 and `<relative-time>`; the
         // tempered dot refuses to step over it. The label, not the tag's shape, is
         // the discriminator: a prerelease can carry a plain `v<x.y.z>` tag (History).
         ChangelogRecipe(
-            bundleID: "com.electron.ollama",
-            source: URL(string: "https://github.com/ollama/ollama/releases")!,
+            bundleID: bundleID,
+            source: releases,
             entryPattern:
                 #"<section[^>]*aria-labelledby="hd-[^"]*"[^>]*>\s*"#
                 + #"<h2 class="sr-only"[^>]*>v(?<version>[\d.]+)</h2>(?:(?!>Pre-release<).)*?"#
@@ -39,41 +54,42 @@ enum com_electron_ollama {
                 #"<li>(?<item>.*?)</li>"#,
                 #"<p>(?!<strong>Full Changelog</strong>)(?<item>.*?)</p>"#,
             ]),
+        // Preview can also be served a promoted stable release. Use the actual
+        // tag from the release section so a candidate keeps its exact suffix.
+        ChangelogRecipe(
+            bundleID: bundleID,
+            source: releases,
+            entryPattern: #"<section[^>]*\bid="release-v(?<version>\#(releaseVersion))"[^>]*>"#
+                + #"(?:(?!</section>).)*?<relative-time[^>]*datetime="(?<date>[^T]+)T[^"]*"[^>]*>.*?"#
+                + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
+            itemPatterns: [
+                #"<li>(?<item>.*?)</li>"#,
+                #"<p>(?!<strong>Full Changelog</strong>)(?<item>.*?)</p>"#,
+            ],
+            channel: .preview),
         ],
-        githubRules: [
-        // Ollama — Electron app distributed via an `auto_updates` Homebrew cask,
-        // which falls through `HomebrewCaskSource`. The bundle checked when this rule
-        // was added had no `SUFeedURL` either (History). A copy like that has no
-        // other detection source: without this rule its row would have only the
-        // changelog recipe.
-        // The macOS app is the same GitHub `/releases/latest`: when checked
-        // (History has the dates), ollama.com's `/download/Ollama.dmg` and the
-        // `/download/Ollama-darwin.zip` that `install.sh` fetches both 307'd to
-        // `github.com/ollama/ollama/releases/latest/download/…`. Tags carry a `v`
-        // prefix (e.g. `v0.30.6`), stripped by the
-        // default pattern → `0.30.6`. The .app inside the zip reported the tag's
-        // version as CFBundleShortVersionString when verified (History) —
-        // homogeneous, no ghost update. Stable channel, no prereleases
-        // (`/releases/latest`).
-        //
-        // Best-effort one-click: the `Ollama-darwin.zip` asset IS a notarized
-        // Developer ID build, Team 3MU9H2V9Y9 (Infra Technologies) matching the
-        // install, so the in-place swap passes the VendorInstaller Team-ID gate.
-        // Ollama ships its own updater, but it has been seen stuck releases behind
-        // (History), so rather than refuse to act we offer
-        // the swap as a fallback when its updater hasn't kept up. The zip wraps
-        // `Ollama.app`, swapped in place like the other zip recipes. Ollama runs a
-        // background `ollama serve`, so after the swap the live process is still the
-        // old build and the row lands in `needsRestart` → the standard Restart action
-        // quits every `com.electron.ollama` instance and reopens it on the new build.
-        GitHubReleaseRule(
-            bundleID: "com.electron.ollama",
-            owner: "ollama", repo: "ollama",
-            installAssetPattern: #"^Ollama-darwin\.zip$"#,
-            installerKind: .zip),
+        channelProofs: [
+            ChannelProofKey(bundleID, .preview):
+                .recipeAnchor(#"[?&]channel=preview(?:&|\z)"#, in: ["url"]),
         ],
-        changelogPages: [
-        // Ollama — auto_updates cask, Electron app; GitHub releases.
-        "com.electron.ollama": URL(string: "https://github.com/ollama/ollama/releases")!,
-        ])
+        changelogPages: [bundleID: releases])
+
+    private static func updateProbe(channel: ReleaseChannel) -> VendorProbeRecipe {
+        let preview = channel == .preview
+        let endpoint = "https://ollama.com/api/update?os=darwin&arch=arm64"
+            + (preview ? "&channel=preview" : "")
+        return VendorProbeRecipe(
+            bundleID: bundleID,
+            url: URL(string: endpoint)!,
+            mode: .installedVersionResponseBody(queryParameter: "version"),
+            versionPattern: #""url"\s*:\s*"\#(archivePrefix)(\#(releaseVersion))\#(archiveSuffix)""#,
+            downloadURL: URL(string: preview
+                ? "https://docs.ollama.com/faq#how-do-i-install-a-pre-release"
+                : "https://ollama.com/download"),
+            changelogURL: releases,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""url"\s*:\s*"(\#(archivePrefix)\#(releaseVersion)\#(archiveSuffix))""#),
+                kind: .zip),
+            channel: channel)
+    }
 }

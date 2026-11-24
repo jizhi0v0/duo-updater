@@ -926,6 +926,11 @@ public struct AppScanner: Sendable {
             feedChannelNames = bound.sparkleChannelNames
         }
 
+        if bundleID == OllamaUpdateChannel.bundleID, !isMAS, !isTestFlight {
+            releaseChannel = OllamaUpdateChannel.selected(for: bundleURL)
+            channelIsAuthoritative = true
+        }
+
         // One pass over the executable answers "what is this built with", "which of
         // Apple's frameworks does it link" and "against which SDK". The detector
         // decides which binary is the app; the SDK is taken from that one, out of

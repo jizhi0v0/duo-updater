@@ -1366,6 +1366,13 @@ private let ollamaPrereleaseFixture = """
     ])
 }
 
+@Test func ollamaPreviewNotesUseTheTagAndIncludeStableFallback() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "com.electron.ollama", channel: .preview))
+    let changelog = try #require(ChangelogExtractor.extract(from: ollamaPrereleaseFixture, using: recipe))
+    #expect(changelog.entries.map(\.version) == ["0.40.0-rc3", "0.35.1"])
+}
+
 @Test func extractsOrbStackEntriesInOrder() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.kdrag0n.MacVirt"))
     let changelog = try #require(ChangelogExtractor.extract(from: orbStackFixture, using: recipe))

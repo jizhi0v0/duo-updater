@@ -138,14 +138,15 @@ extension VendorProbeRecipe: Codable {
 
 extension VendorProbeRecipe.Mode: Codable {
     enum CodingKind: String, CaseIterable {
-        case redirectFilename, responseBody, longbridgeManifest, dockerAppcast, jetBrainsIdeaEAP, versionedDirectory,
-             zipEntryPlist, redirectArchiveInfoPlist
+        case redirectFilename, responseBody, installedVersionResponseBody, longbridgeManifest, dockerAppcast,
+             jetBrainsIdeaEAP, versionedDirectory, zipEntryPlist, redirectArchiveInfoPlist
     }
 
     public init(from decoder: Decoder) throws {
         let (kind, c) = try RecipeCoding.taggedObject(CodingKind.self, in: decoder) {
             switch $0 {
             case .redirectFilename, .responseBody, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP: return []
+            case .installedVersionResponseBody: return ["queryParameter"]
             case .versionedDirectory: return ["linkPattern"]
             case .zipEntryPlist: return ["entry", "key"]
             case .redirectArchiveInfoPlist: return ["entry"]
@@ -154,6 +155,9 @@ extension VendorProbeRecipe.Mode: Codable {
         switch kind {
         case .redirectFilename: self = .redirectFilename
         case .responseBody: self = .responseBody
+        case .installedVersionResponseBody:
+            self = .installedVersionResponseBody(
+                queryParameter: try c.decode(String.self, forKey: .init("queryParameter")))
         case .longbridgeManifest: self = .longbridgeManifest
         case .dockerAppcast: self = .dockerAppcast
         case .jetBrainsIdeaEAP: self = .jetBrainsIdeaEAP
@@ -176,6 +180,9 @@ extension VendorProbeRecipe.Mode: Codable {
             try c.encode(CodingKind.redirectFilename.rawValue, forKey: .init("kind"))
         case .responseBody:
             try c.encode(CodingKind.responseBody.rawValue, forKey: .init("kind"))
+        case .installedVersionResponseBody(let queryParameter):
+            try c.encode(CodingKind.installedVersionResponseBody.rawValue, forKey: .init("kind"))
+            try c.encode(queryParameter, forKey: .init("queryParameter"))
         case .longbridgeManifest:
             try c.encode(CodingKind.longbridgeManifest.rawValue, forKey: .init("kind"))
         case .dockerAppcast:

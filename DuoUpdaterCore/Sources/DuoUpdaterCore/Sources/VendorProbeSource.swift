@@ -392,13 +392,13 @@ public struct VendorProbeSource: UpdateSource {
         let allowInstall = !app.prefersVendorProbeOverToolbox
 
         guard matching.count > 1 else {
-            return await probeOutcome(matching[0], allowInstall: allowInstall)
+            return await probeOutcome(matching[0], for: app, allowInstall: allowInstall)
         }
         // One channel, several endpoints: probe them all and answer with the
         // highest version any of them stands behind. See `Self.best`.
         var outcomes: [ProbeOutcome] = []
         for recipe in matching {
-            outcomes.append(await probeOutcome(recipe, allowInstall: allowInstall))
+            outcomes.append(await probeOutcome(recipe, for: app, allowInstall: allowInstall))
         }
         return Self.best(of: outcomes, installedApp: app)
     }
@@ -667,6 +667,7 @@ public struct VendorProbeSource: UpdateSource {
 
     func probeOutcome(
         _ recipe: VendorProbeRecipe,
+        for app: InstalledApp? = nil,
         allowInstall: Bool = true,
         checkInstallURL: Bool = false
     ) async -> ProbeOutcome {
@@ -690,8 +691,18 @@ public struct VendorProbeSource: UpdateSource {
                 bodySample: sample, elapsedMs: elapsed())
         }
 
+        let installedVersion: String?
+        if case .installedVersionResponseBody = recipe.mode, let app {
+            guard let version = app.shortVersion, !version.isEmpty else {
+                return fail(.notApplicable("the installed copy has no marketing version"))
+            }
+            installedVersion = version
+        } else {
+            installedVersion = nil
+        }
+
         let body: FetchedBody
-        switch await fetchBody(recipe) {
+        switch await fetchBody(recipe, installedVersion: installedVersion) {
         case .failure(let failure):
             // A status-code failure is worth keeping the code for even though
             // there's no body to sample.
@@ -699,6 +710,13 @@ public struct VendorProbeSource: UpdateSource {
             return fail(failure)
         case .success(let fetched):
             body = fetched
+        }
+        if body.status == 204, let installedVersion {
+            let current = Self.makeRemoteVersion(
+                recipe: recipe, version: installedVersion, install: nil, plan: nil, resolvedDownload: nil)
+            return ProbeOutcome(
+                recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
+                remote: current, failure: nil, httpStatus: body.status, elapsedMs: elapsed())
         }
 
         // A recipe with `entryStartPattern` set names a feed that lists several
@@ -1166,7 +1184,7 @@ public struct VendorProbeSource: UpdateSource {
     /// character gate as a read value; a recipe author's typo must not reach the
     /// wire either.
     func resolveEndpoint(
-        _ recipe: VendorProbeRecipe, trackOverride: String? = nil
+        _ recipe: VendorProbeRecipe, trackOverride: String? = nil, installedVersion: String? = nil
     ) -> Result<ResolvedEndpoint, ProbeFailure> {
         var endpoint = recipe.url
         let osVersionPlaceholder = "__HOST_OS_VERSION__"
@@ -1179,6 +1197,20 @@ public struct VendorProbeSource: UpdateSource {
         for identity in recipe.identities {
             guard let resolved = identity.resolve(endpoint) else {
                 return .failure(.notApplicable("no device identity at \(identity.displayPath)"))
+            }
+            endpoint = resolved
+        }
+
+        if case .installedVersionResponseBody(let parameter) = recipe.mode, let installedVersion {
+            guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+                return .failure(.malformedResolvedURL("invalid installed-version endpoint"))
+            }
+            var items = components.queryItems ?? []
+            items.removeAll { $0.name == parameter }
+            items.append(URLQueryItem(name: parameter, value: installedVersion))
+            components.queryItems = items
+            guard let resolved = components.url else {
+                return .failure(.malformedResolvedURL("invalid installed-version query"))
             }
             endpoint = resolved
         }
@@ -1207,8 +1239,10 @@ public struct VendorProbeSource: UpdateSource {
 
     /// The per-mode fetch half of a probe, with each `return nil` in the original
     /// replaced by the specific reason it happened.
-    private func fetchBody(_ recipe: VendorProbeRecipe) async -> Result<FetchedBody, ProbeFailure> {
-        switch resolveEndpoint(recipe) {
+    private func fetchBody(
+        _ recipe: VendorProbeRecipe, installedVersion: String?
+    ) async -> Result<FetchedBody, ProbeFailure> {
+        switch resolveEndpoint(recipe, installedVersion: installedVersion) {
         case .failure(let failure): return .failure(failure)
         case .success(let resolved): return await fetchBody(recipe, endpoint: resolved.url)
         }
@@ -1275,7 +1309,7 @@ public struct VendorProbeSource: UpdateSource {
                     status: http.statusCode))
             }
 
-        case .responseBody, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP:
+        case .responseBody, .installedVersionResponseBody, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP:
             return await fetchResponseBody(recipe, endpoint: endpoint)
 
         case .versionedDirectory(let pattern):

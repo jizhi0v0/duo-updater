@@ -47,7 +47,6 @@ struct ManagedStopTests {
                      "Incomplete process record for fixture PID \(pid) (\(size) bytes)",
                      sourceLocation: sourceLocation)
         let state = Int32(info.kp_proc.p_stat)
-        if state != SZOMB { kill(pid, SIGKILL) }
         #expect(state == SZOMB,
                 "\(message): PID \(pid), state \(state), parent \(info.kp_eproc.e_ppid), group \(info.kp_eproc.e_pgid)",
                 sourceLocation: sourceLocation)
@@ -173,8 +172,8 @@ struct ManagedStopTests {
 
     /// What mise does: on the interrupt, start a process in a group of its
     /// own, then exit. The run returns only once that one has gone too, and
-    /// was stopped: it sleeps 600 s, so only the SIGINT ends it before the run
-    /// gives up at 20 s (the ladder's SIGTERM and SIGKILL are out of reach).
+    /// was stopped: it waits for the test directory to be removed after the
+    /// assertion, with a 600 s backstop, so the SIGINT must end it first.
     /// No clock is read. Mutation: the child not in a session of its own (the
     /// grandchild is not found, and outlives the return), or `waitUntilGone`
     /// not sending SIGINT to a group that started after the stop (the run
@@ -183,9 +182,11 @@ struct ManagedStopTests {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try write(root + "/grandchild.pl", """
+            use Time::HiRes qw(time);
             $SIG{INT} = 'DEFAULT'; setpgrp(0, 0);
             open(P, '>\(root)/pid'); print P $$; close P;
-            sleep 600;
+            my $until = time + 600;
+            while (-d '\(root)' && time < $until) { select(undef, undef, undef, 0.05); }
             """)
         let script = "trap 'perl \(root)/grandchild.pl & sleep 0.3; exit 130' INT; touch \(root)/started; sleep 30"
         let command = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", script], pathPrefix: nil)
@@ -219,10 +220,12 @@ struct ManagedStopTests {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try write(root + "/grandchild.pl", """
+            use Time::HiRes qw(time);
             use POSIX (); POSIX::setsid();
             $SIG{INT} = sub { open(F, '>\(root)/sigint'); close F; exit 130 };
             open(P, '>\(root)/pid'); print P $$; close P;
-            sleep 600;
+            my $until = time + 600;
+            while (-d '\(root)' && time < $until) { select(undef, undef, undef, 0.05); }
             """)
         let script = "trap 'sleep 0.5; exit 130' INT; perl \(root)/grandchild.pl & touch \(root)/started; wait; wait"
         let command = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", script], pathPrefix: nil)
@@ -320,7 +323,7 @@ struct ManagedStopTests {
                 setpgrp(0, 0);
                 open(P, '>\(root)/pid.tmp'); print P $$; close P; rename('\(root)/pid.tmp', '\(root)/pid');
                 my $until = time + 60;
-                while (time < $until) { select(undef, undef, undef, 0.05); }
+                while (-d '\(root)' && time < $until) { select(undef, undef, undef, 0.05); }
                 """)
             let command = CLIToolCommand(
                 executable: "/bin/sh", arguments: ["-c", "perl \(root)/relay.pl >/dev/null 2>&1 & sleep 600; wait"],

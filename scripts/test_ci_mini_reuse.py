@@ -77,6 +77,13 @@ class ReleaseInputs(unittest.TestCase):
 
         with patch("ci_release_inputs.blob", side_effect=files):
             self.assertTrue(validate_metadata("old", "new"))
+        def paired(rev, path):
+            value = files(rev, path)
+            if rev == "new":
+                value = value.replace("New note", "New note\n\n## 1.0.1-beta.1\n\nBeta note")
+            return value
+        with patch("ci_release_inputs.blob", side_effect=paired):
+            self.assertFalse(validate_metadata("old", "new"))
         for path in ("App/project.yml", "changelog/de.md"):
             def changed(rev, name):
                 text = files(rev, name)

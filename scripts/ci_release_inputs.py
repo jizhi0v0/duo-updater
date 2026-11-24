@@ -74,6 +74,8 @@ def validate_metadata(base, head):
         require(marker and new.startswith(intro + f"\n## {version}\n\n")
                 and new.endswith(marker + history), f"release heading or history differs in {path}")
         note = new[len(intro + f"\n## {version}\n\n"):-len(marker + history)]
+        if re.search(rf"(?m)^## {VERSION}$", note):
+            return False  # Paired stable/beta preparation has multiple new sections.
         require(note.strip() and "\n## " not in note, f"invalid release section in {path}")
 
     return True

@@ -124,7 +124,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在「隱私權與安全性」中打開「完整磁碟取用權」，然後開啟 DuoUpdater 的開關。"
+            "value": "在「隱私權與安全性」中打開「完全取用磁碟」，然後開啟 DuoUpdater 的開關。"
           }
         }
       }
@@ -140,7 +140,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "En Privacidad y seguridad, abre Gestión de apps y activa DuoUpdater."
+            "value": "En Privacidad y seguridad, abre Gestión de las apps y activa DuoUpdater."
           }
         },
         "fr": {
@@ -182,13 +182,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在“隐私与安全性”中打开“App 管理”，然后打开 DuoUpdater 的开关。"
+            "value": "在“隐私与安全性”中打开“App管理”，然后打开 DuoUpdater 的开关。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在「隱私權與安全性」中打開「App 管理」，然後開啟 DuoUpdater 的開關。"
+            "value": "在「隱私權與安全性」中打開「App管理」，然後開啟 DuoUpdater 的開關。"
           }
         }
       }

@@ -2,6 +2,10 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.30
+
+**No macOS 27.3 e posteriores, você pode conceder permissões ao DuoUpdater sem arrastar o app.** O DuoUpdater abre os Ajustes do Sistema e indica qual app selecionar.
+
 ## 0.5.29
 
 **A busca de apps mostra primeiro os resultados mais relevantes e mantém o foco do teclado no Workbench.**

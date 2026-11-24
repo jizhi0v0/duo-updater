@@ -2,6 +2,10 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.30
+
+**Da macOS 27.3 puoi concedere i permessi a DuoUpdater senza trascinare l’app.** DuoUpdater apre Impostazioni di Sistema e indica quale app selezionare.
+
 ## 0.5.29
 
 **La ricerca delle app mostra prima i risultati più pertinenti e mantiene il focus della tastiera in Workbench.**

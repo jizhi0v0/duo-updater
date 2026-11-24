@@ -7,6 +7,7 @@ class Results(unittest.TestCase):
     def test_each_mode_requires_its_actual_checks_and_rejects_failed_or_missing_jobs(self):
         full = {name: {"result": "success"} for name in ("route", "swift", "app", "release", "ifchange")}
         full["nightly-data"] = {"result": "skipped"}
+        full["mini-plan"] = {"result": "skipped"}
         bench = {**full, **{name: {"result": "skipped"} for name in ("swift", "app", "release")}}
         nightly = {**bench, "ifchange": {"result": "skipped"}, "nightly-data": {"result": "success"}}
         for results, is_nightly, is_bench in [(full, False, False), (bench, False, True), (nightly, True, False)]:

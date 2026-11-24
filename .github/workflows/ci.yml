@@ -40,6 +40,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      force_full:
+        description: Run all applicable tests even if matching mini results exist
+        type: boolean
+        default: false
       hosted_macos:
         description: Run the macOS jobs on GitHub-hosted runners
         type: boolean
@@ -153,6 +157,57 @@ jobs:
           fi
           printf 'mini=%s\n' "$USE_MINI" >> "$GITHUB_OUTPUT"
 
+  mini-plan:
+    needs: route
+    if: needs.route.outputs.mini == 'true'
+    runs-on: [self-hosted, macOS, ARM64, duo-mini-core]
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.plan.outputs.reuse }}
+      tree: ${{ steps.plan.outputs.tree }}
+      platform: ${{ steps.platform.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 4
+          persist-credentials: false
+      - &mini-toolchain
+        name: Select the mini toolchain
+        if: runner.environment == 'self-hosted'
+        run: |
+          echo "DEVELOPER_DIR=/Applications/Xcode-27.2.app/Contents/Developer" >> "$GITHUB_ENV"
+          printf '%s\n' "$HOME/.local/bin" /opt/homebrew/bin >> "$GITHUB_PATH"
+
+      - &mini-platform
+        name: Identify the mini and test toolchain
+        id: platform
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -eo pipefail
+          facts=$(mktemp)
+          {
+            scutil --get LocalHostName
+            sw_vers -buildVersion
+            uname -m
+            xcodebuild -version
+            xcrun --show-sdk-build-version
+            swift --version
+            make -s ci-python-version
+          } > "$facts"
+          echo "digest=$(shasum -a 256 "$facts" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          rm "$facts"
+      - name: Check for validated release inputs and prior full results
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MINI_PLATFORM: ${{ steps.platform.outputs.digest }}
+          FORCE_FULL: ${{ inputs.force_full }}
+        run: python3 scripts/ci_mini_reuse.py
+
   # `make test` in its three parts plus Core's Release pass, each on its own
   # runner slot. One after another they took 22–28 minutes, more than half of it one
   # compile: run 37190107638 spent 8 minutes in `make test` and 14 in the Release
@@ -160,8 +215,14 @@ jobs:
   # the longest job instead of the sum on hosted runners. The mini runs the
   # two Core jobs on the same slot because both attach disk images.
   swift:
-    needs: route
-    if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
+    needs: [route, mini-plan]
+    if: >-
+      ${{ !cancelled() && needs.route.result == 'success'
+      && (needs.mini-plan.result == 'skipped' || needs.mini-plan.result == 'success')
+      && needs.mini-plan.outputs.reuse != 'true'
+      && needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true' }}
+    outputs:
+      platform: ${{ steps.platform.outputs.digest }}
     runs-on: &core-runners >-
       ${{ fromJSON(needs.route.outputs.mini == 'true'
         && '["self-hosted","macOS","ARM64","duo-mini-core"]' || '"xcode-27"') }}
@@ -194,12 +255,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - &mini-toolchain
-        name: Select the mini toolchain
-        if: runner.environment == 'self-hosted'
-        run: |
-          echo "DEVELOPER_DIR=/Applications/Xcode-27.2.app/Contents/Developer" >> "$GITHUB_ENV"
-          printf '%s\n' "$HOME/.local/bin" /opt/homebrew/bin >> "$GITHUB_PATH"
+      - *mini-toolchain
+      - *mini-platform
 
       - &mini-core-build
         name: Configure Core tests on the mini
@@ -335,8 +392,14 @@ jobs:
         run: python3 scripts/ci_mini_core_cache.py save
 
   app:
-    needs: route
-    if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
+    needs: [route, mini-plan]
+    if: >-
+      ${{ !cancelled() && needs.route.result == 'success'
+      && (needs.mini-plan.result == 'skipped' || needs.mini-plan.result == 'success')
+      && needs.mini-plan.outputs.reuse != 'true'
+      && needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true' }}
+    outputs:
+      platform: ${{ steps.platform.outputs.digest }}
     runs-on: >-
       ${{ fromJSON(needs.route.outputs.mini == 'true'
         && '["self-hosted","macOS","ARM64","duo-mini-app"]' || '"xcode-27"') }}
@@ -348,6 +411,7 @@ jobs:
           persist-credentials: false
 
       - *mini-toolchain
+      - *mini-platform
 
       - name: Toolchain
         run: |
@@ -510,8 +574,14 @@ jobs:
             ${{ env.APP_TESTS_DD }}/Logs/Package/*.xcactivitylog
 
   release:
-    needs: route
-    if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
+    needs: [route, mini-plan]
+    if: >-
+      ${{ !cancelled() && needs.route.result == 'success'
+      && (needs.mini-plan.result == 'skipped' || needs.mini-plan.result == 'success')
+      && needs.mini-plan.outputs.reuse != 'true'
+      && needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true' }}
+    outputs:
+      platform: ${{ steps.platform.outputs.digest }}
     runs-on: *core-runners
     timeout-minutes: 30
     steps:
@@ -529,6 +599,7 @@ jobs:
           persist-credentials: false
 
       - *mini-toolchain
+      - *mini-platform
       - *mini-core-build
 
       - name: Toolchain
@@ -673,7 +744,7 @@ jobs:
   # Pure nightly scan state instead requires route + nightly-data; only its
   # four unrelated jobs may be skipped. Missing/failed validation never passes.
   test:
-    needs: [route, swift, app, release, ifchange, nightly-data]
+    needs: [route, mini-plan, swift, app, release, ifchange, nightly-data, full-mini-record]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -686,7 +757,22 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: All jobs passed
         env:
+          MINI: ${{ needs.route.outputs.mini }}
+          REUSE: ${{ needs.mini-plan.outputs.reuse }}
           NEEDS: ${{ toJSON(needs) }}
           BENCH_ONLY: ${{ needs.route.outputs.bench_only }}
           NIGHTLY_ONLY: ${{ needs.route.outputs.nightly_only }}
         run: python3 scripts/check_ci_results.py
+
+  full-mini-record:
+    needs: [mini-plan, swift, app, release]
+    if: >-
+      success() && needs.mini-plan.outputs.reuse == 'false' &&
+      needs.mini-plan.outputs.platform != '' &&
+      needs.swift.outputs.platform == needs.mini-plan.outputs.platform &&
+      needs.app.outputs.platform == needs.mini-plan.outputs.platform &&
+      needs.release.outputs.platform == needs.mini-plan.outputs.platform
+    name: Full mini CI ${{ github.sha }} ${{ needs.mini-plan.outputs.tree }} ${{ needs.mini-plan.outputs.platform }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Full suite passed on the selected mini toolchain.'

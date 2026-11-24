@@ -57,6 +57,10 @@ check-python:
 	  echo "  Put one there as python3 or python3.1x, e.g. brew install python@3.14." >&2; \
 	  exit 1; }
 
+.PHONY: ci-python-version
+ci-python-version: check-python
+	@$(PYTHON) -c 'import platform; print(platform.python_implementation(), platform.python_version())'
+
 # The Python gates and their own tests. Seconds, and no build.
 test-scripts: check-python
 	$(PYTHON) scripts/test_appcast_edit.py
@@ -104,6 +108,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_check_adversarial_review.py
 	$(PYTHON) scripts/test_check_nightly_data.py
 	$(PYTHON) scripts/test_check_ci_results.py
+	$(PYTHON) scripts/test_ci_mini_reuse.py
 
 # Extra `swift test` arguments for Core's suite, here and in test-release.
 # Empty by default, including on CI's GitHub-hosted runners.

@@ -27,14 +27,13 @@ Ollama 的设置开关控制自动下载。Duo 的频道选择独立保存，切
 - 条目取 `<li>`；有的发布整篇是散文、一个 `<li>` 都没有（2026-09-11 实测 v0.34.0、v0.32.12），
   这时走第二条 `<p>` pattern，跳过 "Full Changelog: vA...vB" 对比链接行（当天第一页 10 条发布都以它收尾）。
   没有这条兜底时，没条目的发布会被丢掉，最新一条恰好是散文时整个面板就落后一个版本（#507）。
-- Stable 跳过 Pre-release：版本取自 sr-only `<h2>`，那是发布**名称**不是 tag，而 Ollama 的候选版按目标版本命名
-  （tag `v0.40.0-rc3` 的 h2 是 `v0.40.0`）。结构化列表保留正式版（#872）。过滤依据是 section 里位于 h2 与
-  `<relative-time>` 之间的 "Pre-release" 标签，
-  因为出现过纯 `v<x.y.z>` tag 的 prerelease（见「历史与实测」2026-10-06 一节）。
+- 两个频道从 section 的 `id` 读取 GitHub tag。Stable 只接受无候选后缀且没有 "Pre-release" 标记的条目。
+  Ollama 曾用正式版名称标记候选 tag，也曾用纯 `v<x.y.z>` tag 发布预发行版本（#872）。
 
 ## 一键安装
 
 API 返回的 `Ollama-darwin.zip` 内包含 `Ollama.app`，使用现有 Vendor ZIP 安装和签名检查。运行中的 Ollama 由标准安装后重启流程处理。
+使用「运行时延后」策略时，Preview 会提示先退出 Ollama，再由 Duo 安装。
 
 ## 夜扫覆盖
 

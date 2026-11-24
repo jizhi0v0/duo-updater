@@ -162,8 +162,8 @@ struct ScanRowAssemblyTests {
                 sparkleFeedURL: nil, releaseChannel: channel, channelIsAuthoritative: true)
         }
         let checked = ollama("0.40.18", build: "0.40.18", channel: .stable)
-        var noOffer = remote("0.40.18", channel: nil, source: "Vendor")
-        noOffer.isCopyScopedNoOffer = true
+        var noOffer = RemoteVersion(shortVersion: nil, version: nil, downloadURL: nil, sourceName: "Vendor")
+        noOffer.noOfferForInstalledVersion = "0.40.18"
         let prior = [UpdateResult(app: checked, remote: noOffer, status: .upToDate)]
 
         let same = ScanRowAssembly.merged([checked], prior: prior, proofs: noProofs)

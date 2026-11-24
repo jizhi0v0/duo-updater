@@ -99,10 +99,23 @@ struct OllamaProbeRecipeTests {
         let (_, source) = try source()
         let result = await UpdateChecker(sources: [source]).check(app(version))
         #expect(result.status == .upToDate)
-        #expect(result.remote?.shortVersion == version)
-        #expect(result.remote?.isCopyScopedNoOffer == true)
+        #expect(result.remote?.noOfferForInstalledVersion == version)
+        #expect(result.remote?.versionSide.isEmpty == true)
         #expect(result.remote?.downloadURL == nil)
         #expect(result.remote?.vendorInstallerKind == nil)
+    }
+
+    @Test func noContentDuringPreflightClearsAnEarlierOffer() async throws {
+        let (_, source) = try source()
+        let copy = app("0.40.17")
+        let offer = RemoteVersion(
+            shortVersion: "0.40.18", version: nil, downloadURL: URL(string: Self.previewURL),
+            sourceName: "Vendor", vendorInstallerKind: .zip)
+        let offered = UpdateResult(app: copy, remote: offer, status: .updateAvailable(latest: "0.40.18"))
+        let confirmed = await UpdateChecker(sources: [source]).check(copy)
+
+        #expect(PreInstallGate.decision(offered: offered, confirmed: confirmed) == .alreadyCurrent)
+        #expect(confirmed.remote?.versionSide.isEmpty == true)
     }
 
     @Test func offeredPrereleaseKeepsItsSuffix() async throws {
@@ -150,7 +163,7 @@ struct OllamaProbeRecipeTests {
         let (_, source) = try source()
         let result = await UpdateChecker(sources: [source]).check(app("0.40.18", channel: channel))
         #expect(result.status == .upToDate)
-        #expect(result.remote?.shortVersion == "0.40.18")
+        #expect(result.remote?.noOfferForInstalledVersion == "0.40.18")
         #expect(result.remote?.vendorInstallerKind == nil)
     }
 

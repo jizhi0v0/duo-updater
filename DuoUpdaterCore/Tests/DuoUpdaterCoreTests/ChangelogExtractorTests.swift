@@ -1115,7 +1115,7 @@ private let hbuilderxAlphaFixture = """
 // v0.24.0 (6 items including a bold model name) and v0.23.4 (2 items). The
 // version group strips the leading "v" so stored versions are plain dotted numbers.
 private let ollamaFixture = """
-<section aria-labelledby="hd-abc123">
+<section id="release-v0.24.0" aria-labelledby="hd-abc123">
   <h2 class="sr-only" id="hd-abc123">v0.24.0</h2>
   <div class="d-flex flex-column flex-md-row">
     <div>
@@ -1137,7 +1137,7 @@ private let ollamaFixture = """
     </div>
   </div>
 </section>
-<section aria-labelledby="hd-def456">
+<section id="release-v0.23.4" aria-labelledby="hd-def456">
   <h2 class="sr-only" id="hd-def456">v0.23.4</h2>
   <div class="d-flex flex-column flex-md-row">
     <div>
@@ -1371,6 +1371,16 @@ private let ollamaPrereleaseFixture = """
         forBundleID: "com.electron.ollama", channel: .preview))
     let changelog = try #require(ChangelogExtractor.extract(from: ollamaPrereleaseFixture, using: recipe))
     #expect(changelog.entries.map(\.version) == ["0.40.0-rc3", "0.35.1"])
+}
+
+@Test func ollamaStableNotesRequireBothAFinalTagAndNoPrereleaseBadge() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.electron.ollama"))
+    let unmarkedCandidate = ollamaPrereleaseFixture.replacingOccurrences(of: ">Pre-release<", with: ">Latest<")
+    let markedFinalTag = ollamaPrereleaseFixture.replacingOccurrences(of: "v0.40.0-rc3", with: "v0.40.0")
+    for feed in [unmarkedCandidate, markedFinalTag] {
+        let changelog = try #require(ChangelogExtractor.extract(from: feed, using: recipe))
+        #expect(changelog.entries.map(\.version) == ["0.35.1"])
+    }
 }
 
 @Test func extractsOrbStackEntriesInOrder() throws {

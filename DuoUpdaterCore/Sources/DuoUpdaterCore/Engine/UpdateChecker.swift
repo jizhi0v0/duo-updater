@@ -813,8 +813,8 @@ public struct UpdateChecker: Sendable {
     public static func evaluate(
         installed: InstalledApp, remote: RemoteVersion
     ) -> UpdateStatus {
-        if remote.isCopyScopedNoOffer {
-            return installed.shortVersion == remote.shortVersion ? .upToDate : .unknown
+        if let version = remote.noOfferForInstalledVersion {
+            return installed.shortVersion == version ? .upToDate : .unknown
         }
         if remote.sourceName == "Homebrew" {
             if remote.homebrewPinned { return .upToDate }

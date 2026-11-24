@@ -717,9 +717,9 @@ public struct VendorProbeSource: UpdateSource {
         }
         if body.status == 204, let installedVersion {
             var current = RemoteVersion(
-                shortVersion: installedVersion, version: nil, downloadURL: nil,
+                shortVersion: nil, version: nil, downloadURL: nil,
                 pageURL: recipe.downloadURL, sourceName: Self.sourceName, changelogURL: recipe.changelogURL)
-            current.isCopyScopedNoOffer = true
+            current.noOfferForInstalledVersion = installedVersion
             return ProbeOutcome(
                 recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
                 remote: current, failure: nil, httpStatus: body.status, elapsedMs: elapsed())

@@ -4284,6 +4284,10 @@ final class AppListModel {
     /// (MAU, a daemon, Sparkle) applies the update on its own schedule.
     func openSelfUpdater(_ result: UpdateResult, activating: Bool = true) {
         installErrors[result.id] = nil
+        if let help = ollamaPreviewQuitHelp(for: result) {
+            installNotes[result.id] = help
+            return
+        }
         if let url = result.remote?.pageURL, let scheme = url.scheme,
            scheme != "http", scheme != "https" {
             NSWorkspace.shared.open(
@@ -5801,7 +5805,7 @@ final class AppListModel {
         // `PostInstallDisposition.preInstallProcessStillRunning`).
         let preInstallPIDs = AppRestarter.runningInstances(of: result.app).map(\.processIdentifier)
         if defersToSelfUpdater(result) {
-            Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
+            Log.install.info("install deferred while app is running: \(result.app.name, privacy: .public) (policy=deferWhenRunning)")
             // Don't pull the app forward when this deferral came from Update All.
             // A single row's Open is something the user just asked for, so the
             // foreground is what they want; a batch can hit this branch for every
@@ -5810,7 +5814,8 @@ final class AppListModel {
             // focus repeatedly.
             installing[id] = nil
             if AutomaticInstall.active {
-                let reason = "Automatic update deferred: the app is running its own updater."
+                let reason = ollamaPreviewQuitHelp(for: result)
+                    ?? "Automatic update deferred: the app is running its own updater."
                 installNotes[id] = reason
                 return .deferred(reason: reason)
             }

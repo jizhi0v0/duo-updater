@@ -1029,9 +1029,12 @@ struct WorkbenchRowAction: View {
         case .selfUpdater:
             // Running self-updating app + "defer while running" policy: open
             // its own update path rather than swapping the bundle under it.
-            Button("Open") { actions.openSelfUpdater() }
-                .buttonStyle(.bordered)
-                .help("\(result.app.name) is running — open it so its own updater applies the update. Quit it, or pick “Always replace” in Settings, to install directly.")
+            let quitHelp = ollamaPreviewQuitHelp(for: result)
+            Button(quitHelp == nil ? LocalizedStringKey("Open") : LocalizedStringKey("Details")) {
+                actions.openSelfUpdater()
+            }
+            .buttonStyle(.bordered)
+            .help(quitHelp ?? String(localized: "\(result.app.name) is running — open it so its own updater applies the update. Quit it, or pick “Always replace” in Settings, to install directly."))
 
         case .majorUpgrade:
             // License-boundary warning lives in the popover; don't one-click it here.

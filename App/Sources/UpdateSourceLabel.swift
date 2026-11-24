@@ -174,3 +174,10 @@ func installerHandoffHelp(for result: UpdateResult, stagedFileName: String?) -> 
     }
     return String(localized: "Downloads the official installer and opens it (asks for admin)")
 }
+
+func ollamaPreviewQuitHelp(for result: UpdateResult) -> String? {
+    guard result.app.bundleID == OllamaUpdateChannel.bundleID,
+          result.app.releaseChannel == .preview, result.app.channelIsAuthoritative,
+          result.remote?.sourceName == "Vendor" else { return nil }
+    return String(localized: "Quit Ollama before installing this Preview update.")
+}

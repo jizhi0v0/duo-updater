@@ -7,12 +7,12 @@
 
 ## Channel 详情
 
-| Duo 发布通道 | 更新请求 | 使用方式 |
+| 官方端点 | 更新请求 | 使用方式 |
 |---|---|---|
-| Stable（默认） | 官方桌面更新 API 接收当前版本 | 默认用于每份安装，包括手动装入的预发行包 |
-| Preview | 同一 API 加 `channel=preview` | 在 Duo 的 Ollama 行菜单选择「发布通道 → 预览版」，按安装路径保存 |
+| 桌面更新器（默认） | 官方桌面更新 API 接收当前版本 | 用于现有安装，包括手动装入的预发行包 |
+| Preview | 同一 API 加 `channel=preview` | 官方提供手动安装。Duo 夜扫校验此端点与安装包 |
 
-Ollama 的设置开关控制自动下载。Duo 的频道选择独立保存，切回 Stable 后按官方接口的结果复查。官方文档也提供 [手动安装 Preview 的入口](https://docs.ollama.com/faq#how-do-i-install-a-pre-release)。
+Ollama 0.40.18 的自动下载开关保存在 SQLite 的 `auto_update_enabled` 字段。核对 macOS 更新器、偏好读写和签名包后，未发现供 Duo 监听的频道 defaults。Ollama 的 Preview 文档提供 [手动安装入口](https://docs.ollama.com/faq#how-do-i-install-a-pre-release)。[应用设置存储](https://github.com/ollama/ollama/blob/v0.40.18/app/store/database.go)
 
 ## 更新检测
 
@@ -22,7 +22,7 @@ Ollama 的设置开关控制自动下载。Duo 的频道选择独立保存，切
 
 ## Changelog
 - 来源: `ChangelogRecipe` + `ChangelogCatalog`
-- 按 Duo 选定的频道显示。Stable 显示正式版，Preview 按精确 tag 读取候选版和正式版说明。
+- 已安装的拷贝显示正式版说明。Preview 的说明保留给夜扫，按精确 tag 读取候选版和正式版。
 - Recipe 状态: 已有，GitHub releases page（`https://github.com/ollama/ollama/releases`）
 - 条目取 `<li>`；有的发布整篇是散文、一个 `<li>` 都没有（2026-09-11 实测 v0.34.0、v0.32.12），
   这时走第二条 `<p>` pattern，跳过 "Full Changelog: vA...vB" 对比链接行（当天第一页 10 条发布都以它收尾）。
@@ -33,13 +33,12 @@ Ollama 的设置开关控制自动下载。Duo 的频道选择独立保存，切
 ## 一键安装
 
 API 返回的 `Ollama-darwin.zip` 内包含 `Ollama.app`，使用现有 Vendor ZIP 安装和签名检查。运行中的 Ollama 由标准安装后重启流程处理。
-使用「运行时延后」策略时，Preview 会提示先退出 Ollama，再由 Duo 安装。
 
 ## 夜扫覆盖
 
 - 检测 probe 为 `vendor:com.electron.ollama:stable` 和 `vendor:com.electron.ollama:preview`。夜扫在两个请求中省略本机版本。
 - 发布说明为 `changelog:com.electron.ollama:-` 和 `changelog:com.electron.ollama:preview`。
-- `duo verify-install` 验证两个频道各自提供的 ZIP。Stable 延续旧 GitHub 检查的身份记录。按本机版本返回 `204`、逐拷贝保存频道以及 Homebrew 来源偏好均由 Core 测试覆盖。 Preview 的频道校验核对请求 URL 中的 `channel=preview` 参数。实测 `duo verify --no-installed --only com.electron.ollama` 为 5 项通过，两份 ZIP 均由 `duo verify-install --only com.electron.ollama --full` 验证通过。Preview 身份为独立的首次记录。
+- `duo verify-install` 验证两个频道各自提供的 ZIP。Stable 延续旧 GitHub 检查的身份记录。Core 测试覆盖实际扫描后的默认请求、返回 `204` 的语义，以及两个端点在省略本机版本时返回的 ZIP。Preview 的校验核对请求 URL 中的 `channel=preview` 参数。实测 `duo verify --no-installed --only com.electron.ollama` 为 5 项通过，两份 ZIP 均由 `duo verify-install --only com.electron.ollama --full` 验证通过。Preview 身份为独立的首次记录。
 
 ## 历史与实测
 
@@ -53,13 +52,15 @@ API 返回的 `Ollama-darwin.zip` 内包含 `Ollama.app`，使用现有 Vendor Z
 
 同一台 VM 用 Developer ID 签名的 Duo Release CLI 检测并完成 `0.40.16 → 0.40.17` 的 Vendor 原地安装，装完版本和构建号均为 `0.40.17`，Gatekeeper 接受为 Notarized Developer ID。对 `0.40.17` 与手动装入的 `0.40.18-rc0` 复查均为 `up-to-date`，后者的安装计划为空。
 
-### 2026-11-24 接入 Preview 通道
+### 2026-11-24 验证 Preview 端点
 
 接入时，官方 API 的默认请求提供 `0.40.17`。同一 API 加 `channel=preview` 后提供 `0.40.18`，GitHub 将该 tag 标为预发行。Preview 中已安装 `0.40.17` 或 `0.40.18-rc0` 的拷贝收到 `0.40.18`，已安装 `0.40.18` 的拷贝收到 `204`。使用 Stable 查询 `0.40.18` 同样收到 `204`。下载的 Preview ZIP 版本和构建均为 `0.40.18`，签名标识为 `com.electron.ollama`，Team ID 为 `3MU9H2V9Y9`，Gatekeeper 接受为 Notarized Developer ID。
 
 在 macOS 27.2 arm64 VM，签名的 Duo Release CLI 先检查 `0.40.17`，默认 Stable 显示已是最新。设置这一安装路径的 Preview 偏好后，新开的 CLI 进程检测并原地安装 `0.40.18`，磁盘版本和构建号均匹配，Gatekeeper 通过。Preview 复查显示已是最新。切回默认 Stable 后复查同样为已是最新，安装计划为空。VM 使用与行菜单相同的持久化偏好载入路径，菜单由 App 测试构建覆盖。
 
-当天 16:36（北京时间）复测，[同一 GitHub release 记录](https://api.github.com/repos/ollama/ollama/releases/456227993)的标题和 tag 均为 `v0.40.18`，`prerelease` 为 `false`。早些时候记录的标题已是 `v0.40.18`，tag 仍为 `v0.40.18-rc0`。Stable 和 Preview 此次都返回同一个 `v0.40.18/Ollama-darwin.zip`。Duo 按官方请求返回的 ZIP 决定该安装拷贝能收到的版本。
+当天 16:36（北京时间）复测，[同一 GitHub release 记录](https://api.github.com/repos/ollama/ollama/releases/456227993)的标题和 tag 均为 `v0.40.18`，`prerelease` 为 `false`。早些时候记录的标题已是 `v0.40.18`，tag 仍为 `v0.40.18-rc0`。Stable 和 Preview 此次都返回同一个 `v0.40.18/Ollama-darwin.zip`。
+
+随后按原应用接入方式撤除 Duo 的实验性频道菜单及独立偏好。已安装拷贝始终使用 Ollama 桌面更新器所用的默认端点，Preview 继续用于夜扫覆盖。
 
 ### Recipes/com-electron-ollama.swift — ChangelogRecipe（GitHub releases 页）
 

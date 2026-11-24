@@ -68,25 +68,23 @@ struct OllamaProbeRecipeTests {
         override func stopLoading() {}
     }
 
-    private func source() throws -> (VendorProbeRecipe, VendorProbeSource) {
+    private func source() -> VendorProbeSource {
         let recipes = VendorProbeRegistry.recipes.filter { $0.bundleID == Self.bundleID }
-        let recipe = try #require(recipes.first { $0.channel == .stable })
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [UpdateProtocol.self]
-        return (recipe, VendorProbeSource(recipes: recipes, session: URLSession(configuration: configuration)))
+        return VendorProbeSource(recipes: recipes, session: URLSession(configuration: configuration))
     }
 
-    private func app(_ version: String, channel: ReleaseChannel? = nil) -> InstalledApp {
+    private func app(_ version: String) -> InstalledApp {
         InstalledApp(
             name: "Ollama", bundleID: Self.bundleID, shortVersion: version, buildVersion: version,
             path: URL(fileURLWithPath: "/Applications/Ollama.fixture.app"), isMASApp: false,
             sparkleFeedURL: nil,
-            releaseChannel: channel ?? ReleaseChannel.detect(name: "Ollama", bundleID: Self.bundleID, keystoneChannel: nil, version: version),
-            channelIsAuthoritative: channel != nil)
+            releaseChannel: .stable, channelIsAuthoritative: true)
     }
 
     @Test func installedVersionGetsTheVendorsExactArtifact() async throws {
-        let (_, source) = try source()
+        let source = source()
         let result = await UpdateChecker(sources: [source]).check(app("0.40.16"))
         #expect(result.hasUpdate)
         #expect(result.remote?.shortVersion == "0.40.17")
@@ -96,7 +94,7 @@ struct OllamaProbeRecipeTests {
 
     @Test(arguments: ["0.40.17", "0.40.18-rc0"])
     func noContentMeansCurrentForTheQueriedCopy(version: String) async throws {
-        let (_, source) = try source()
+        let source = source()
         let result = await UpdateChecker(sources: [source]).check(app(version))
         #expect(result.status == .upToDate)
         #expect(result.remote?.noOfferForInstalledVersion == version)
@@ -106,7 +104,7 @@ struct OllamaProbeRecipeTests {
     }
 
     @Test func noContentDuringPreflightClearsAnEarlierOffer() async throws {
-        let (_, source) = try source()
+        let source = source()
         let copy = app("0.40.17")
         let offer = RemoteVersion(
             shortVersion: "0.40.18", version: nil, downloadURL: URL(string: Self.previewURL),
@@ -119,7 +117,7 @@ struct OllamaProbeRecipeTests {
     }
 
     @Test func offeredPrereleaseKeepsItsSuffix() async throws {
-        let (_, source) = try source()
+        let source = source()
         let result = await UpdateChecker(sources: [source]).check(app("0.40.15"))
         #expect(result.hasUpdate)
         #expect(result.remote?.shortVersion == "0.40.18-rc0")
@@ -128,81 +126,49 @@ struct OllamaProbeRecipeTests {
 
     @Test(arguments: ["0.40.14", "0.40.13", "0.40.12", "0.40.9"])
     func malformedSuccessDoesNotBecomeUpToDate(version: String) async throws {
-        let (_, source) = try source()
+        let source = source()
         let outcome = await source.probeDiagnostic(for: app(version))
         #expect(outcome?.succeeded == false)
         #expect(outcome?.failure?.kind == "versionPatternNoMatch")
     }
 
     @Test func partialHTTPResponseDoesNotOfferAnInstall() async throws {
-        let (_, source) = try source()
+        let source = source()
         let outcome = await source.probeDiagnostic(for: app("0.40.11"))
         #expect(outcome?.failure == .httpStatus(206))
     }
 
     @Test(arguments: ["0.40.10", "0.40.16+build"])
     func usesTopLevelURLAndSendsTheFullVersion(version: String) async throws {
-        let (_, source) = try source()
+        let source = source()
         let outcome = await source.probeDiagnostic(for: app(version))
         #expect(outcome?.remote?.shortVersion == "0.40.17")
         #expect(outcome?.remote?.downloadURL?.absoluteString == Self.stableURL)
     }
 
     @Test(arguments: ["0.40.17", "0.40.18-rc0"])
-    func previewUsesTheOptedInEndpoint(from version: String) async throws {
-        let (_, source) = try source()
-        let result = await UpdateChecker(sources: [source]).check(app(version, channel: .preview))
-        #expect(result.hasUpdate)
-        #expect(result.effectiveReleaseChannel == .preview)
-        #expect(result.remote?.shortVersion == "0.40.18")
-        #expect(result.remote?.downloadURL?.absoluteString == Self.previewURL)
-    }
-
-    @Test(arguments: [ReleaseChannel.stable, .preview])
-    func currentPreviewDoesNotOfferAnInstall(channel: ReleaseChannel) async throws {
-        let (_, source) = try source()
-        let result = await UpdateChecker(sources: [source]).check(app("0.40.18", channel: channel))
-        #expect(result.status == .upToDate)
-        #expect(result.remote?.noOfferForInstalledVersion == "0.40.18")
-        #expect(result.remote?.vendorInstallerKind == nil)
-    }
-
-    @Test func scanReadsOnlyTheCopyThatOptedIntoPreview() throws {
+    func scannedBundleFollowsTheNativeUpdater(version: String) async throws {
         let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ollama-channel-\(UUID().uuidString)").resolvingSymlinksInPath()
+            .appendingPathComponent("ollama-native-updater-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
-        let a = directory.appendingPathComponent("Ollama.app", isDirectory: true)
-        let b = directory.appendingPathComponent("Ollama Sandbox.app", isDirectory: true)
-        for app in [a, b] {
-            let contents = app.appendingPathComponent("Contents", isDirectory: true)
-            try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
-            let plist = try PropertyListSerialization.data(fromPropertyList: [
-                "CFBundleIdentifier": Self.bundleID, "CFBundleShortVersionString": "0.40.18",
-                "CFBundleVersion": "0.40.18", "CFBundlePackageType": "APPL"
-            ], format: .xml, options: 0)
-            try plist.write(to: contents.appendingPathComponent("Info.plist"))
-        }
-        let suite = "OllamaUpdateChannelTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        defaults.set(true, forKey: "UnrelatedSetting")
-        let scanner = AppScanner(locations: [directory], testflight: TestFlightInventory(macRows: []))
-        func channel(at path: URL) throws -> ReleaseChannel {
-            try OllamaUpdateChannel.$preferencesSuite.withValue(suite) {
-                try #require(scanner.scan(bundlesAt: [path]).first).releaseChannel
-            }
-        }
+        let bundle = directory.appendingPathComponent("Ollama Preview.app", isDirectory: true)
+        let contents = bundle.appendingPathComponent("Contents", isDirectory: true)
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let plist = try PropertyListSerialization.data(fromPropertyList: [
+            "CFBundleIdentifier": Self.bundleID, "CFBundleName": "Ollama",
+            "CFBundleShortVersionString": version, "CFBundleVersion": version,
+            "CFBundlePackageType": "APPL"
+        ], format: .xml, options: 0)
+        try plist.write(to: contents.appendingPathComponent("Info.plist"))
 
-        #expect(try channel(at: a) == .stable)
-        #expect(try channel(at: b) == .stable)
-        OllamaUpdateChannel.select(.preview, for: a, in: defaults)
-        #expect(try channel(at: a) == .preview)
-        #expect(try channel(at: b) == .stable)
-        OllamaUpdateChannel.select(.preview, for: b, in: defaults)
-        OllamaUpdateChannel.select(.stable, for: a, in: defaults)
-        #expect(try channel(at: a) == .stable)
-        #expect(try channel(at: b) == .preview)
-        #expect(defaults.bool(forKey: "UnrelatedSetting"))
+        let scanner = AppScanner(locations: [directory], testflight: TestFlightInventory(macRows: []))
+        let copy = try #require(scanner.scan(bundlesAt: [bundle]).first)
+        #expect(copy.releaseChannel == .stable)
+        #expect(copy.shortVersion == version)
+        let source = source()
+        let result = await UpdateChecker(sources: [source]).check(copy)
+        #expect(result.status == .upToDate)
+        #expect(result.remote?.noOfferForInstalledVersion == version)
     }
 
     private struct StableCask: UpdateSource {
@@ -218,30 +184,20 @@ struct OllamaProbeRecipeTests {
         }
     }
 
-    @Test func previewCanBypassAStableCaskOfferWhenAllowed() async throws {
-        let (_, source) = try source()
-        let copy = app("0.40.16", channel: .preview)
-        let checker = UpdateChecker(sources: [StableCask(), source])
-        let preview = await checker.check(copy)
-        #expect(preview.remote?.downloadURL?.absoluteString == Self.previewURL)
-        #expect(preview.homebrewSourceIdentifier == "ollama-app")
-
-        let homebrewOnly = BrewFallbackPolicy(blockedKeys: [InstallPreferenceKey.key(for: copy)])
-        let limited = await UpdateChecker(sources: [StableCask(), source], brewFallback: homebrewOnly).check(copy)
-        #expect(limited.remote?.sourceName == "Homebrew")
-        #expect(limited.remote?.downloadURL?.absoluteString == Self.stableURL)
-    }
-
-    @Test func verificationCanResolveTheArtifactWithoutAnInstalledCopy() async throws {
-        let (recipe, source) = try source()
+    @Test(arguments: [ReleaseChannel.stable, .preview])
+    func verificationCanResolveTheArtifactWithoutAnInstalledCopy(channel: ReleaseChannel) async throws {
+        let source = source()
+        let recipe = try #require(VendorProbeRegistry.recipes.first {
+            $0.bundleID == Self.bundleID && $0.channel == channel
+        })
         let outcome = await source.probeDiagnostic(recipe)
-        #expect(outcome.remote?.shortVersion == "0.40.17")
-        #expect(outcome.remote?.downloadURL?.absoluteString == Self.stableURL)
+        #expect(outcome.remote?.shortVersion == (channel == .stable ? "0.40.17" : "0.40.18"))
+        #expect(outcome.remote?.downloadURL?.absoluteString == (channel == .stable ? Self.stableURL : Self.previewURL))
     }
 
     @Test func signingRefusalDoesNotSuppressAnExplicitNoOffer() async throws {
-        let (_, source) = try source()
-        let copy = app("0.40.18", channel: .preview)
+        let source = source()
+        let copy = app("0.40.18")
         let key = InstallPreferenceKey.key(for: copy)
         let policy = BrewFallbackPolicy(
             signingRefusals: [key: .init(team: "3MU9H2V9Y9", version: "0.40.18")])

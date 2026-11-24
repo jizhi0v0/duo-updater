@@ -1,7 +1,7 @@
 import Foundation
 
 enum com_electron_ollama {
-    private static let bundleID = OllamaUpdateChannel.bundleID
+    static let bundleID = "com.electron.ollama"
     private static let releases = URL(string: "https://github.com/ollama/ollama/releases")!
     private static let archivePrefix = "https://github.com/ollama/ollama/releases/download/v"
     private static let stableVersion = #"[0-9]+(?:\.[0-9]+)+"#
@@ -17,6 +17,8 @@ enum com_electron_ollama {
             // version (including any suffix) and ZIP URL from that same answer.
             // The ZIP is installed through the normal Developer ID checks.
             updateProbe(channel: .stable),
+            // Ollama documents Preview for manual installation. Verify that
+            // feed separately while its desktop updater has no channel setting.
             updateProbe(channel: .preview),
         ],
         changelogs: [releaseNotes(channel: .stable), releaseNotes(channel: .preview)],

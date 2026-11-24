@@ -551,14 +551,6 @@ final class Preferences {
         brewFallbackSigningRefusals[key(for: app)] = refusal
     }
 
-    func ollamaChannel(for app: InstalledApp) -> ReleaseChannel {
-        OllamaUpdateChannel.selected(for: app.path, in: defaults)
-    }
-
-    func setOllamaChannel(_ channel: ReleaseChannel, for app: InstalledApp) {
-        OllamaUpdateChannel.select(channel, for: app.path, in: defaults)
-    }
-
     /// Record one copy's own choice; nil returns it to the Settings default.
     /// Any choice also forgets a recorded signing refusal, so the menu is the
     /// way to have that copy checked against other sources again.

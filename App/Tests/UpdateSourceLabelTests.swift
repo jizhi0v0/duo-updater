@@ -41,33 +41,6 @@ struct UpdateSourceLabelTests {
         #expect(label?.phrase == "via Homebrew")
     }
 
-    @Test(arguments: [ReleaseChannel.stable, .preview])
-    func ollamaOnlyAsksToQuitForAPreviewOffer(channel: ReleaseChannel) {
-        let app = InstalledApp(
-            name: "Ollama", bundleID: OllamaUpdateChannel.bundleID,
-            shortVersion: "0.40.17", buildVersion: "0.40.17",
-            path: URL(fileURLWithPath: "/Applications/Ollama.app"), isMASApp: false,
-            sparkleFeedURL: nil, releaseChannel: channel, channelIsAuthoritative: true)
-        let offer = remoteOffer(app: app, source: "Vendor")
-        let help = ollamaPreviewQuitHelp(for: offer)
-        #expect(help == (channel == .preview ? "Quit Ollama before installing this Preview update." : nil))
-        #expect(ollamaPreviewQuitHelp(for: remoteOffer(app: app, source: "Homebrew")) == nil)
-
-        var brewCopy = offer
-        brewCopy.homebrewSourceIdentifier = "ollama-app"
-        if channel == .preview {
-            #expect(UpdateSourceLabel(brewCopy)?.phrase == "via the developer’s site")
-        } else {
-            #expect(UpdateSourceLabel(brewCopy)?.phrase == "no Homebrew update · via the developer’s site")
-        }
-    }
-
-    private func remoteOffer(app: InstalledApp, source: String) -> UpdateResult {
-        UpdateResult(
-            app: app, remote: RemoteVersion(shortVersion: "0.40.18", version: nil, downloadURL: nil, sourceName: source),
-            status: .updateAvailable(latest: "0.40.18"))
-    }
-
     @Test(arguments: ["racket", "example/tap/racket"])
     func suiteMemberNamesItsExactParentWithoutARemote(cask: String) {
         let ordinary = row(source: "Sparkle", status: .upToDate, brewToken: nil)

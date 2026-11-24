@@ -122,7 +122,7 @@ class RoundTrip(unittest.TestCase):
         (swift / "swift.o").write_bytes(b"swift")
         (release / "release.o").write_bytes(b"release")
 
-        with patch.object(mini, "MAX_CACHE_KIB", 0):
+        with patch.object(mini, "MAX_CACHE_KIB", 0), patch.object(mini, "MIN_FREE_BYTES", 0):
             mini.save(swift, "toolchain")
 
         self.assertFalse(swift.exists())

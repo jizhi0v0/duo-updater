@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.29-beta.2
+
+**App search ranks closer matches first and keeps keyboard focus in Workbench.**
+
+**Added update support for Athas, Zeabur Desktop, OpenScreens, Multica Desktop, and Trina AX.** Athas follows the selected channel where the installed version supports channels.
+
+**CLI Tools can update standalone Multica CLI and nospeaker.**
+
+**Improved release notes for kitty, SwiftVM, and Private Internet Access.** SwiftVM shows notes for the active channel.
+
 ## 0.5.29-beta.1
 
 **DuoUpdater can open verified installers for Windscribe, Private Internet Access, BlockBlock, McBopomofo and Backblaze.** Click the gray Update button to download and open the installer, then finish the update in the installer window.

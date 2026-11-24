@@ -926,8 +926,10 @@ public struct AppScanner: Sendable {
             feedChannelNames = bound.sparkleChannelNames
         }
 
-        if bundleID == OllamaUpdateChannel.bundleID, !isMAS, !isTestFlight {
-            releaseChannel = OllamaUpdateChannel.selected(for: bundleURL)
+        // Ollama's desktop updater uses the same default endpoint for both
+        // release and RC bundles and sends their full installed version.
+        if bundleID == com_electron_ollama.bundleID, !isMAS, !isTestFlight {
+            releaseChannel = .stable
             channelIsAuthoritative = true
         }
 

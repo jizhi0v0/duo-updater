@@ -16,7 +16,6 @@ import DuoUpdaterCore
 ///  - **Take the lock by force.** If the menu-bar app is installing, this exits
 ///    rather than swapping a bundle underneath it.
 public enum Install {
-    private static let ollamaPreviewQuitReason = "quit Ollama before installing this Preview update"
 
     public struct Options: Sendable {
         public var queries: [String] = []
@@ -300,16 +299,15 @@ public enum Install {
             }
             if !started.isEmpty {
                 for planned in started {
-                    let reason = planned.result.usesOllamaPreviewFeed
-                        ? "started while waiting for confirmation. \(ollamaPreviewQuitReason)"
-                        : "started while waiting for confirmation, and your vendor policy defers to its own updater."
                     if options.json {
                         NDJSON.emit(skippedPayload(
                             name: planned.result.app.name, route: planned.route,
-                            reason: reason,
+                            reason: "started while waiting for confirmation, and your vendor "
+                                + "policy defers to its own updater.",
                             outcome: .skipped))
                     } else {
-                        print("Skipping \(planned.result.app.name): \(reason)")
+                        print("Skipping \(planned.result.app.name): started while waiting for confirmation, "
+                              + "and your vendor policy defers to its own updater.")
                     }
                 }
                 plan.removeAll { planned in
@@ -577,7 +575,6 @@ public enum Install {
         }
         if UpdatePolicy.defersToSelfUpdater(
             result, settings: settings.updateSettings, environment: environment) {
-            if result.usesOllamaPreviewFeed { return .refuse(ollamaPreviewQuitReason, nil) }
             return .refuse("running, and your vendor policy defers to its own updater "
                 + "(quit it, or set Always download & replace)", nil)
         }

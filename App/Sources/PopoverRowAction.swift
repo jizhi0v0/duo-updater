@@ -715,15 +715,10 @@ struct PopoverRowAction: View {
     /// Shown for a running self-updating app under the "defer while running"
     /// policy: open the app's own update path rather than installing over it.
     private var openSelfUpdaterButton: some View {
-        let quitHelp = ollamaPreviewQuitHelp(for: result)
-        return Button {
-            actions.openSelfUpdater()
-        } label: {
-            Text(quitHelp == nil ? LocalizedStringKey("Open") : LocalizedStringKey("Details")).rowButtonLabel()
-        }
-        .controlSize(.small)
-        .buttonStyle(.bordered)
-        .help(quitHelp ?? String(localized: "\(result.app.name) is running — open it and let its own updater apply \(result.offeredDisplay ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly."))
+        Button { actions.openSelfUpdater() } label: { Text("Open").rowButtonLabel() }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .help("\(result.app.name) is running — open it and let its own updater apply \(result.offeredDisplay ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly.")
     }
 
     /// JetBrains Toolbox manages this app's updates. Toolbox registers no URL

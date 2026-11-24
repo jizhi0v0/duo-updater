@@ -702,7 +702,7 @@ VendorProbe，以及读哨兵文件的 `ChannelBinding`。详见 [审计](docs/a
 
 Codiff：stable GitHub Releases 检测、arm64 ZIP 一键安装、源内结构化日志；55 个公开 release 均非 prerelease，数字后缀为历史重打包，未发现其他发布轨（2026-11-16；[audit](docs/app-audits/dev-nkzw-tech-codiff.md)）。
 
-Ollama：Stable 和 Preview 均使用官方桌面更新 API，传入本机完整版本。Duo 按安装路径保存用户在 Ollama 行菜单中选择的频道。见 [Ollama 审计](docs/app-audits/com-electron-ollama.md)。
+Ollama：Vendor 检查用官方桌面更新 API 的默认端点，传入本机完整版本。官方 Preview 为手动安装入口。macOS 0.40.18 未发现可监听的频道偏好，Preview 端点及 ZIP 由夜扫验证。见 [Ollama 审计](docs/app-audits/com-electron-ollama.md)。
 
 只有 stable、无其它轨需接的：Claude / Codex / ChatWise / Conductor / opencode /
 CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /

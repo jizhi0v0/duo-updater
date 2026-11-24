@@ -196,6 +196,7 @@ jobs:
             xcodebuild -version
             xcrun --show-sdk-build-version
             swift --version
+            make -s ci-python-version
           } > "$facts"
           echo "digest=$(shasum -a 256 "$facts" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           rm "$facts"
@@ -743,7 +744,7 @@ jobs:
   # Pure nightly scan state instead requires route + nightly-data; only its
   # four unrelated jobs may be skipped. Missing/failed validation never passes.
   test:
-    needs: [route, mini-plan, swift, app, release, ifchange, nightly-data]
+    needs: [route, mini-plan, swift, app, release, ifchange, nightly-data, full-mini-record]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -764,7 +765,7 @@ jobs:
         run: python3 scripts/check_ci_results.py
 
   full-mini-record:
-    needs: [mini-plan, swift, app, release, test]
+    needs: [mini-plan, swift, app, release]
     if: >-
       success() && needs.mini-plan.outputs.reuse == 'false' &&
       needs.mini-plan.outputs.platform != '' &&

@@ -46,6 +46,11 @@ def project(commit):
     return settings[0], settings[1], text
 
 
+def version_order(version):
+    stable, beta, sequence = version.partition("-beta.")
+    return tuple(map(int, stable.split("."))) + (not beta, int(sequence or 0))
+
+
 def validate_metadata(base, head):
     old_version, old_build, old_project = project(base)
     version, build, new_project = project(head)
@@ -54,7 +59,7 @@ def validate_metadata(base, head):
     old_feed = blob(base, FEED)
     require(int(build) > max([int(old_build)] + [int(b) for _, b in appcast_edit.item_versions(old_feed)]),
             "build must advance beyond the project and published builds")
-    require(version != old_version and version not in appcast_edit.short_versions(old_feed),
+    require(version_order(version) > version_order(old_version) and version not in appcast_edit.short_versions(old_feed),
             "expected a new release version")
     expected_channel = "beta" if "-beta." in version else "stable"
     old_info, new_info = (blob(rev, INFO) for rev in (base, head))
@@ -95,6 +100,11 @@ def verify_assets(item, version, build, channel, key):
             if entry in deltas:
                 require(source.isdecimal() and int(source) < int(build), "unexpected delta base")
             name = archive if entry in links else f"DuoUpdater{build}-{source}.delta"
+            attrs = {"url", "length", "type", SP + "edSignature"}
+            if entry in deltas:
+                attrs.update(SP + k for k in ("deltaFrom", "deltaFromSparkleExecutableSize", "deltaFromSparkleLocales"))
+            require(not set(entry.attrib) - attrs and entry.get("type") == "application/octet-stream"
+                    and not len(entry), "unexpected enclosure attributes")
             asset = assets.get(name)
             url = f"https://github.com/{REPO}/releases/download/v{version}/{name}"
             require(asset and name not in seen and asset["state"] == "uploaded"
@@ -107,9 +117,10 @@ def verify_assets(item, version, build, channel, key):
             require("sha256:" + hashlib.sha256(payload.read_bytes()).hexdigest() == asset["digest"],
                     "download digest mismatch")
             (root / "sig").write_bytes(base64.b64decode(entry.get(SP + "edSignature", ""), validate=True))
-            subprocess.run(["openssl", "pkeyutl", "-verify", "-rawin", "-pubin", "-keyform", "DER",
+            valid = subprocess.run(["openssl", "pkeyutl", "-verify", "-rawin", "-pubin", "-keyform", "DER",
                             "-inkey", str(root / "key"), "-sigfile", str(root / "sig"),
-                            "-in", str(payload)], check=True)
+                            "-in", str(payload)], check=False)
+            require(valid.returncode == 0, "invalid Sparkle signature for " + name)
     require(seen == expected, "incomplete set of release enclosures")
 
 
@@ -117,27 +128,69 @@ def validate_feed(base, head):
     old, new = (blob(rev, FEED) for rev in (base, head))
     version, build, _ = project(head)
     channel = plistlib.loads(blob(head, INFO).encode())["DuoReleaseChannel"]
-    items = ET.fromstring(new).findall("./channel/item")
-    added = [i for i in items if i.findtext(SP + "version") == build]
-    require(len(added) == 1 and added[0].findtext(SP + "shortVersionString") == version
-            and added[0].findtext(SP + "channel", "stable") == channel, "wrong release item")
-    require(int(build) > max(int(b) for _, b in appcast_edit.item_versions(old)), "expected new build")
+    old_rss, rss = (ET.fromstring(text) for text in (old, new))
+    items = rss.findall("./channel/item")
+    old_items = old_rss.findall("./channel/item")
+    by_build = {i.findtext(SP + "version"): i for i in old_items}
+    added = [i for i in items if i.findtext(SP + "version") not in by_build]
+    if len(added) != 1 or int(build) <= max(int(b) for _, b in appcast_edit.item_versions(old)):
+        return False  # Reissues, repairs and multi-release feeds retain full CI.
+    item = added[0]
+    require(item.findtext(SP + "version") == build and item.findtext(SP + "shortVersionString") == version
+            and item.findtext(SP + "channel", "stable") == channel, "wrong release item")
+    require(next((i for i in items if i.findtext(SP + "channel", "stable") == channel), None) is item,
+            "new release must lead its channel")
+    project_text = blob(head, PROJECT)
+    floor = re.search(r'(?m)^    macOS: "([0-9.]+)"$', project_text)
+    arch = re.search(r'(?m)^  ARCHS: (\w+)$', project_text)
+    require(floor and arch and item.findtext(SP + "minimumSystemVersion") == floor[1]
+            and item.findtext(SP + "hardwareRequirements") == arch[1], "release system requirements differ")
+    fields = {"title", "pubDate", "link", "description", "enclosure", SP + "deltas", SP + "channel",
+              SP + "minimumSystemVersion", SP + "hardwareRequirements", SP + "shortVersionString", SP + "version"}
+    require(not item.attrib and all(child.tag in fields and len(item.findall(child.tag)) == 1 for child in item),
+            "unexpected rollout fields")
+    for child in item:
+        if child.tag == "enclosure":
+            continue  # Checked with its asset.
+        if child.tag == "description":
+            require(child.attrib == {SP + "format": "markdown"}, "unexpected release notes format")
+        else:
+            require(not child.attrib, "unexpected release field attributes")
+        if child.tag == SP + "deltas":
+            require(all(e.tag == "enclosure" for e in child), "unexpected delta field")
+        else:
+            require(not len(child), "unexpected nested item field")
+    require(item.findtext("title") == version and item.findtext("link") ==
+            f"https://github.com/{REPO}/releases/tag/v{version}", "release title or link differs")
+    for doc in (rss, old_rss):
+        group = doc.find("channel")
+        for entry in group.findall("item"):
+            group.remove(entry)
+    require(ET.tostring(rss) == ET.tostring(old_rss), "RSS channel outside of items changed")
     old_channel, new_channel = (appcast_edit.channel_feed(doc, channel) for doc in (old, new))
     issues = appcast_edit.check_regenerated(old_channel, new_channel, version, build,
                                              appcast_edit.enclosure_length(new_channel, build), 5)
     require(not issues, str(issues))
     # The generator may remove the previous release's inline notes. Every other
     # retained item, including signed deltas and entries on other channels, stays intact.
-    before = {i.findtext(SP + "version"): i for i in ET.fromstring(old).findall("./channel/item")}
     retained = [i for i in items if i is not added[0]]
     for i in retained:
-        previous = before[i.findtext(SP + "version")]
-        if i.find("description") is None and previous.find("description") is not None:
-            previous.remove(previous.find("description"))
+        previous = by_build[i.findtext(SP + "version")]
+        if i.findtext(SP + "channel", "stable") == channel:
+            # Sparkle regenerates or omits inline Markdown for older archives.
+            for entry in (previous, i):
+                notes = entry.find("description")
+                if notes is not None:
+                    entry.remove(notes)
+        ET.indent(previous)
+        ET.indent(i)
         require(ET.tostring(previous).strip() == ET.tostring(i).strip(), "retained release changed")
-    other = lambda seq: [i.findtext(SP+"version") for i in seq if i.findtext(SP+"channel", "stable") != channel]
-    require(other(before.values()) == other(items), "other release channel changed")
+    def other_builds(seq):
+        return [i.findtext(SP + "version") for i in seq if i.findtext(SP + "channel", "stable") != channel]
+
+    require(other_builds(old_items) == other_builds(items), "other release channel changed")
     verify_assets(added[0], version, build, channel, plistlib.loads(blob(head, INFO).encode())["SUPublicEDKey"])
+    return True
 
 
 def release_transition(base, head):
@@ -147,9 +200,7 @@ def release_transition(base, head):
     if not names or any(not r.startswith(":100644 100644 ") for r in records[::2]):
         return False
     if names == {FEED}:
-        validate_feed(base, head)
+        return validate_feed(base, head)
     elif names in (NOTES | {PROJECT}, NOTES | {PROJECT, INFO}):
         return validate_metadata(base, head)
-    else:
-        return False
-    return True
+    return False

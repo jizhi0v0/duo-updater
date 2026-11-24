@@ -1,8 +1,11 @@
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from ci_mini_reuse import REPO, WORKFLOW, source_run
+from ci_mini_reuse import REPO, WORKFLOW, main, source_run
+from ci_release_inputs import validate_feed, validate_metadata
 from check_ci_results import passed
 
 
@@ -57,6 +60,61 @@ class Evidence(unittest.TestCase):
         self.assertFalse(passed(jobs, reuse=True))
         jobs["mini-plan"] = {"result":"failure"}
         self.assertFalse(passed(jobs, mini=True, reuse=True))
+
+
+class ReleaseInputs(unittest.TestCase):
+    def test_release_metadata_preserves_other_settings_and_every_previous_note(self):
+        def files(rev, path):
+            if path == "App/project.yml":
+                version, build = ("1.0.0", "1") if rev == "old" else ("1.0.1", "2")
+                return (f'  MARKETING_VERSION: "{version}"\n  CURRENT_PROJECT_VERSION: "{build}"\n' * 2)
+            if path == "App/Info.plist":
+                return "<key>DuoReleaseChannel</key><string>stable</string>"
+            if path == "appcast.xml":
+                return "<rss/>"
+            history = "# Notes\n\n## 1.0.0\n\nOld note\n"
+            return history if rev == "old" else history.replace("## 1.0.0", "## 1.0.1\n\nNew note\n\n## 1.0.0")
+
+        with patch("ci_release_inputs.blob", side_effect=files):
+            self.assertTrue(validate_metadata("old", "new"))
+        for path in ("App/project.yml", "changelog/de.md"):
+            def changed(rev, name):
+                text = files(rev, name)
+                return text + "changed" if (rev, name) == ("new", path) else text
+            with self.subTest(path=path), patch("ci_release_inputs.blob", side_effect=changed):
+                if path == "App/project.yml":
+                    self.assertFalse(validate_metadata("old", "new"))
+                else:
+                    with self.assertRaises(ValueError):
+                        validate_metadata("old", "new")
+
+    def test_force_full_bypasses_lookup_and_historical_release_validation(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, GITHUB_SHA="sha",
+                MINI_PLATFORM="platform", FORCE_FULL="true", GITHUB_OUTPUT=tmp + "/out"), \
+                patch("ci_mini_reuse.git", side_effect=["sha", "tree"]), \
+                patch("ci_mini_reuse.candidate_trees") as trees:
+            main()
+            trees.assert_not_called()
+            self.assertIn("reuse=false", Path(tmp, "out").read_text())
+
+    def test_new_feed_must_match_platform_even_when_it_has_the_right_version(self):
+        ns = 'xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"'
+        def feed(build):
+            return (f"<rss {ns}><channel><item><sparkle:version>{build}</sparkle:version>"
+                    "<sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>"
+                    "<sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>"
+                    "<sparkle:hardwareRequirements>x86_64</sparkle:hardwareRequirements></item></channel></rss>")
+        def files(rev, path):
+            if path == "appcast.xml":
+                return feed("1" if rev == "old" else "2")
+            if path == "App/Info.plist":
+                return "<plist><dict><key>DuoReleaseChannel</key><string>stable</string></dict></plist>"
+            return '    macOS: "15.0"\n  ARCHS: arm64\n'
+        with patch("ci_release_inputs.blob", side_effect=files), \
+                patch("ci_release_inputs.project", return_value=("1.0.1", "2", "")):
+            with self.assertRaisesRegex(ValueError, "system requirements"):
+                validate_feed("old", "new")
+            self.assertFalse(validate_feed("new", "new"))  # An existing-build reissue needs full CI.
 
 
 if __name__ == "__main__":

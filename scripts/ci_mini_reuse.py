@@ -52,17 +52,21 @@ def source_run(trees, platform, lookup=api):
 
 
 def candidate_trees(head):
-    tree = lambda rev: git("rev-parse", rev + "^{tree}").strip()
-    trees = [tree(head)]
+    trees = [git("rev-parse", head + "^{tree}").strip()]
     # A normal release has two transitions: release metadata, then feed.
     for _ in range(2):
         parent = head + "^1"
         if subprocess.run(["git", "rev-parse", "--verify", "--quiet", parent],
                           stdout=subprocess.DEVNULL).returncode:
             break
-        if not release_transition(parent, head):
-            break
-        trees.append(tree(parent))
+        try:
+            if not release_transition(parent, head):
+                break
+        except ValueError:
+            if len(trees) == 1:
+                raise  # A bad release in this change must be reported.
+            break  # An older transition cannot extend the list of tested bases.
+        trees.append(git("rev-parse", parent + "^{tree}").strip())
         head = parent
     return trees
 
@@ -72,16 +76,21 @@ def main():
     if head != os.environ["GITHUB_SHA"]:
         raise ValueError("checkout does not match this event")
     platform = os.environ["MINI_PLATFORM"]
-    trees = candidate_trees(head)
+    tree = git("rev-parse", head + "^{tree}").strip()
     result = None
     if os.environ.get("FORCE_FULL") != "true":
         try:
-            result = source_run(trees, platform)
-        except (OSError, KeyError, TypeError, ValueError, subprocess.SubprocessError) as error:
-            print(f"Full CI: no verifiable Actions result ({error})")
+            trees = candidate_trees(head)
+        except (OSError, subprocess.SubprocessError) as error:
+            print(f"Full CI: release inputs unavailable ({error})")
+        else:
+            try:
+                result = source_run(trees, platform)
+            except (OSError, KeyError, TypeError, ValueError, subprocess.SubprocessError) as error:
+                print(f"Full CI: no verifiable Actions result ({error})")
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
         print(f"reuse={'true' if result else 'false'}", file=out)
-        print(f"tree={trees[0]}", file=out)
+        print(f"tree={tree}", file=out)
     if result:
         run, tree = result
         message = f"Reused full mini CI https://github.com/{REPO}/actions/runs/{run} (tree `{tree}`)."

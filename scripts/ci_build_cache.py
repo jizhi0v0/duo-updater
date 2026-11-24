@@ -59,7 +59,7 @@ def stamp(build):
     return f"stamped {len(manifest)} files"
 
 
-def restore(build):
+def restore(build, *, refresh_changed=False):
     try:
         manifest = json.loads((build / MANIFEST).read_text())
     except FileNotFoundError:
@@ -71,6 +71,11 @@ def restore(build):
             os.utime(path, ns=(recorded[1], recorded[1]), follow_symlinks=False)
             same += 1
         else:
+            # Another job sharing this checkout may have restored an older
+            # mtime for this blob using its own cache. Make the change visible
+            # to this cache's compiler even if checkout kept the file in place.
+            if refresh_changed:
+                os.utime(path, None, follow_symlinks=False)
             changed += 1
     return f"restored {same} mtimes; {changed} files new or changed since the cache"
 

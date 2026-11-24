@@ -10,9 +10,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import ci_build_cache as cbc  # noqa: E402
+import ci_mini_core_cache as mini  # noqa: E402
 
 BUILT = 1_600_000_000_000_000_000   # when the cached build ran
 CHECKOUT = 1_900_000_000_000_000_000  # when this run checked out, later
@@ -73,6 +75,123 @@ class RoundTrip(unittest.TestCase):
         self.touch("same.swift", CHECKOUT)
         self.assertIn("no manifest", cbc.restore(self.build))
         self.assertEqual(self.mtime("same.swift"), CHECKOUT)
+
+
+    def test_mini_refreshes_changed_files_with_mtimes_from_the_other_job(self):
+        self.touch("same.swift", BUILT)
+        self.touch("edited.swift", BUILT)
+        cbc.stamp(self.build)
+        (self.build / mini.READY).write_text("toolchain")
+        self.touch("same.swift", CHECKOUT)
+        pathlib.Path("edited.swift").write_text("a newer branch's content")
+        subprocess.run(["git", "add", "edited.swift"], check=True)
+        self.touch("edited.swift", BUILT - 10)
+
+        mini.prepare(self.build, "toolchain")
+
+        self.assertEqual(self.mtime("same.swift"), BUILT)
+        self.assertGreater(self.mtime("edited.swift"), BUILT)
+        self.assertFalse((self.build / mini.READY).exists())
+
+    def test_mini_discards_a_build_left_in_progress(self):
+        mini.prepare(self.build, "toolchain")
+        (self.build / "partial.o").touch()
+        cbc.stamp(self.build)
+
+        mini.prepare(self.build, "toolchain")
+
+        self.assertEqual(list(self.build.iterdir()), [])
+
+    def test_mini_save_makes_the_cache_reusable_for_that_key_only(self):
+        mini.prepare(self.build, "toolchain")
+        (self.build / "complete.o").touch()
+        with patch.object(mini, "MIN_FREE_BYTES", 0):
+            mini.save(self.build, "toolchain")
+        self.assertEqual((self.build / mini.READY).read_text(), "toolchain")
+
+        mini.prepare(self.build, "new toolchain")
+
+        self.assertEqual(list(self.build.iterdir()), [])
+
+    def test_mini_evicts_an_oversize_cache_without_touching_the_other_job(self):
+        workspace = pathlib.Path.cwd() / "checkout"
+        swift = mini.scratch_path(workspace, "swift")
+        release = mini.scratch_path(workspace, "release")
+        mini.prepare(swift, "toolchain")
+        mini.prepare(release, "toolchain")
+        (swift / "swift.o").write_bytes(b"swift")
+        (release / "release.o").write_bytes(b"release")
+
+        with patch.object(mini, "MAX_CACHE_KIB", 0), patch.object(mini, "MIN_FREE_BYTES", 0):
+            mini.save(swift, "toolchain")
+
+        self.assertFalse(swift.exists())
+        self.assertEqual((release / "release.o").read_bytes(), b"release")
+
+    def test_mini_refuses_a_cache_root_symlink(self):
+        workspace = pathlib.Path.cwd() / "checkout"
+        unrelated = pathlib.Path.cwd() / "unrelated"
+        unrelated.mkdir()
+        (pathlib.Path.cwd() / ".duo-core-cache").symlink_to(unrelated)
+        with self.assertRaisesRegex(ValueError, "Unexpected symlink"):
+            mini.scratch_path(workspace, "release")
+
+
+    def test_mini_rebuilds_from_scratch_if_the_mtime_manifest_is_unreadable(self):
+        blob = cbc.tracked()["same.swift"]
+        for manifest in ("{", '{"same.swift": ["%s"]}' % blob):
+            with self.subTest(manifest=manifest):
+                mini.prepare(self.build, "toolchain")
+                (self.build / "old.o").touch()
+                (self.build / mini.READY).write_text("toolchain")
+                (self.build / cbc.MANIFEST).write_text(manifest)
+
+                mini.prepare(self.build, "toolchain")
+
+                self.assertEqual(list(self.build.iterdir()), [])
+
+    def test_mini_reclaims_an_abandoned_sibling_before_building(self):
+        checkout = pathlib.Path.cwd() / "checkout"
+        checkout.mkdir()
+        abandoned = mini.scratch_path(checkout, "release")
+        mini.prepare(abandoned, "key")
+        (abandoned / "partial.o").touch()
+
+        with patch.object(mini, "MIN_FREE_BYTES", 0), patch.object(mini, "cache_key", return_value="key"):
+            current, key = mini.prepare_job(checkout, "swift")
+
+        self.assertFalse(abandoned.exists())
+        self.assertTrue(current.is_dir())
+        self.assertEqual(key, "key")
+
+    def test_mini_uses_temporary_scratch_after_evicting_caches_for_low_disk(self):
+        workspace = pathlib.Path.cwd()
+        # Put the fixture checkout one level down, so the cache stays within
+        # the temporary directory even though it is next to the checkout.
+        checkout = workspace / "checkout"
+        checkout.mkdir()
+        swift = mini.scratch_path(checkout, "swift")
+        release = mini.scratch_path(checkout, "release")
+        mini.prepare(swift, "key")
+        mini.prepare(release, "key")
+        env_file = workspace / "env"
+        with patch.dict(os.environ, {
+            "GITHUB_JOB": "swift",
+            "GITHUB_WORKSPACE": str(checkout),
+            "GITHUB_ENV": str(env_file),
+            "RUNNER_TEMP": str(workspace),
+        }), patch.object(mini, "MIN_FREE_BYTES", sys.maxsize):
+            os.chdir(checkout)
+            try:
+                mini.main("prepare")
+            finally:
+                os.chdir(workspace)
+
+        self.assertFalse(swift.exists())
+        self.assertFalse(release.exists())
+        scratch_line, key_line = env_file.read_text().splitlines()
+        self.assertTrue(scratch_line.startswith(f"SWIFTPM_TEST_SCRATCH={workspace}/duo-core-ci."))
+        self.assertEqual(key_line, "DUO_MINI_CORE_CACHE_KEY=")
 
 
 if __name__ == "__main__":

@@ -31,6 +31,8 @@ import Foundation
             ChannelProofKey("com.nuebling.mac-mouse-fix", .beta),
             ChannelProofKey("com.googlecode.iterm2", .beta),
             ChannelProofKey("com.qvacua.VimR", .preview),
+            ChannelProofKey("com.superlogical.rex", .preview),
+            ChannelProofKey("com.superlogical.rex", .nightly),
             ChannelProofKey("pro.betterdisplay.BetterDisplay", .beta),
             ChannelProofKey("pro.betterdisplay.BetterDisplay", .unstable),
         ]), "the binding population changed: \(needing.map(\.description).sorted())")
@@ -70,7 +72,8 @@ import Foundation
         }
     }
 
-    /// …and FAILS on the same binding's stable resolution.
+    /// …and FAILS on the stable channel, or on the sibling track for a
+    /// prerelease-only app.
     ///
     /// The property that makes these proofs worth having, and one the recipe-side
     /// registry cannot state as directly: an anchor is only evidence if the other
@@ -81,33 +84,27 @@ import Foundation
     /// unsuffixed `feed.xml` and stable is `feed-stable.xml`, so the anchor is the
     /// absence of a suffix, and it only discriminates because `feed-stable.xml`
     /// does not contain the literal `feed.xml`.
-    @Test func everyBindingProofFailsOnItsOwnStableSibling() {
-        let stableByID = Dictionary(
-            ChannelBinding.allResolutions
-                .filter { $0.resolved.channel == .stable }
-                .map { ($0.bundleID, $0.resolved) },
-            uniquingKeysWith: { first, _ in first })
-
+    @Test func everyBindingProofDistinguishesItsChannel() {
         for (key, proof) in ChannelProofRegistry.bindingProofs {
             guard case .recipeAnchor(let pattern, let fields) = proof else {
                 Issue.record("\(key): a binding proof must be a .recipeAnchor")
                 continue
             }
-            // `guard`, not `try! #require`: a proof registered for a binding with
-            // no enumerated stable resolution is a real (if unlikely) mistake, and
-            // it should read as one failing test rather than a `fatalError` that
-            // takes the whole test binary down with it.
-            guard let stable = stableByID[key.bundleID] else {
-                Issue.record("\(key): no stable resolution enumerated for this bundle id, so the proof cannot be shown to discriminate")
-                continue
+            let otherChannels = ChannelBinding.allResolutions.filter {
+                $0.bundleID == key.bundleID && $0.resolved.channel != key.channel
             }
-            // Matched the way the guard matches it — per named field, same options.
-            let matched = fields.contains { label in
-                stable.channelAnchorSurface(ofField: label)?
-                    .range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+            let stable = otherChannels.filter { $0.resolved.channel == .stable }
+            // BetterDisplay can opt into two prerelease tags at once.
+            let siblings = stable.isEmpty ? otherChannels : stable
+            #expect(!siblings.isEmpty, "\(key): no other channel enumerated for comparison")
+            for sibling in siblings {
+                let matched = fields.contains { label in
+                    sibling.resolved.channelAnchorSurface(ofField: label)?
+                        .range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+                }
+                #expect(!matched,
+                        "\(key): the anchor /\(pattern)/ also matches \(sibling.resolved.channel)")
             }
-            #expect(!matched,
-                    "\(key): the anchor /\(pattern)/ ALSO matches this app's stable resolution, so it cannot tell the two apart and proves nothing")
         }
     }
 

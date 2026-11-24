@@ -609,7 +609,7 @@ public enum ChangelogService {
     /// of a two-stage index/detail recipe); pass it only for the single request a
     /// structured recipe makes, so a `.post` recipe's method/body actually rides
     /// along (see `fetch(_:recipe:session:)`).
-    private static func fetchBody(
+    static func fetchBody(
         _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
     ) async -> String? {
         await fetch(url, recipe: recipe, session: session).body

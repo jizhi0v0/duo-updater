@@ -78,7 +78,7 @@ import Testing
     }
 
     @Test func allCatalogURLsArePublicHTTPSWithoutCredentialsOrQuery() {
-        #expect(AuditedUpdateFeeds.entries.count == 73)
+        #expect(AuditedUpdateFeeds.entries.count == 75)
         for entry in AuditedUpdateFeeds.entries {
             let url: URL?
             if case .electron(let config) = entry.source {
@@ -109,7 +109,7 @@ import Testing
         let excludedDocuments = Set(AuditedUpdateFeeds.uncoveredRows.map(\.auditDocument))
 
         #expect(electronEntries.count == 12)
-        #expect(sparkleEntries.count == 61)
+        #expect(sparkleEntries.count == 63)
         #expect(electronDocuments == electronRows)
         #expect(sparkleDocuments.isDisjoint(with: excludedDocuments))
         #expect(sparkleDocuments.union(excludedDocuments) == sparkleRows)
@@ -132,6 +132,19 @@ import Testing
         })
         let trackGapIDs = AuditedUpdateFeeds.uncoveredTracks.map(\.id)
         #expect(trackGapIDs.count == Set(trackGapIDs).count)
+    }
+
+    @Test func rexInventoryCoversBothBindingFeeds() {
+        let entries = AuditedUpdateFeeds.entries.filter { $0.bundleID == "com.superlogical.rex" }
+        let bindings = ChannelBinding.feedVerificationCases.filter { $0.bundleID == "com.superlogical.rex" }
+        #expect(Set(entries.map(\.recipeID)) == [
+            "sparkle:com.superlogical.rex:preview", "sparkle:com.superlogical.rex:snapshot",
+        ])
+        for entry in entries {
+            #expect(bindings.contains {
+                $0.resolution?.channel == entry.channel && $0.feed == sparkleDetails(entry)?.feed
+            })
+        }
     }
 
     @Test func criticalElectronAndSparkleConfigurationsKeepTheirTracks() throws {
@@ -234,7 +247,7 @@ import Testing
         let gaps = AuditedUpdateFeeds.unavailablePublicKeys
         let gapBundleIDs = Set(gaps.map(\.bundleID))
 
-        #expect(keyedBundleIDs.count == 21)
+        #expect(keyedBundleIDs.count == 22)
         #expect(missingBundleIDs.count == 25)
         #expect(gapBundleIDs == missingBundleIDs)
         #expect(gaps.count == gapBundleIDs.count)

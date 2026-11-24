@@ -3886,6 +3886,16 @@ private struct ReleaseNotesPane: View {
     }
 
     var body: some View {
+        if let feed = RexChangelog.feed(for: result), let history = result.remote?.structuredChangelog {
+            RexReleaseNotesPane(appID: result.app.id, history: history)
+                .id(feed)
+        } else {
+            standardNotes
+        }
+    }
+
+    @ViewBuilder
+    private var standardNotes: some View {
         // `changelogState(for:)` is non-nil only for recipe-backed apps. The load
         // itself is owned by the model (not this view), so switching apps never
         // cancels an in-flight fetch — the spinner shows once, then the cached
@@ -3986,6 +3996,52 @@ private struct ReleaseNotesPane: View {
         .onAppear {
             Log.changelog.notice(
                 "perf pane=empty \(result.app.name, privacy: .public) origin=\(changelogURLOrigin, privacy: .public) src=\(result.remote?.sourceName ?? "?", privacy: .public)")
+        }
+    }
+}
+
+private struct RexReleaseNotesPane: View {
+    let appID: String
+    let history: Changelog
+
+    var body: some View {
+        ChangelogEntriesView(changelog: history) { entry in
+            let sections = await RequestAttribution.withApp(appID) { await RexChangelog.load(entry) }
+            return sections.map { enriched(entry, with: $0) }
+        }
+    }
+
+    private func enriched(_ entry: Changelog.Entry, with sections: RexChangelog.Sections) -> Changelog.Entry {
+        let mac = body(for: sections.mac, fallback: entry.markdown)
+        let server = body(for: sections.server)
+        let serverLabel = String(localized: "Server & CLI")
+        let serverHeading = sections.serverVersion.map { "\(serverLabel) · \($0)" } ?? serverLabel
+        let markdown = """
+            ## \(String(localized: "Mac client"))
+
+            \(mac)
+
+            ## \(serverHeading)
+
+            \(server)
+            """
+        return Changelog.Entry(
+            title: entry.title, version: entry.version, date: entry.date,
+            items: [mac, server], markdown: markdown)
+    }
+
+    private func body(for section: RexChangelog.Section, fallback: String? = nil) -> String {
+        switch section {
+        case .published(let markdown):
+            return markdown
+        case .unpublished:
+            return [String(localized: "No separate Mac release notes for this build."), fallback]
+                .compactMap { $0 }.joined(separator: "\n\n")
+        case .failed:
+            return [String(localized: "Couldn't load the release notes"), fallback]
+                .compactMap { $0 }.joined(separator: "\n\n")
+        case .unidentified:
+            return String(localized: "The bundled Server & CLI version could not be identified.")
         }
     }
 }
@@ -4255,6 +4311,8 @@ struct ChangelogEntriesView: View {
     /// The latest click on a version in the pane's Compatibility row: shown
     /// like a click on that version's ⚠ in the rail (`showBreaking`).
     var breakingJump: BreakingChangesJump?
+    var loadEntry: ((Changelog.Entry) async -> Changelog.Entry?)? = nil
+    @State private var enrichedEntries: [Changelog.Entry: Changelog.Entry] = [:]
     @AppStorage("changelogLayout") private var layout: ChangelogLayout = .columns
     @State private var selection = 0
     /// Cached rail width. The measurement below runs AppKit text sizing over every
@@ -4371,6 +4429,10 @@ struct ChangelogEntriesView: View {
         // New changelog (app switch) → select the newest entry again, and
         // re-measure the rail (its width depends only on the changelog).
         .onChange(of: changelog) {
+            if !enrichedEntries.isEmpty {
+                let sources = Set(changelog.entries)
+                enrichedEntries = enrichedEntries.filter { sources.contains($0.key) }
+            }
             selection = 0
             shownBreaking = nil
             landing = nil
@@ -4439,6 +4501,36 @@ struct ChangelogEntriesView: View {
     private var measuredRailWidth: CGFloat {
         let shown = Set(changelog.entries.map(\.version))
         return Self.railWidth(for: changelog, flagsBreaking: breakingVersions.contains(where: shown.contains))
+    }
+
+    private var displayedChangelog: Changelog {
+        guard !enrichedEntries.isEmpty else { return changelog }
+        return Changelog(
+            entries: changelog.entries.map { enrichedEntries[$0] ?? $0 },
+            itemSyntax: changelog.itemSyntax)
+    }
+
+    private func loadEntryIfNeeded(_ source: Changelog.Entry) async {
+        guard let loadEntry, enrichedEntries[source] == nil else { return }
+        let enriched = await loadEntry(source)
+        if !Task.isCancelled, enrichedEntries[source] == nil {
+            enrichedEntries[source] = enriched ?? source
+        }
+    }
+
+    private func awaitsNotes(_ entry: Changelog.Entry) -> Bool {
+        loadEntry != nil && enrichedEntries[entry] == nil
+    }
+
+    @ViewBuilder
+    private func loadOnDisplay<Content: View>(
+        _ entry: Changelog.Entry, @ViewBuilder content: () -> Content
+    ) -> some View {
+        if loadEntry != nil {
+            content().task(id: entry) { await loadEntryIfNeeded(entry) }
+        } else {
+            content()
+        }
     }
 
     private func entry(_ version: String) -> Int? {
@@ -4580,6 +4672,9 @@ struct ChangelogEntriesView: View {
         // Clamp: the same view can be reused when the user switches apps, so a stale
         // selection from a longer changelog must not index past a shorter one.
         let index = min(max(selection, 0), changelog.entries.count - 1)
+        let displayed = displayedChangelog
+        let source = changelog.entries[index]
+        let loading = awaitsNotes(source)
         return HStack(spacing: 0) {
             ChangelogVersionList(
                 entries: changelog.entries, selection: $selection,
@@ -4596,21 +4691,34 @@ struct ChangelogEntriesView: View {
             // ScrollView and moving it instead lets SwiftUI update the notes in place.
             ScrollViewReader { proxy in
                 ScrollView {
-                    ChangelogRowsStack(changelog: changelog, entry: index, itemStyle: itemStyle,
-                                       tint: tint, scroll: notesScroll)
+                    loadOnDisplay(source) {
+                        Group {
+                            if loading {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ChangelogEntryView(entry: source, part: .title)
+                                    ProgressView().controlSize(.small)
+                                }
+                            } else {
+                                ChangelogRowsStack(changelog: displayed, entry: index, itemStyle: itemStyle,
+                                                   tint: tint, scroll: notesScroll)
+                            }
+                        }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .id(Self.scrollTopAnchor)
+                    }
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { notesScroll.viewportHeight = $0 }
                 // The version's Copy, where the long scroll has it too: the top
                 // right of the notes, wherever they are scrolled to.
                 .overlay(alignment: .topTrailing) {
-                    ChangelogEntryView.CopyNotesButton(entry: changelog.entries[index])
-                        .padding(4)
-                        .background(.bar, in: RoundedRectangle(cornerRadius: 6))
-                        .padding(.top, 10)
-                        .padding(.trailing, 12)
+                    if !loading {
+                        ChangelogEntryView.CopyNotesButton(entry: displayed.entries[index])
+                            .padding(4)
+                            .background(.bar, in: RoundedRectangle(cornerRadius: 6))
+                            .padding(.top, 10)
+                            .padding(.trailing, 12)
+                    }
                 }
                 // BOTH triggers. `index` alone misses the most common switch there
                 // is: picking a different app resets `selection` to 0, so a user who
@@ -4641,8 +4749,12 @@ struct ChangelogEntriesView: View {
     /// the notes while they are read (`ChangelogSectionsList`).
     private var sectionsBody: some View {
         ScrollViewReader { proxy in
-            ChangelogSectionsList(changelog: changelog, itemStyle: itemStyle, tint: tint,
-                                  measured: tint?.entry ?? landing, scroll: notesScroll)
+            ChangelogSectionsList(
+                changelog: displayedChangelog, itemStyle: itemStyle, tint: tint,
+                measured: tint?.entry ?? landing, scroll: notesScroll,
+                sourceEntries: loadEntry == nil ? [] : changelog.entries,
+                pending: Set(changelog.entries.indices.filter { awaitsNotes(changelog.entries[$0]) }),
+                loadEntry: loadEntryIfNeeded)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
                     notesScroll.viewportHeight = $0.height
                     notesScroll.listTop = $0.minY
@@ -4817,6 +4929,9 @@ private struct ChangelogSectionsList: View {
     /// Where the rows `scrollToBreaking` may go to are recorded while built,
     /// with their heights, and the header's height (`ChangelogEntriesView.NotesScroll`).
     let scroll: ChangelogEntriesView.NotesScroll
+    let sourceEntries: [Changelog.Entry]
+    let pending: Set<Int>
+    let loadEntry: (Changelog.Entry) async -> Void
 
     /// The gap between the header and the first row, and below the last.
     private static let sectionInset: CGFloat = 10
@@ -4841,6 +4956,7 @@ private struct ChangelogSectionsList: View {
     /// `entry`'s rows. The ids are the `ForEach`'s own data, so `scrollTo` can
     /// reach a row not built yet (`ChangelogEntriesView.scrollToBreaking`).
     private func rows(of index: Int, tinted: IndexSet?) -> [Row] {
+        guard !pending.contains(index) else { return [] }
         let entry = changelog.entries[index]
         let count = ChangelogEntryView.rowCount(of: entry)
         let spacing = ChangelogEntryView.rowSpacing(of: entry, itemStyle: itemStyle)
@@ -4858,6 +4974,13 @@ private struct ChangelogSectionsList: View {
                 let entry = changelog.entries[index]
                 let tinted = tint?.entry == index ? tint?.rows : nil
                 Section {
+                    if pending.contains(index) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(.vertical, Self.sectionInset)
+                            .padding(.horizontal, 16)
+                            .id(Self.rowID(entry: index, row: 0))
+                    }
                     ForEach(rows(of: index, tinted: tinted)) { row in
                         ChangelogEntryView(entry: entry, itemStyle: itemStyle, syntax: changelog.itemSyntax,
                                            part: .row(row.row), tinted: tinted)
@@ -4881,7 +5004,7 @@ private struct ChangelogSectionsList: View {
                             .listRowSeparator(.hidden)
                     }
                 } header: {
-                    ChangelogEntryView.Header(entry: entry, tinted: tinted?.isEmpty == true)
+                    header(entry, index: index, tinted: tinted?.isEmpty == true)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { scroll.headerHeight = $0 }
                         .onGeometryChange(for: CGRect?.self) {
                             index == measured ? $0.frame(in: .global) : nil
@@ -4903,6 +5026,17 @@ private struct ChangelogSectionsList: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 0)
+    }
+
+    @ViewBuilder
+    private func header(_ entry: Changelog.Entry, index: Int, tinted: Bool) -> some View {
+        let title = ChangelogEntryView.Header(entry: entry, tinted: tinted, showCopy: !pending.contains(index))
+        if sourceEntries.indices.contains(index) {
+            let source = sourceEntries[index]
+            title.task(id: source) { await loadEntry(source) }
+        } else {
+            title
+        }
     }
 }
 
@@ -5164,6 +5298,7 @@ struct ChangelogEntryView: View {
         let entry: Changelog.Entry
         /// Nothing in the notes to point at: the version itself is breaking.
         var tinted = false
+        var showCopy = true
 
         var body: some View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -5181,7 +5316,7 @@ struct ChangelogEntryView: View {
                     Text(ChangelogEntryView.displayDate(for: date)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
-                CopyNotesButton(entry: entry)
+                if showCopy { CopyNotesButton(entry: entry) }
             }
             .lineLimit(1)
             .breakingTint(tinted, spacing: 12)

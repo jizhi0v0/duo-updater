@@ -137,7 +137,7 @@ public struct SparkleAppcastSource: UpdateSource {
         // When the feed inlines Markdown notes (e.g. Surge's `<markdownDescription>`)
         // rather than HTML, parse them into a native, multi-version changelog so the
         // detail window renders entries instead of falling back to a web view.
-        let structured = Self.structuredChangelog(from: offerable)
+        let structured = Self.structuredChangelog(from: offerable, bundleID: app.bundleID)
 
         // Every in-channel item that carries a date — the appcast usually keeps the
         // last N releases, so this backfills the app's whole visible history into
@@ -401,8 +401,9 @@ public struct SparkleAppcastSource: UpdateSource {
     ///
     /// Returns nil when no item produced any notes at all (the HTML
     /// `<description>` / web-view fallback paths stay in charge for those feeds).
-    static func structuredChangelog(from usable: [SparkleAppcastItem]) -> Changelog? {
+    static func structuredChangelog(from usable: [SparkleAppcastItem], bundleID: String? = nil) -> Changelog? {
         let maxEntries = 40
+        let isRex = bundleID?.lowercased() == RexChannel.bundleID
         var kept: [(item: SparkleAppcastItem, entry: Changelog.Entry)] = []
         // Several <item>s can share a marketing version, for two reasons:
         // - One release, several items. TablePro publishes 0.67.0 once per
@@ -461,6 +462,14 @@ public struct SparkleAppcastSource: UpdateSource {
         var perVersion: [String: Int] = [:]
         for pair in kept { perVersion[pair.entry.version, default: 0] += 1 }
         let entries = kept.map { item, entry -> Changelog.Entry in
+            // Rex joins its component notes by exact build and commit. The
+            // generic Markdown cleanup strips lines with full commit hashes.
+            if isRex, let build = item.version {
+                return Changelog.Entry(
+                    title: "\(entry.version) (\(build))", version: entry.version, date: entry.date,
+                    items: entry.items, content: entry.content,
+                    markdown: item.markdownDescription ?? entry.markdown)
+            }
             guard perVersion[entry.version, default: 0] > 1, entry.title == nil,
                   let build = item.version, build != entry.version
             else { return entry }

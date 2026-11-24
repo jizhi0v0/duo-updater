@@ -182,6 +182,7 @@ public enum ChannelBinding {
         DuoPasteChannel.bundleID.lowercased(),
         KuvoCodeChannel.bundleID.lowercased(),
         ForkChannel.bundleID.lowercased(),
+        RexChannel.bundleID,
         SurgeChannel.bundleID.lowercased(),
         OrbStackChannel.bundleID.lowercased(),
         TablePlusChannel.bundleID.lowercased(),
@@ -516,6 +517,8 @@ public enum ChannelBinding {
         case KuvoCodeChannel.bundleID.lowercased():
             return { _, strings in KuvoCodeChannel.resolveCurrent(bundleStrings: strings) }
         case ForkChannel.bundleID.lowercased():     return { _, _ in ForkChannel.resolveCurrent() }
+        case RexChannel.bundleID:
+            return { feeds, _ in RexChannel.resolveCurrent(declaredFeed: feeds["SUFeedURL"]) }
         case SurgeChannel.bundleID.lowercased():    return { _, _ in SurgeChannel.resolveCurrent() }
         case OrbStackChannel.bundleID.lowercased(): return { _, _ in OrbStackChannel.resolveCurrent() }
         case TablePlusChannel.bundleID.lowercased(): return { _, _ in TablePlusChannel.resolveCurrent() }
@@ -646,6 +649,10 @@ public enum ChannelBinding {
         (OsaurusChannel.bundleID, OsaurusChannel.resolveCurrent()),
     ] + (CleanShotChannel.resolve(activationKey: CleanShotChannel.placeholderActivationKey)
         .map { [(CleanShotChannel.bundleID, $0)] } ?? [])
+    + ["preview", "snapshot"].compactMap { preference in
+        RexChannel.resolve(preference: preference)
+            .map { (bundleID: RexChannel.bundleID, resolved: $0) }
+    }
     + [true, false].compactMap { flag in
         KuvoCodeChannel.resolve(includeBetas: flag)
             .map { (bundleID: KuvoCodeChannel.bundleID, resolved: $0) }

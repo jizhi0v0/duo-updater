@@ -623,7 +623,7 @@ public enum ChangelogService {
     /// Notion. Only the one request a caller explicitly threads a recipe through
     /// can ever be a POST; every other fetch in this file (the two-stage index
     /// page, its detail page) is hard-coded to GET by simply not passing one.
-    private static func fetch(
+    static func fetch(
         _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
     ) async -> (body: String?, status: Int?) {
         // The same gate the web view applies to a changelog URL. The URL here can

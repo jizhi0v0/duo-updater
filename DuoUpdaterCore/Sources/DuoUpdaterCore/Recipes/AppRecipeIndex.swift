@@ -234,6 +234,7 @@ public enum AppRecipeIndex {
         com_sublimetext_4.set,
         com_super_productivity_app.set,
         com_supercmd_app.set,
+        com_superlogical_rex.set,
         com_superultra_kiln.set,
         com_surteesstudios_Bartender.set,
         com_swiftvm_app.set,

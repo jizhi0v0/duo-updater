@@ -215,6 +215,15 @@ enum AuditedUpdateFeeds {
                 channelNames: ["beta"],
                 publicKey: "xPc2c4nfaYOLmG2PTK3uDRxSaMsTgeq1qvZ/pFjFk7I=",
                 audit: "docs/app-audits/plus-yellow-AirBuild.md"),
+        // Audit: docs/app-audits/com-superlogical-rex.md
+        sparkle("Rex", "com.superlogical.rex", .preview,
+                feed: "https://blob.superlogical.com/public/rex-app/preview-arm64/appcast.xml",
+                publicKey: "jG2oqfrStpD6pfzWIBAHHbER3yTLaZWToni8eZiBzxE=",
+                audit: "docs/app-audits/com-superlogical-rex.md"),
+        sparkle("Rex Bleeding Edge", "com.superlogical.rex", .nightly,
+                trackID: "snapshot", feed: "https://blob.superlogical.com/public/rex-app/snapshot-arm64/appcast.xml",
+                publicKey: "jG2oqfrStpD6pfzWIBAHHbER3yTLaZWToni8eZiBzxE=",
+                audit: "docs/app-audits/com-superlogical-rex.md"),
         // Audit: docs/app-audits/org-p0deje-Maccy.md
         sparkle("Maccy", "org.p0deje.Maccy", .stable,
                 feed: "https://raw.githubusercontent.com/p0deje/Maccy/master/appcast.xml",

@@ -498,6 +498,7 @@ are NOT CFPreferences.
 |---|---|---|---|
 | DuoPaste `io.duopaste.daemon` | CFPrefs | `sparkleIncludePrereleases` true → beta | Sparkle channel tag |
 | Fork `com.DanPristupov.Fork` | CFPrefs | `applicationUpdateChannel` Int, 1 = stable, else Develop | feed swap |
+| Rex `com.superlogical.rex` | CFPrefs | `RexAppUpdateChannel` String, `preview` / `snapshot` | feed swap |
 | Surge `com.nssurge.surge-mac` | `~/Library/Application Support/com.nssurge.surge-mac/KDDefaults.plist` | `IncludeBetaBuilds` true | feed swap |
 | OrbStack `dev.kdrag0n.MacVirt` | CFPrefs | `updates_optinChannel` String (beta / canary) | selects VendorProbe recipe |
 | TablePlus `com.tinyapp.TablePlus` | CFPrefs (lower-cased domain) | `ViewSetting.IsReceiveBetaBuild` true | header `X-Tiny-Beta-Update: true` |

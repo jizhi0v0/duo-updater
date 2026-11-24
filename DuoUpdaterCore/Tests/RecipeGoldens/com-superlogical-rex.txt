@@ -1,0 +1,40 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-superlogical-rex"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 2)
+bindingProofs[ChannelProofKey(bundleID: "com.superlogical.rex", channel: .nightly)] = .recipeAnchor(_:in:)
+bindingProofs[ChannelProofKey(bundleID: "com.superlogical.rex", channel: .nightly)].0 = "\\Ahttps://blob\\.superlogical\\.com/public/rex-app/snapshot-arm64/appcast\\.xml\\z"
+bindingProofs[ChannelProofKey(bundleID: "com.superlogical.rex", channel: .nightly)].in = Set(count: 1)
+bindingProofs[ChannelProofKey(bundleID: "com.superlogical.rex", channel: .nightly)].in{0} = "feedOverride"
+bindingProofs[ChannelProofKey(bundleID: "com.superlogical.rex", channel: .preview)] = .recipeAnchor(_:in:)
+bindingProofs[ChannelProofKey(bundleID: "com.superlogical.rex", channel: .preview)].0 = "\\Ahttps://blob\\.superlogical\\.com/public/rex-app/preview-arm64/appcast\\.xml\\z"
+bindingProofs[ChannelProofKey(bundleID: "com.superlogical.rex", channel: .preview)].in = Set(count: 1)
+bindingProofs[ChannelProofKey(bundleID: "com.superlogical.rex", channel: .preview)].in{0} = "feedOverride"
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

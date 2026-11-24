@@ -104,6 +104,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_check_adversarial_review.py
 	$(PYTHON) scripts/test_check_nightly_data.py
 	$(PYTHON) scripts/test_check_ci_results.py
+	$(PYTHON) scripts/test_ci_mini_reuse.py
 
 # Extra `swift test` arguments for Core's suite, here and in test-release.
 # Empty by default, including on CI's GitHub-hosted runners.

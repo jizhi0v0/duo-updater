@@ -28,6 +28,30 @@ struct ManagedStopTests {
         (try? Data(contentsOf: URL(fileURLWithPath: path))).map { String(decoding: $0, as: UTF8.self) }
     }
 
+    /// A signallable PID can still be a zombie awaiting reaping. These tests
+    /// require the fixture to have stopped executing before rollback can run.
+    private func expectFixtureExited(
+        _ pid: pid_t, _ message: String, sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        try #require(pid > 0, "The fixture did not record its PID", sourceLocation: sourceLocation)
+        var info = kinfo_proc()
+        let expectedSize = MemoryLayout<kinfo_proc>.stride
+        var size = expectedSize
+        var mib = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        let result = sysctl(&mib, 4, &info, &size, nil, 0)
+        let error = result == 0 ? 0 : errno
+        try #require(result == 0, "Could not inspect fixture PID \(pid): errno \(error)",
+                     sourceLocation: sourceLocation)
+        guard size != 0 else { return }
+        try #require(size == expectedSize && info.kp_proc.p_pid == pid,
+                     "Incomplete process record for fixture PID \(pid) (\(size) bytes)",
+                     sourceLocation: sourceLocation)
+        let state = Int32(info.kp_proc.p_stat)
+        #expect(state == SZOMB,
+                "\(message): PID \(pid), state \(state), parent \(info.kp_eproc.e_ppid), group \(info.kp_eproc.e_pgid)",
+                sourceLocation: sourceLocation)
+    }
+
     /// Every file under `root` with its bytes, and every link with its target.
     private func listing(_ root: String) -> [String: String] {
         var out: [String: String] = [:]
@@ -143,14 +167,13 @@ struct ManagedStopTests {
         #expect(!result.succeeded)
         // Ended by the stop, not by the deadline's backstop.
         #expect(result.failureMessage == "stopped")
-        #expect(child > 0)
-        #expect(kill(child, 0) != 0)
+        try expectFixtureExited(child, "The pipeline child outlived the run")
     }
 
     /// What mise does: on the interrupt, start a process in a group of its
     /// own, then exit. The run returns only once that one has gone too, and
-    /// was stopped: it sleeps 600 s, so only the SIGINT ends it before the run
-    /// gives up at 20 s (the ladder's SIGTERM and SIGKILL are out of reach).
+    /// was stopped: it waits for the test directory to be removed after the
+    /// assertion, with a 600 s backstop, so the SIGINT must end it first.
     /// No clock is read. Mutation: the child not in a session of its own (the
     /// grandchild is not found, and outlives the return), or `waitUntilGone`
     /// not sending SIGINT to a group that started after the stop (the run
@@ -159,9 +182,11 @@ struct ManagedStopTests {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try write(root + "/grandchild.pl", """
+            use Time::HiRes qw(time);
             $SIG{INT} = 'DEFAULT'; setpgrp(0, 0);
             open(P, '>\(root)/pid'); print P $$; close P;
-            sleep 600;
+            my $until = time + 600;
+            while (-d '\(root)' && time < $until) { select(undef, undef, undef, 0.05); }
             """)
         let script = "trap 'perl \(root)/grandchild.pl & sleep 0.3; exit 130' INT; touch \(root)/started; sleep 30"
         let command = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", script], pathPrefix: nil)
@@ -180,9 +205,7 @@ struct ManagedStopTests {
         let result = await task.value
         #expect(result.stopped)
         let pid = pid_t(read(root + "/pid") ?? "") ?? 0
-        #expect(pid > 0)
-        #expect(kill(pid, 0) != 0, "the grandchild outlived the run")
-        if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+        try expectFixtureExited(pid, "The grandchild outlived the run")
     }
 
     /// What pipx does: start its backend in a session of its own, and on the
@@ -197,10 +220,12 @@ struct ManagedStopTests {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try write(root + "/grandchild.pl", """
+            use Time::HiRes qw(time);
             use POSIX (); POSIX::setsid();
             $SIG{INT} = sub { open(F, '>\(root)/sigint'); close F; exit 130 };
             open(P, '>\(root)/pid'); print P $$; close P;
-            sleep 600;
+            my $until = time + 600;
+            while (-d '\(root)' && time < $until) { select(undef, undef, undef, 0.05); }
             """)
         let script = "trap 'sleep 0.5; exit 130' INT; perl \(root)/grandchild.pl & touch \(root)/started; wait; wait"
         let command = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", script], pathPrefix: nil)
@@ -221,9 +246,8 @@ struct ManagedStopTests {
         task.cancel()
         let result = await task.value
         #expect(result.stopped)
-        #expect(kill(pid, 0) != 0, "the grandchild in its own session outlived the run")
+        try expectFixtureExited(pid, "The grandchild in its own session outlived the run")
         #expect(!FileManager.default.fileExists(atPath: root + "/sigint"), "its session was sent the SIGINT")
-        if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
     /// A process that hands over to a fresh child and exits, again and again,
@@ -299,7 +323,7 @@ struct ManagedStopTests {
                 setpgrp(0, 0);
                 open(P, '>\(root)/pid.tmp'); print P $$; close P; rename('\(root)/pid.tmp', '\(root)/pid');
                 my $until = time + 60;
-                while (time < $until) { select(undef, undef, undef, 0.05); }
+                while (-d '\(root)' && time < $until) { select(undef, undef, undef, 0.05); }
                 """)
             let command = CLIToolCommand(
                 executable: "/bin/sh", arguments: ["-c", "perl \(root)/relay.pl >/dev/null 2>&1 & sleep 600; wait"],
@@ -318,10 +342,10 @@ struct ManagedStopTests {
             task.cancel()
             let result = await task.value
             let pid = pid_t(read(root + "/pid")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
-            let alive = pid > 0 && kill(pid, 0) == 0
-            if alive { kill(pid, SIGKILL) }
             #expect(result.stopped, "round \(round)")
-            #expect(!alive, "round \(round): the relay ran on in a group of its own after the run said stopped")
+            if pid > 0 {
+                try expectFixtureExited(pid, "Round \(round): the relay in its own group outlived the run")
+            }
         }
     }
 

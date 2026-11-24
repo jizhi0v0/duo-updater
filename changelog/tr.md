@@ -2,6 +2,10 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.30
+
+**macOS 27.3 ve sonraki sürümlerde uygulamayı sürüklemeden DuoUpdater’a izin verebilirsiniz.** DuoUpdater, Sistem Ayarları’nı açar ve hangi uygulamayı seçeceğinizi gösterir.
+
 ## 0.5.29
 
 **Uygulama araması en uygun sonuçları önce gösterir ve Workbench’te klavye odağını korur.**

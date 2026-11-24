@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.30
+
+**On macOS 27.3 and later, you can grant DuoUpdater permissions without dragging the app.** DuoUpdater opens System Settings and shows which app to select.
+
 ## 0.5.29
 
 **App search ranks closer matches first and keeps keyboard focus in Workbench.**

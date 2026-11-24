@@ -2,6 +2,24 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.29
+
+**Uygulama araması en uygun sonuçları önce gösterir ve Workbench’te klavye odağını korur.**
+
+**Rex güncellemeleri, Rex’te seçilen Preview veya Bleeding Edge kanalını izler.** Sürüm notları Mac ve Server & CLI değişikliklerini içerir.
+
+**DuoUpdater artık Windscribe, Private Internet Access, BlockBlock, McBopomofo ve Backblaze için doğrulanmış yükleyicileri açabiliyor.** Yükleyiciyi indirip açmak için gri «Güncelle» düğmesine tıklayın, ardından güncellemeyi yükleyici penceresinde tamamlayın.
+
+**Athas, Zeabur Desktop, OpenScreens, Multica Desktop ve Trina AX için güncelleme desteği eklendi.** Yüklü Athas sürümü kanalları destekliyorsa seçili kanalı izler.
+
+**Ollama güncelleme denetimi, Ollama’nın Mac güncelleyicisiyle aynı sürüm bilgilerini kullanır.**
+
+**CLI Tools, ayrı kurulan Multica CLI ve nospeaker’ı güncelleyebilir.**
+
+**kitty, SwiftVM ve Private Internet Access sürüm notları iyileştirildi.** SwiftVM etkin kanalın notlarını gösterir.
+
+**DuoUpdater, yönetilen bir CLI aracını durdururken yeni bir işlem grubuna geçen alt işlemlerin bitmesini bekler.**
+
 ## 0.5.29-beta.2
 
 **Uygulama araması en uygun sonuçları önce gösterir ve Workbench’te klavye odağını korur.**

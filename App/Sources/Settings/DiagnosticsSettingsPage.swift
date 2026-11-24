@@ -84,11 +84,9 @@ struct DiagnosticsSettingsPage: View {
                         .foregroundStyle(.green)
                         .labelStyle(.titleAndIcon)
                 } else {
-                    // macOS can't grant it programmatically; the flow is a panel the
-                    // user drags the app into, which the button would not otherwise say.
                     Button("Grant…") { model.presentAppManagementPermissionFlow() }
                         .settingsGlassButton()
-                        .help("Open System Settings with a panel to drag DuoUpdater into")
+                        .help("Open System Settings")
                 }
             }
             .settingsAnchor(.appManagement)

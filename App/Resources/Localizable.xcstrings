@@ -1,6 +1,390 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "If DuoUpdater is missing, click + and choose the app at this path:": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlt DuoUpdater, klicke auf + und wähle die App unter diesem Pfad aus:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si DuoUpdater no aparece, haz clic en + y selecciona la app en esta ruta:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si DuoUpdater est absent, cliquez sur + et sélectionnez l’app à cet emplacement :"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se DuoUpdater non compare, fai clic su + e seleziona l’app in questo percorso:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater が表示されない場合は「+」をクリックし、次のパスにあるアプリを選択してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se o DuoUpdater não aparecer, clique em + e selecione o app neste caminho:"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если DuoUpdater нет в списке, нажмите + и выберите приложение по этому пути:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater listede yoksa + düğmesine tıklayıp şu yoldaki uygulamayı seçin:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果列表中没有 DuoUpdater，请点按“+”，然后选择以下路径的应用："
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果列表中沒有 DuoUpdater，請按一下「+」，然後選擇以下路徑的 App："
+          }
+        }
+      }
+    },
+    "In Privacy & Security, open Full Disk Access and turn on DuoUpdater.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffne unter „Datenschutz & Sicherheit“ den Festplattenvollzugriff und aktiviere DuoUpdater."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En Privacidad y seguridad, abre Acceso total al disco y activa DuoUpdater."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans Confidentialité et sécurité, ouvrez Accès complet au disque et activez DuoUpdater."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Privacy e sicurezza, apri Accesso completo al disco e attiva DuoUpdater."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「プライバシーとセキュリティ」で「フルディスクアクセス」を開き、DuoUpdater をオンにしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Em Privacidade e Segurança, abra Acesso Total ao Disco e ative o DuoUpdater."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В разделе «Конфиденциальность и безопасность» откройте «Полный доступ к диску» и включите DuoUpdater."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizlilik ve Güvenlik bölümünde Tam Disk Erişimi’ni açıp DuoUpdater’ı etkinleştirin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“隐私与安全性”中打开“完全磁盘访问权限”，然后打开 DuoUpdater 的开关。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「隱私權與安全性」中打開「完全取用磁碟」，然後開啟 DuoUpdater 的開關。"
+          }
+        }
+      }
+    },
+    "In Privacy & Security, open App Management and turn on DuoUpdater.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffne unter „Datenschutz & Sicherheit“ die App-Verwaltung und aktiviere DuoUpdater."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En Privacidad y seguridad, abre Gestión de las apps y activa DuoUpdater."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans Confidentialité et sécurité, ouvrez Gestion des apps et activez DuoUpdater."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Privacy e sicurezza, apri Gestione app e attiva DuoUpdater."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「プライバシーとセキュリティ」で「アプリ管理」を開き、DuoUpdater をオンにしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Em Privacidade e Segurança, abra Gerenciamento de Apps e ative o DuoUpdater."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В разделе «Конфиденциальность и безопасность» откройте управление приложениями и включите DuoUpdater."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizlilik ve Güvenlik bölümünde Uygulama Yönetimi’ni açıp DuoUpdater’ı etkinleştirin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“隐私与安全性”中打开“App管理”，然后打开 DuoUpdater 的开关。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「隱私權與安全性」中打開「App管理」，然後開啟 DuoUpdater 的開關。"
+          }
+        }
+      }
+    },
+    "On the permission page, select DuoUpdater and review its access to control the App Store.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle auf der Berechtigungsseite DuoUpdater aus und prüfe den Zugriff zur Steuerung des App Store."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En la página de permisos, selecciona DuoUpdater y revisa su acceso para controlar el App Store."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur la page des autorisations, sélectionnez DuoUpdater et vérifiez son autorisation de contrôler l’App Store."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nella pagina dei permessi, seleziona DuoUpdater e verifica il permesso di controllare App Store."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "権限の設定画面で DuoUpdater を選択し、App Store を制御する権限を確認してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Na página de permissões, selecione o DuoUpdater e confira o acesso para controlar a App Store."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На странице разрешений выберите DuoUpdater и проверьте его доступ к управлению App Store."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İzin sayfasında DuoUpdater’ı seçip App Store’u denetleme iznini gözden geçirin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在权限页面中选择 DuoUpdater，查看并设置其控制 App Store 的权限。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在權限頁面中選擇 DuoUpdater，檢查其控制 App Store 的權限。"
+          }
+        }
+      }
+    },
+    "Open System Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemeinstellungen öffnen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Ajustes del Sistema"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir Réglages Système"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri Impostazioni di Sistema"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システム設定を開く"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Ajustes do Sistema"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть Системные настройки"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem Ayarları’nı Aç"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开系统设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開系統設定"
+          }
+        }
+      }
+    },
+    "Grant access in System Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff in den Systemeinstellungen erlauben"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conceder acceso en Ajustes del Sistema"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser l’accès dans Réglages Système"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consenti l’accesso in Impostazioni di Sistema"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システム設定でアクセスを許可"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir acesso nos Ajustes do Sistema"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предоставьте доступ в Системных настройках"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem Ayarları’nda erişime izin verin"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在系统设置中授权"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在系統設定中授權"
+          }
+        }
+      }
+    },
     "Confirming helper approval…": {
       "extractionState": "manual",
       "localizations": {
@@ -65283,71 +65667,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "打開設定"
-          }
-        }
-      }
-    },
-    "Open System Settings with a panel to drag DuoUpdater into": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Öffnet die Systemeinstellungen mit einem Bereich, in den du DuoUpdater ziehst"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre Ajustes del Sistema con un panel al que arrastrar DuoUpdater"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ouvrir les Réglages Système avec un panneau où glisser DuoUpdater"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apri Impostazioni di Sistema con un pannello in cui trascinare DuoUpdater"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "DuoUpdaterをドラッグするパネルとともにシステム設定を開きます"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abrir os Ajustes do Sistema com um painel para arrastar o DuoUpdater"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Открыть Системные настройки с панелью, куда нужно перетащить DuoUpdater"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "DuoUpdater’ı sürükleyebileceğiniz bir panelle Sistem Ayarları’nı aç"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开系统设置，并显示一个用来拖入 DuoUpdater 的面板"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打開「系統設定」，並顯示一個可將 DuoUpdater 拖入的面板"
           }
         }
       }

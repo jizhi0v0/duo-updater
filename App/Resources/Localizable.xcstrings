@@ -10446,6 +10446,135 @@
       }
     }
   },
+  "Preview": {
+    "extractionState": "manual",
+    "localizations": {
+      "de": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Vorschau"
+        }
+      },
+      "es": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Vista previa"
+        }
+      },
+      "fr": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Aperçu"
+        }
+      },
+      "it": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Anteprima"
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "プレビュー"
+        }
+      },
+      "pt-BR": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Prévia"
+        }
+      },
+      "ru": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Предварительная версия"
+        }
+      },
+      "tr": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Önizleme"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "预览版"
+        }
+      },
+      "zh-Hant": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "預覽版"
+        }
+      }
+    }
+  },
+  "Quit Ollama before installing this Preview update.": {
+    "localizations": {
+      "de": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Beende Ollama, bevor du dieses Vorschau-Update installierst."
+        }
+      },
+      "es": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Cierra Ollama antes de instalar esta actualización preliminar."
+        }
+      },
+      "fr": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Quittez Ollama avant d’installer cette mise à jour en préversion."
+        }
+      },
+      "it": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Chiudi Ollama prima di installare questo aggiornamento di anteprima."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "このプレビューアップデートをインストールする前に、Ollamaを終了してください。"
+        }
+      },
+      "pt-BR": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Encerre o Ollama antes de instalar esta atualização de prévia."
+        }
+      },
+      "ru": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Закройте Ollama перед установкой этого предварительного обновления."
+        }
+      },
+      "tr": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Bu önizleme güncellemesini yüklemeden önce Ollama’dan çıkın."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "退出 Ollama 后再安装此预览版更新。"
+        }
+      },
+      "zh-Hant": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "結束 Ollama 後再安裝此預覽版更新。"
+        }
+      }
+    }
+  },
   "Release channel": {
     "extractionState": "manual",
     "localizations": {

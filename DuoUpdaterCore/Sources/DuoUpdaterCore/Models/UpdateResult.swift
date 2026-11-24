@@ -229,6 +229,9 @@ public enum InstallTrust: Sendable, Hashable, CaseIterable {
 public struct RemoteVersion: Sendable, Hashable {
     /// Marketing version, e.g. "1.96.0" (`sparkle:shortVersionString`).
     public let shortVersion: String?
+    /// The updater answered that this installed marketing version has no offer.
+    /// Kept apart from the release versions used for display and comparison.
+    public var noOfferForInstalledVersion: String?
     /// Build version, e.g. "1.96.0" or "45830" (`sparkle:version`). This is
     /// Sparkle's canonical comparison key.
     public let version: String?
@@ -622,6 +625,13 @@ extension UpdateResult {
         remote?.releaseChannel ?? provenChannel ?? app.releaseChannel
     }
 
+    /// This track is selected in Duo and is separate from Ollama's own updater.
+    public var usesOllamaPreviewFeed: Bool {
+        app.bundleID == OllamaUpdateChannel.bundleID
+            && app.releaseChannel == .preview && app.channelIsAuthoritative
+            && remote?.sourceName == "Vendor"
+    }
+
     /// Move this row onto a freshly-scanned copy at the same path.
     ///
     /// Exists because a rescan re-derives a row's VERDICT while its IDENTITY has
@@ -652,10 +662,12 @@ extension UpdateResult {
     ) -> UpdateResult {
         let sameCopy = app.shortVersion == rescanned.shortVersion
             && app.buildVersion == rescanned.buildVersion
+        let staleNoOffer = remote?.noOfferForInstalledVersion != nil
+            && (!sameCopy || app.releaseChannel != rescanned.releaseChannel)
         var carried = remote
         if !sameCopy { carried?.releaseChannel = nil }
         var row = UpdateResult(
-            app: rescanned, remote: carried, status: status,
+            app: rescanned, remote: staleNoOffer ? nil : carried, status: staleNoOffer ? .unknown : status,
             provenChannel: proven ?? (sameCopy ? provenChannel : nil))
         // Also about the copy, so also only while it is unchanged. A new copy
         // is read again by the next check.

@@ -392,13 +392,13 @@ public struct VendorProbeSource: UpdateSource {
         let allowInstall = !app.prefersVendorProbeOverToolbox
 
         guard matching.count > 1 else {
-            return await probeOutcome(matching[0], allowInstall: allowInstall)
+            return await probeOutcome(matching[0], for: app, allowInstall: allowInstall)
         }
         // One channel, several endpoints: probe them all and answer with the
         // highest version any of them stands behind. See `Self.best`.
         var outcomes: [ProbeOutcome] = []
         for recipe in matching {
-            outcomes.append(await probeOutcome(recipe, allowInstall: allowInstall))
+            outcomes.append(await probeOutcome(recipe, for: app, allowInstall: allowInstall))
         }
         return Self.best(of: outcomes, installedApp: app)
     }
@@ -643,6 +643,10 @@ public struct VendorProbeSource: UpdateSource {
         let status: Int?
     }
 
+    private struct UpdateURLResponse: Decodable {
+        let url: String
+    }
+
     /// Run one recipe. `allowInstall` false forces a detection-only result even
     /// when the recipe carries an install spec — used for apps whose install
     /// another channel owns (Toolbox-managed), where we want the version but not
@@ -667,6 +671,7 @@ public struct VendorProbeSource: UpdateSource {
 
     func probeOutcome(
         _ recipe: VendorProbeRecipe,
+        for app: InstalledApp? = nil,
         allowInstall: Bool = true,
         checkInstallURL: Bool = false
     ) async -> ProbeOutcome {
@@ -690,8 +695,18 @@ public struct VendorProbeSource: UpdateSource {
                 bodySample: sample, elapsedMs: elapsed())
         }
 
+        let installedVersion: String?
+        if case .installedVersionJSONURL = recipe.mode, let app {
+            guard let version = app.shortVersion, !version.isEmpty else {
+                return fail(.notApplicable("the installed copy has no marketing version"))
+            }
+            installedVersion = version
+        } else {
+            installedVersion = nil
+        }
+
         let body: FetchedBody
-        switch await fetchBody(recipe) {
+        switch await fetchBody(recipe, installedVersion: installedVersion) {
         case .failure(let failure):
             // A status-code failure is worth keeping the code for even though
             // there's no body to sample.
@@ -699,6 +714,15 @@ public struct VendorProbeSource: UpdateSource {
             return fail(failure)
         case .success(let fetched):
             body = fetched
+        }
+        if body.status == 204, let installedVersion {
+            var current = RemoteVersion(
+                shortVersion: nil, version: nil, downloadURL: nil,
+                pageURL: recipe.downloadURL, sourceName: Self.sourceName, changelogURL: recipe.changelogURL)
+            current.noOfferForInstalledVersion = installedVersion
+            return ProbeOutcome(
+                recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
+                remote: current, failure: nil, httpStatus: body.status, elapsedMs: elapsed())
         }
 
         // A recipe with `entryStartPattern` set names a feed that lists several
@@ -1166,7 +1190,7 @@ public struct VendorProbeSource: UpdateSource {
     /// character gate as a read value; a recipe author's typo must not reach the
     /// wire either.
     func resolveEndpoint(
-        _ recipe: VendorProbeRecipe, trackOverride: String? = nil
+        _ recipe: VendorProbeRecipe, trackOverride: String? = nil, installedVersion: String? = nil
     ) -> Result<ResolvedEndpoint, ProbeFailure> {
         var endpoint = recipe.url
         let osVersionPlaceholder = "__HOST_OS_VERSION__"
@@ -1179,6 +1203,23 @@ public struct VendorProbeSource: UpdateSource {
         for identity in recipe.identities {
             guard let resolved = identity.resolve(endpoint) else {
                 return .failure(.notApplicable("no device identity at \(identity.displayPath)"))
+            }
+            endpoint = resolved
+        }
+
+        if case .installedVersionJSONURL(let parameter) = recipe.mode, let installedVersion {
+            guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+                return .failure(.malformedResolvedURL("invalid installed-version endpoint"))
+            }
+            var items = components.queryItems ?? []
+            items.removeAll { $0.name == parameter }
+            items.append(URLQueryItem(name: parameter, value: installedVersion))
+            components.queryItems = items
+            // The vendor parses its query as form data, where + means a space.
+            components.percentEncodedQuery = components.percentEncodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+            guard let resolved = components.url else {
+                return .failure(.malformedResolvedURL("invalid installed-version query"))
             }
             endpoint = resolved
         }
@@ -1207,8 +1248,10 @@ public struct VendorProbeSource: UpdateSource {
 
     /// The per-mode fetch half of a probe, with each `return nil` in the original
     /// replaced by the specific reason it happened.
-    private func fetchBody(_ recipe: VendorProbeRecipe) async -> Result<FetchedBody, ProbeFailure> {
-        switch resolveEndpoint(recipe) {
+    private func fetchBody(
+        _ recipe: VendorProbeRecipe, installedVersion: String?
+    ) async -> Result<FetchedBody, ProbeFailure> {
+        switch resolveEndpoint(recipe, installedVersion: installedVersion) {
         case .failure(let failure): return .failure(failure)
         case .success(let resolved): return await fetchBody(recipe, endpoint: resolved.url)
         }
@@ -1275,7 +1318,7 @@ public struct VendorProbeSource: UpdateSource {
                     status: http.statusCode))
             }
 
-        case .responseBody, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP:
+        case .responseBody, .installedVersionJSONURL, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP:
             return await fetchResponseBody(recipe, endpoint: endpoint)
 
         case .versionedDirectory(let pattern):
@@ -1362,6 +1405,19 @@ public struct VendorProbeSource: UpdateSource {
         }
         guard okRange.contains(http.statusCode) else {
             return .failure(.httpStatus(http.statusCode))
+        }
+        if case .installedVersionJSONURL = recipe.mode {
+            switch http.statusCode {
+            case 200:
+                guard let offer = try? JSONDecoder().decode(UpdateURLResponse.self, from: data) else {
+                    return .failure(.versionPatternNoMatch(sampleBytes: data.count))
+                }
+                return .success(FetchedBody(text: offer.url, resolvedDownload: nil, status: 200))
+            case 204:
+                return .success(FetchedBody(text: "", resolvedDownload: nil, status: 204))
+            default:
+                return .failure(.httpStatus(http.statusCode))
+            }
         }
         if case .dockerAppcast = recipe.mode, http.url != endpoint {
             return .failure(.malformedResolvedURL("Docker appcast redirected from its channel endpoint"))

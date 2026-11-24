@@ -142,10 +142,17 @@ final class AppListModel {
             guard let note = inFlightNotes[id] else { return false }
             return restartWontQuitNotes[id] == note
         }
-        for id in UpdatePolicy.retractableNoteIDs(
+        // A stable or Homebrew offer can replace Preview without settling the row.
+        let withdrawnPreviewNotes = results.lazy.filter { result in
+            self.inFlightNotes[result.id] == ollamaPreviewQuitMessage
+                && self.installNotes[result.id] == ollamaPreviewQuitMessage
+                && ollamaPreviewQuitHelp(for: result) == nil
+        }.map(\.id)
+        let retracted = UpdatePolicy.retractableNoteIDs(
             notes: installNotes, writtenByUs: inFlightNotes,
             results: results, installing: Set(installing.keys), stagedSelfUpdates: waitingOnStaging
-        ) {
+        ).union(withdrawnPreviewNotes)
+        for id in retracted {
             if let revert = relaunchRevertNotes[id], installNotes[id] == revert.busy.text {
                 // Same moment as the disk, not as the row: one `Info.plist` read,
                 // only for a revert note the settle rule wants down.
@@ -4090,7 +4097,11 @@ final class AppListModel {
            result.remote?.appStore != nil, canAutoInstall(result) {
             return String(localized: "Confirming helper approval…")
         }
-        return installNotes[result.id] ?? stagedPackageNote(for: result)
+        if let note = installNotes[result.id],
+           note != ollamaPreviewQuitMessage || (result.usesOllamaPreviewFeed && defersToSelfUpdater(result)) {
+            return note
+        }
+        return stagedPackageNote(for: result)
     }
 
     private var policyEnvironment: InstallEnvironment {
@@ -4284,6 +4295,11 @@ final class AppListModel {
     /// (MAU, a daemon, Sparkle) applies the update on its own schedule.
     func openSelfUpdater(_ result: UpdateResult, activating: Bool = true) {
         installErrors[result.id] = nil
+        if let help = ollamaPreviewQuitHelp(for: result) {
+            installNotes[result.id] = help
+            inFlightNotes[result.id] = help
+            return
+        }
         if let url = result.remote?.pageURL, let scheme = url.scheme,
            scheme != "http", scheme != "https" {
             NSWorkspace.shared.open(
@@ -5801,7 +5817,7 @@ final class AppListModel {
         // `PostInstallDisposition.preInstallProcessStillRunning`).
         let preInstallPIDs = AppRestarter.runningInstances(of: result.app).map(\.processIdentifier)
         if defersToSelfUpdater(result) {
-            Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
+            Log.install.info("install deferred while app is running: \(result.app.name, privacy: .public) (policy=deferWhenRunning)")
             // Don't pull the app forward when this deferral came from Update All.
             // A single row's Open is something the user just asked for, so the
             // foreground is what they want; a batch can hit this branch for every
@@ -5810,8 +5826,10 @@ final class AppListModel {
             // focus repeatedly.
             installing[id] = nil
             if AutomaticInstall.active {
-                let reason = "Automatic update deferred: the app is running its own updater."
+                let help = ollamaPreviewQuitHelp(for: result)
+                let reason = help ?? "Automatic update deferred: the app is running its own updater."
                 installNotes[id] = reason
+                if help != nil { inFlightNotes[id] = reason }
                 return .deferred(reason: reason)
             }
             openSelfUpdater(result, activating: !deferBookkeeping)
@@ -10254,6 +10272,23 @@ final class AppListModel {
         } else {
             localRescanDeferred = true
         }
+    }
+
+    // MARK: - Per-app update choices
+
+    func ollamaChannel(for result: UpdateResult) -> ReleaseChannel? {
+        guard result.app.bundleID == OllamaUpdateChannel.bundleID,
+              !result.app.isMASApp, !result.app.isTestFlightApp else { return nil }
+        return prefs.ollamaChannel(for: result.app)
+    }
+
+    var canChangeOllamaChannel: Bool { !isRefreshing && !isChecking }
+
+    func setOllamaChannel(_ channel: ReleaseChannel, for result: UpdateResult) {
+        guard canChangeOllamaChannel, installing[result.id] == nil, let previous = ollamaChannel(for: result),
+              previous != channel else { return }
+        prefs.setOllamaChannel(channel, for: result.app)
+        Task { await retry(result) }
     }
 
     // MARK: - Ignore / skip

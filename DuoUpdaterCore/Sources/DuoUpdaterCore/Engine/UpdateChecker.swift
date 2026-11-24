@@ -539,7 +539,11 @@ public struct UpdateChecker: Sendable {
                     let followsSelfUpdatingChannel = remote.homebrewSelfUpdating
                         && ((bundleID == ClaudeDesktopChannel.bundleID && app.releaseChannel == .latest)
                             || (bundleID == DockerDesktopChannel.bundleID && app.releaseChannel == .nightly))
-                    let followsVendorChannel = athasBeta
+                    let ollamaPreview = bundleID == OllamaUpdateChannel.bundleID
+                        && app.releaseChannel == .preview && app.channelIsAuthoritative
+                        && remote.homebrewSelfUpdating
+                        && ["ollama-app", "ollama"].contains(remote.sourceIdentifier ?? "")
+                    let followsVendorChannel = athasBeta || ollamaPreview
                         || (remote.offeredChannel == .stable && followsSelfUpdatingChannel)
                     // A self-updating cask can advertise a separate new generation.
                     // Keep checking the installed generation's own update feed
@@ -809,6 +813,9 @@ public struct UpdateChecker: Sendable {
     public static func evaluate(
         installed: InstalledApp, remote: RemoteVersion
     ) -> UpdateStatus {
+        if let version = remote.noOfferForInstalledVersion {
+            return installed.shortVersion == version ? .upToDate : .unknown
+        }
         if remote.sourceName == "Homebrew" {
             if remote.homebrewPinned { return .upToDate }
             if !remote.requiresManualInstaller,

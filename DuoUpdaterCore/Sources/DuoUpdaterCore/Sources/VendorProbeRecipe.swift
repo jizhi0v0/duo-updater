@@ -273,6 +273,10 @@ public struct VendorProbeRecipe: Sendable {
         /// `url` is a small text/JSON endpoint whose body contains the version;
         /// we GET it and apply `versionPattern` to the response text.
         case responseBody
+        /// GET with the installed marketing version in the named query
+        /// parameter. Patterns read the top-level JSON URL from a 200 reply.
+        /// HTTP 204 means no offer. Registry verification omits the parameter.
+        case installedVersionJSONURL(queryParameter: String)
         /// GET Longbridge's manifest and scope the patterns to the top-level
         /// release before resolving its version, date, and installer.
         case longbridgeManifest

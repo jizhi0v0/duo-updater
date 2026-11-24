@@ -4673,6 +4673,34 @@
       "signedIdentifier" : "com.electron.kontena-lens",
       "teamIdentifier" : "JJ22T2W355"
     },
+    "vendor:com.electron.ollama:preview" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.electron.ollama",
+      "firstSeenAt" : "2026-11-24T08:27:20Z",
+      "firstSeenVersion" : "0.40.18",
+      "lastSeenAt" : "2026-11-24T08:27:20Z",
+      "lastSeenURLSHA256" : "ec2224e260b31c3d8001c26ebbc96a2ae6fbc3b4197e4ccdc0070cc9b1eb81f2",
+      "lastSeenVersion" : "0.40.18",
+      "signedIdentifier" : "com.electron.ollama",
+      "teamIdentifier" : "3MU9H2V9Y9"
+    },
+    "vendor:com.electron.ollama:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.electron.ollama",
+      "firstSeenAt" : "2026-10-09T05:20:43Z",
+      "firstSeenVersion" : "0.40.2",
+      "lastSeenAt" : "2026-11-21T04:52:29Z",
+      "lastSeenURLSHA256" : "3967eee111ff2f4c0ec7d130203ac1cdbf2575dcbd7dcaf36cf7c2ae6f4414a6",
+      "lastSeenVersion" : "0.40.17",
+      "signedIdentifier" : "com.electron.ollama",
+      "teamIdentifier" : "3MU9H2V9Y9"
+    },
     "vendor:com.electron.wispr-flow:stable" : {
       "architectures" : [
         "arm64"

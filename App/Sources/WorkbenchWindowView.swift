@@ -1960,6 +1960,7 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
     }
 
     var body: some View {
+        let ollamaChannel = model.ollamaChannel(for: result)
         WorkbenchSidebarRow(
             result: result,
             matchedBundleID: matchedBundleID,
@@ -1973,6 +1974,9 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
             isVersionSkipped: model.prefs.isVersionSkipped(
                 result.app, version: result.remote?.versionSide),
             toggleIgnore: { model.toggleIgnore(result) },
+            ollamaChannel: ollamaChannel,
+            ollamaChannelChangeDisabled: ollamaChannel != nil && !model.canChangeOllamaChannel,
+            setOllamaChannel: { model.setOllamaChannel($0, for: result) },
             showsBrewFallback: model.offersBrewFallbackChoice(result),
             brewFallbackChoice: model.brewFallbackOverride(for: result),
             brewFallbackByDefault: model.brewFallbackChecksByDefault(for: result),
@@ -2089,6 +2093,9 @@ private struct WorkbenchSidebarRow: View {
     let isIgnored: Bool
     let isVersionSkipped: Bool
     let toggleIgnore: () -> Void
+    var ollamaChannel: ReleaseChannel?
+    var ollamaChannelChangeDisabled = false
+    var setOllamaChannel: (ReleaseChannel) -> Void = { _ in }
     var showsBrewFallback: Bool = false
     var brewFallbackChoice: BrewFallbackPolicy.Override?
     var brewFallbackByDefault: Bool = false
@@ -2181,6 +2188,10 @@ private struct WorkbenchSidebarRow: View {
             // apps never post one of the NSWorkspace notifications that set is
             // built from (issue #247).
             Button("Check Again", action: checkAgain).disabled(isChecking)
+            if let ollamaChannel {
+                OllamaChannelMenu(channel: ollamaChannel, set: setOllamaChannel)
+                    .disabled(isChecking || ollamaChannelChangeDisabled)
+            }
             if showsBrewFallback {
                 BrewFallbackMenu(
                     choice: brewFallbackChoice,
@@ -2312,6 +2323,8 @@ extension WorkbenchSidebarRow: @MainActor Equatable {
             && lhs.isChecking == rhs.isChecking && lhs.isRunning == rhs.isRunning
             && lhs.versionLineState == rhs.versionLineState && lhs.runningSide == rhs.runningSide
             && lhs.showsRuntime == rhs.showsRuntime
+            && lhs.ollamaChannel == rhs.ollamaChannel
+            && lhs.ollamaChannelChangeDisabled == rhs.ollamaChannelChangeDisabled
             && lhs.showsBrewFallback == rhs.showsBrewFallback && lhs.brewFallbackChoice == rhs.brewFallbackChoice
             && lhs.brewFallbackByDefault == rhs.brewFallbackByDefault
             && lhs.isIgnored == rhs.isIgnored && lhs.isVersionSkipped == rhs.isVersionSkipped

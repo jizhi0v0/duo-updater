@@ -56,6 +56,26 @@ import DuoUpdaterCore
             stagedSelfUpdates: [:])
     }
 
+    @Test func runningOllamaPreviewWaitsForQuitInsteadOfItsOwnUpdater() {
+        let ollama = InstalledApp(
+            name: "Ollama", bundleID: OllamaUpdateChannel.bundleID,
+            shortVersion: "0.40.17", buildVersion: "0.40.17",
+            path: URL(fileURLWithPath: fixturePath), isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: .preview, channelIsAuthoritative: true)
+        let offer = result(source: "Vendor", vendorKind: .zip, app: ollama)
+        let running = environment(running: true)
+
+        #expect(Check.route(offer, settings: settings(), environment: running) == "manual")
+        guard case .refuse(let reason, _) = Install.classify(
+            offer, settings: settings(), environment: running) else {
+            Issue.record("expected the Preview install to wait while Ollama is running")
+            return
+        }
+        #expect(reason.contains("quit Ollama"))
+        #expect(Check.route(offer, settings: settings(), environment: environment()) == "in-place")
+        #expect(Check.route(offer, settings: settings(vendorPolicy: .alwaysOverwrite), environment: running) == "in-place")
+    }
+
     /// TinyWeb 2026-09-22: Sparkle had staged the latest, so `canAutoInstall` and
     /// `requiresInstaller` both said no and the refusal blamed the source
     /// ("detection only"). The staged build is the real reason.

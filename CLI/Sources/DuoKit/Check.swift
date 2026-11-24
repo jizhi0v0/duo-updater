@@ -574,7 +574,7 @@ public enum Check {
         guard result.hasUpdate else { return nil }
         if UpdatePolicy.defersToSelfUpdater(
             result, settings: settings.updateSettings, environment: environment) {
-            return "self-updater"
+            return result.usesOllamaPreviewFeed ? "manual" : "self-updater"
         }
         if UpdatePolicy.canAutoInstall(
             result, settings: settings.updateSettings, environment: environment) {

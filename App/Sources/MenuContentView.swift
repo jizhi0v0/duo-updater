@@ -2264,6 +2264,10 @@ private struct AppRow: View {
         // which is also what `retry` itself refuses on.
         Button("Check Again") { Task { await model.retry(result) } }
             .disabled(stage != nil)
+        if let channel = model.ollamaChannel(for: result) {
+            OllamaChannelMenu(channel: channel) { model.setOllamaChannel($0, for: result) }
+                .disabled(stage != nil || !model.canChangeOllamaChannel)
+        }
         if model.offersBrewFallbackChoice(result) {
             BrewFallbackMenu(
                 choice: model.brewFallbackOverride(for: result),
@@ -2529,6 +2533,22 @@ private struct AppRow: View {
 
 extension UpdateResult {
 
+}
+
+struct OllamaChannelMenu: View {
+    let channel: ReleaseChannel
+    let set: (ReleaseChannel) -> Void
+
+    var body: some View {
+        Menu("Release channel") {
+            Picker("Release channel", selection: Binding(get: { channel }, set: set)) {
+                Text("Stable").tag(ReleaseChannel.stable)
+                Text("Preview").tag(ReleaseChannel.preview)
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
+    }
 }
 
 /// A brew row's "When Homebrew has no update" submenu, shared by the popover and

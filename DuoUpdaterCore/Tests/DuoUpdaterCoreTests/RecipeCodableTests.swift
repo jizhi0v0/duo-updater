@@ -172,6 +172,8 @@ struct RecipeCodableTests {
                 samples: [
                     (.redirectFilename, #"{"kind":"redirectFilename"}"#),
                     (.responseBody, #"{"kind":"responseBody"}"#),
+                    (.installedVersionJSONURL(queryParameter: "version"),
+                     #"{"kind":"installedVersionJSONURL","queryParameter":"version"}"#),
                     (.longbridgeManifest, #"{"kind":"longbridgeManifest"}"#),
                     (.dockerAppcast, #"{"kind":"dockerAppcast"}"#),
                     (.jetBrainsIdeaEAP, #"{"kind":"jetBrainsIdeaEAP"}"#),

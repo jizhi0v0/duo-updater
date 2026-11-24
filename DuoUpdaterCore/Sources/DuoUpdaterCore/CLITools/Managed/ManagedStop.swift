@@ -85,11 +85,10 @@ final class ManagedStop: @unchecked Sendable {
     /// its own — local adversarial review: it then ran on, writing, through
     /// the put-back (5 in 5 with a 2 ms relay).
     private var misses: [pid_t: Int] = [:]
-    /// When the read that last counted a miss of each session was taken in:
-    /// a miss counts only from a read begun `missGap` after it. Two scans
-    /// reading at once (the tracker, the ladder, `waitUntilGone`) see the
-    /// same moment, and would count one gap twice (local adversarial
-    /// review 2).
+    /// When each session was last observed or counted as missing. A miss
+    /// counts only from a read begun `missGap` after it. This also prevents
+    /// a scan already in flight from counting against a group just seen to
+    /// disappear.
     private var missedAt: [pid_t: ContinuousClock.Instant] = [:]
     /// Every process group a member was seen in, until the group is empty.
     /// Reading the table and then each entry's session is not atomic: a
@@ -206,26 +205,30 @@ final class ManagedStop: @unchecked Sendable {
         }
         let live = Set(found.map(\.1))
         let seen = lock.withLock { () -> [pid_t] in
-            let now = ContinuousClock.now
             if !gone { for (member, sid) in found { groups[member.pgid] = sid } }
-            // Only the sessions this scan looked for: one added meanwhile
-            // has not been looked for yet.
-            for session in tracked {
-                if live.contains(session) {
-                    misses[session] = 0
-                } else if missedAt[session].map({ before >= $0 + missGap }) ?? true {
-                    misses[session, default: 0] += 1
-                    missedAt[session] = now
-                }
-            }
             return Array(groups.keys)
         }
         // EPERM: a member is there, not ours to signal, or only zombies.
         let empty = seen.filter { killpg($0, 0) != 0 && errno == ESRCH }
         lock.withLock {
-            for group in empty { groups[group] = nil }
+            let drained = Set(empty.compactMap { groups.removeValue(forKey: $0) })
             let held = Set(groups.values)
-            let drop = tracked.filter { misses[$0, default: 0] >= 2 && !held.contains($0) }
+            let observed = live.union(held).union(drained)
+            let now = ContinuousClock.now
+            // A group can disappear as its last member moves into a new one.
+            // The table was read before that check, so wait for fresh scans
+            // after the drain instead of reusing misses from the old group.
+            let inspected = tracked.intersection(sessions)
+            for session in inspected {
+                if observed.contains(session) {
+                    misses[session] = 0
+                    missedAt[session] = now
+                } else if missedAt[session].map({ before >= $0 + missGap }) ?? true {
+                    misses[session, default: 0] += 1
+                    missedAt[session] = now
+                }
+            }
+            let drop = inspected.filter { misses[$0, default: 0] >= 2 }
             sessions.subtract(drop)
             for session in drop { misses[session] = nil; missedAt[session] = nil }
             if sessions.isEmpty && groups.isEmpty { gone = true }

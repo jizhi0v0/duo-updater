@@ -4097,7 +4097,11 @@ final class AppListModel {
            result.remote?.appStore != nil, canAutoInstall(result) {
             return String(localized: "Confirming helper approval…")
         }
-        return installNotes[result.id] ?? stagedPackageNote(for: result)
+        if let note = installNotes[result.id],
+           note != ollamaPreviewQuitMessage || (result.usesOllamaPreviewFeed && defersToSelfUpdater(result)) {
+            return note
+        }
+        return stagedPackageNote(for: result)
     }
 
     private var policyEnvironment: InstallEnvironment {

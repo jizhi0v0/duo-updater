@@ -258,6 +258,7 @@ public struct BrewFallbackPolicy: Sendable, Equatable {
     /// fixes its signing in a rebuild, an app whose marketing string never moves).
     /// What cannot be told apart stays covered.
     static func refusalCovers(_ refusal: SigningRefusal, _ remote: RemoteVersion) -> Bool {
+        guard remote.noOfferForInstalledVersion == nil else { return false }
         let short = remote.shortVersion ?? "", build = remote.version ?? ""
         if !short.isEmpty, !refusal.version.isEmpty {
             switch VersionComparator.compare(short, refusal.version) {

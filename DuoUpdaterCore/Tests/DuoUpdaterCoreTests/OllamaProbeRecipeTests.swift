@@ -238,4 +238,18 @@ struct OllamaProbeRecipeTests {
         #expect(outcome.remote?.shortVersion == "0.40.17")
         #expect(outcome.remote?.downloadURL?.absoluteString == Self.stableURL)
     }
+
+    @Test func signingRefusalDoesNotSuppressAnExplicitNoOffer() async throws {
+        let (_, source) = try source()
+        let copy = app("0.40.18", channel: .preview)
+        let key = InstallPreferenceKey.key(for: copy)
+        let policy = BrewFallbackPolicy(
+            signingRefusals: [key: .init(team: "3MU9H2V9Y9", version: "0.40.18")])
+        let result = await UpdateChecker(
+            sources: [StableCask(), source], brewFallback: policy,
+            installedTeam: { _ in "3MU9H2V9Y9" }).check(copy)
+        #expect(result.status == .upToDate)
+        #expect(result.remote?.noOfferForInstalledVersion == "0.40.18")
+        #expect(!result.brewFallbackWithheldForSigning)
+    }
 }

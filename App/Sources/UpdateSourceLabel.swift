@@ -177,7 +177,9 @@ func installerHandoffHelp(for result: UpdateResult, stagedFileName: String?) -> 
     return String(localized: "Downloads the official installer and opens it (asks for admin)")
 }
 
+let ollamaPreviewQuitMessage = String(localized: "Quit Ollama before installing this Preview update.")
+
 func ollamaPreviewQuitHelp(for result: UpdateResult) -> String? {
     guard result.hasUpdate, result.usesOllamaPreviewFeed else { return nil }
-    return String(localized: "Quit Ollama before installing this Preview update.")
+    return ollamaPreviewQuitMessage
 }

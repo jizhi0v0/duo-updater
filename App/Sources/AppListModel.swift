@@ -142,10 +142,17 @@ final class AppListModel {
             guard let note = inFlightNotes[id] else { return false }
             return restartWontQuitNotes[id] == note
         }
-        for id in UpdatePolicy.retractableNoteIDs(
+        // A stable or Homebrew offer can replace Preview without settling the row.
+        let withdrawnPreviewNotes = results.lazy.filter { result in
+            self.inFlightNotes[result.id] == ollamaPreviewQuitMessage
+                && self.installNotes[result.id] == ollamaPreviewQuitMessage
+                && ollamaPreviewQuitHelp(for: result) == nil
+        }.map(\.id)
+        let retracted = UpdatePolicy.retractableNoteIDs(
             notes: installNotes, writtenByUs: inFlightNotes,
             results: results, installing: Set(installing.keys), stagedSelfUpdates: waitingOnStaging
-        ) {
+        ).union(withdrawnPreviewNotes)
+        for id in retracted {
             if let revert = relaunchRevertNotes[id], installNotes[id] == revert.busy.text {
                 // Same moment as the disk, not as the row: one `Info.plist` read,
                 // only for a revert note the settle rule wants down.
@@ -4286,6 +4293,7 @@ final class AppListModel {
         installErrors[result.id] = nil
         if let help = ollamaPreviewQuitHelp(for: result) {
             installNotes[result.id] = help
+            inFlightNotes[result.id] = help
             return
         }
         if let url = result.remote?.pageURL, let scheme = url.scheme,
@@ -5814,9 +5822,10 @@ final class AppListModel {
             // focus repeatedly.
             installing[id] = nil
             if AutomaticInstall.active {
-                let reason = ollamaPreviewQuitHelp(for: result)
-                    ?? "Automatic update deferred: the app is running its own updater."
+                let help = ollamaPreviewQuitHelp(for: result)
+                let reason = help ?? "Automatic update deferred: the app is running its own updater."
                 installNotes[id] = reason
+                if help != nil { inFlightNotes[id] = reason }
                 return .deferred(reason: reason)
             }
             openSelfUpdater(result, activating: !deferBookkeeping)

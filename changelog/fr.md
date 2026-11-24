@@ -2,6 +2,24 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.29
+
+**La recherche d’apps affiche d’abord les résultats les plus pertinents et conserve le focus clavier dans Workbench.**
+
+**Les mises à jour de Rex suivent le canal Preview ou Bleeding Edge choisi dans Rex.** Les notes de version incluent les changements pour Mac et Server & CLI.
+
+**DuoUpdater peut ouvrir les installateurs vérifiés de Windscribe, Private Internet Access, BlockBlock, McBopomofo et Backblaze.** Cliquez sur le bouton gris « Mettre à jour » pour télécharger et ouvrir l’installateur, puis terminez la mise à jour dans sa fenêtre.
+
+**Les mises à jour d’Athas, Zeabur Desktop, OpenScreens, Multica Desktop et Trina AX sont désormais prises en charge.** Athas utilise le canal sélectionné lorsque la version installée gère les canaux.
+
+**La recherche de mises à jour d’Ollama utilise les mêmes informations de version que le programme de mise à jour d’Ollama sur Mac.**
+
+**CLI Tools peut mettre à jour les installations autonomes de Multica CLI et de nospeaker.**
+
+**Les notes de version de kitty, SwiftVM et Private Internet Access ont été améliorées.** SwiftVM affiche celles du canal actif.
+
+**Lors de l’arrêt d’un outil CLI géré, DuoUpdater attend les processus enfants qui passent dans un nouveau groupe de processus.**
+
 ## 0.5.29-beta.2
 
 **La recherche d’apps affiche d’abord les résultats les plus pertinents et conserve le focus clavier dans Workbench.**

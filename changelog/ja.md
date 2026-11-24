@@ -2,6 +2,24 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.5.29
+
+**アプリ検索では一致度の高い結果が先に表示され、Workbench の検索欄にキーボードフォーカスが残ります。**
+
+**Rex の更新は、Rex で選択した Preview または Bleeding Edge チャンネルに従います。** リリースノートには Mac と Server & CLI の変更が含まれます。
+
+**Windscribe、Private Internet Access、BlockBlock、McBopomofo、Backblaze の検証済みインストーラを DuoUpdater から開けるようになりました。** グレーの「アップデート」ボタンでインストーラをダウンロードして開き、そのウインドウで更新を完了してください。
+
+**Athas、Zeabur Desktop、OpenScreens、Multica Desktop、Trina AX の更新に対応しました。** インストール済みの Athas がチャンネル切り替えに対応している場合は、選択中のチャンネルに従います。
+
+**Ollama の更新確認には、Ollama の Mac 版アップデータと同じバージョン情報が使われます。**
+
+**CLI Tools で個別にインストールした Multica CLI と nospeaker を更新できます。**
+
+**kitty、SwiftVM、Private Internet Access のリリースノートを改善しました。** SwiftVM は現在のチャンネルのリリースノートを表示します。
+
+**管理対象の CLI ツールを停止するとき、新しいプロセスグループに移った子プロセスの終了も待ちます。**
+
 ## 0.5.29-beta.2
 
 **アプリ検索では一致度の高い結果が先に表示され、Workbench の検索欄にキーボードフォーカスが残ります。**

@@ -19,6 +19,24 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.29
+
+**App search ranks closer matches first and keeps keyboard focus in Workbench.**
+
+**Rex updates follow the Preview or Bleeding Edge channel selected in Rex.** Release notes include Mac and Server & CLI changes.
+
+**DuoUpdater can open verified installers for Windscribe, Private Internet Access, BlockBlock, McBopomofo and Backblaze.** Click the gray Update button to download and open the installer, then finish the update in the installer window.
+
+**Added update support for Athas, Zeabur Desktop, OpenScreens, Multica Desktop, and Trina AX.** Athas follows the selected channel where the installed version supports channels.
+
+**Ollama update checks use the same version information as Ollama’s Mac updater.**
+
+**CLI Tools can update standalone Multica CLI and nospeaker.**
+
+**Improved release notes for kitty, SwiftVM, and Private Internet Access.** SwiftVM shows notes for the active channel.
+
+**Stopping a managed CLI tool waits for child processes that move to a new process group.**
+
 ## 0.5.29-beta.2
 
 **App search ranks closer matches first and keeps keyboard focus in Workbench.**

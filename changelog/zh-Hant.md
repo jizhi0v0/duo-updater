@@ -2,6 +2,24 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.29
+
+**App 搜尋會優先顯示更符合的結果，並保留 Workbench 搜尋欄的鍵盤焦點。**
+
+**Rex 更新會遵循 Rex 中選取的 Preview 或 Bleeding Edge 頻道。** 發佈說明包含 Mac 和 Server & CLI 的變更。
+
+**DuoUpdater 可以開啟 Windscribe、Private Internet Access、BlockBlock、小麥注音和 Backblaze 的已驗證安裝程式。** 點擊灰色「更新」按鈕下載並開啟安裝程式，再在其視窗中完成更新。
+
+**新增 Athas、Zeabur Desktop、OpenScreens、Multica Desktop 和 Trina AX 的更新支援。** 支援切換頻道的 Athas 版本會遵循目前選擇。
+
+**Ollama 更新檢查採用與 Ollama Mac 版更新程式相同的版本資訊。**
+
+**CLI 工具可更新獨立安裝的 Multica CLI 和 nospeaker。**
+
+**改善 kitty、SwiftVM 和 Private Internet Access 的更新日誌。** SwiftVM 會顯示目前頻道的發佈說明。
+
+**停止受管理的 CLI 工具時，DuoUpdater 會等待移入新程序群組的子程序結束。**
+
 ## 0.5.29-beta.2
 
 **App 搜尋會優先顯示更符合的結果，並保留 Workbench 搜尋欄的鍵盤焦點。**

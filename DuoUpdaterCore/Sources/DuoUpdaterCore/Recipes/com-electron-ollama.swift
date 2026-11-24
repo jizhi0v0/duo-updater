@@ -3,9 +3,9 @@ import Foundation
 enum com_electron_ollama {
     private static let bundleID = OllamaUpdateChannel.bundleID
     private static let releases = URL(string: "https://github.com/ollama/ollama/releases")!
-    private static let archivePrefix = #"https://github\.com/ollama/ollama/releases/download/v"#
+    private static let archivePrefix = "https://github.com/ollama/ollama/releases/download/v"
     private static let releaseVersion = #"[0-9]+(?:\.[0-9]+)+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"#
-    private static let archiveSuffix = #"/Ollama-darwin\.zip"#
+    private static let archiveSuffix = "/Ollama-darwin.zip"
 
     static let set = AppRecipeSet(
         family: "com-electron-ollama",
@@ -78,17 +78,19 @@ enum com_electron_ollama {
         let preview = channel == .preview
         let endpoint = "https://ollama.com/api/update?os=darwin&arch=arm64"
             + (preview ? "&channel=preview" : "")
+        let prefixPattern = NSRegularExpression.escapedPattern(for: archivePrefix)
+        let suffixPattern = NSRegularExpression.escapedPattern(for: archiveSuffix)
         return VendorProbeRecipe(
             bundleID: bundleID,
             url: URL(string: endpoint)!,
-            mode: .installedVersionResponseBody(queryParameter: "version"),
-            versionPattern: #""url"\s*:\s*"\#(archivePrefix)(\#(releaseVersion))\#(archiveSuffix)""#,
+            mode: .installedVersionJSONURL(queryParameter: "version"),
+            versionPattern: #"\A\#(prefixPattern)(\#(releaseVersion))\#(suffixPattern)\z"#,
             downloadURL: URL(string: preview
                 ? "https://docs.ollama.com/faq#how-do-i-install-a-pre-release"
                 : "https://ollama.com/download"),
             changelogURL: releases,
             install: VendorInstallSpec(
-                urlSource: .bodyPattern(#""url"\s*:\s*"(\#(archivePrefix)\#(releaseVersion)\#(archiveSuffix))""#),
+                urlSource: .versionTemplate("\(archivePrefix){version}\(archiveSuffix)"),
                 kind: .zip),
             channel: channel)
     }

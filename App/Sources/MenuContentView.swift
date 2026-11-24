@@ -2266,7 +2266,7 @@ private struct AppRow: View {
             .disabled(stage != nil)
         if let channel = model.ollamaChannel(for: result) {
             OllamaChannelMenu(channel: channel) { model.setOllamaChannel($0, for: result) }
-                .disabled(stage != nil || model.isChecking)
+                .disabled(stage != nil || !model.canChangeOllamaChannel)
         }
         if model.offersBrewFallbackChoice(result) {
             BrewFallbackMenu(

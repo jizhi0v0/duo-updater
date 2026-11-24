@@ -45,6 +45,16 @@ struct OllamaProbeRecipeTests {
                 (status, body) = (200, #"{"url": "\#(candidateURL)"}"#)
             case (nil, "0.40.14"):
                 (status, body) = (200, #"{"url": "https://github.com/other/ollama/releases/download/v0.40.17/Ollama-darwin.zip"}"#)
+            case (nil, "0.40.12"):
+                (status, body) = (200, #"{"url": "\#(stableURL)""#)
+            case (nil, "0.40.11"):
+                (status, body) = (206, #"{"url": "\#(stableURL)"}"#)
+            case (nil, "0.40.10"):
+                (status, body) = (200, #"{"other": {"url": "\#(candidateURL)"}, "url": "\#(stableURL)"}"#)
+            case (nil, "0.40.9"):
+                (status, body) = (200, #"{"other": {"url": "\#(candidateURL)"}}"#)
+            case (nil, "0.40.16+build") where url.absoluteString.contains("version=0.40.16%2Bbuild"):
+                (status, body) = (200, #"{"url": "\#(stableURL)"}"#)
             default:
                 (status, body) = (200, "")
             }
@@ -90,6 +100,8 @@ struct OllamaProbeRecipeTests {
         let result = await UpdateChecker(sources: [source]).check(app(version))
         #expect(result.status == .upToDate)
         #expect(result.remote?.shortVersion == version)
+        #expect(result.remote?.isCopyScopedNoOffer == true)
+        #expect(result.remote?.downloadURL == nil)
         #expect(result.remote?.vendorInstallerKind == nil)
     }
 
@@ -101,12 +113,26 @@ struct OllamaProbeRecipeTests {
         #expect(result.remote?.downloadURL?.absoluteString == Self.candidateURL)
     }
 
-    @Test(arguments: ["0.40.14", "0.40.13"])
+    @Test(arguments: ["0.40.14", "0.40.13", "0.40.12", "0.40.9"])
     func malformedSuccessDoesNotBecomeUpToDate(version: String) async throws {
         let (_, source) = try source()
         let outcome = await source.probeDiagnostic(for: app(version))
         #expect(outcome?.succeeded == false)
         #expect(outcome?.failure?.kind == "versionPatternNoMatch")
+    }
+
+    @Test func partialHTTPResponseDoesNotOfferAnInstall() async throws {
+        let (_, source) = try source()
+        let outcome = await source.probeDiagnostic(for: app("0.40.11"))
+        #expect(outcome?.failure == .httpStatus(206))
+    }
+
+    @Test(arguments: ["0.40.10", "0.40.16+build"])
+    func usesTopLevelURLAndSendsTheFullVersion(version: String) async throws {
+        let (_, source) = try source()
+        let outcome = await source.probeDiagnostic(for: app(version))
+        #expect(outcome?.remote?.shortVersion == "0.40.17")
+        #expect(outcome?.remote?.downloadURL?.absoluteString == Self.stableURL)
     }
 
     @Test(arguments: ["0.40.17", "0.40.18-rc0"])

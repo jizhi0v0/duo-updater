@@ -643,6 +643,10 @@ public struct VendorProbeSource: UpdateSource {
         let status: Int?
     }
 
+    private struct UpdateURLResponse: Decodable {
+        let url: String
+    }
+
     /// Run one recipe. `allowInstall` false forces a detection-only result even
     /// when the recipe carries an install spec — used for apps whose install
     /// another channel owns (Toolbox-managed), where we want the version but not
@@ -692,7 +696,7 @@ public struct VendorProbeSource: UpdateSource {
         }
 
         let installedVersion: String?
-        if case .installedVersionResponseBody = recipe.mode, let app {
+        if case .installedVersionJSONURL = recipe.mode, let app {
             guard let version = app.shortVersion, !version.isEmpty else {
                 return fail(.notApplicable("the installed copy has no marketing version"))
             }
@@ -712,8 +716,10 @@ public struct VendorProbeSource: UpdateSource {
             body = fetched
         }
         if body.status == 204, let installedVersion {
-            let current = Self.makeRemoteVersion(
-                recipe: recipe, version: installedVersion, install: nil, plan: nil, resolvedDownload: nil)
+            var current = RemoteVersion(
+                shortVersion: installedVersion, version: nil, downloadURL: nil,
+                pageURL: recipe.downloadURL, sourceName: Self.sourceName, changelogURL: recipe.changelogURL)
+            current.isCopyScopedNoOffer = true
             return ProbeOutcome(
                 recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
                 remote: current, failure: nil, httpStatus: body.status, elapsedMs: elapsed())
@@ -1201,7 +1207,7 @@ public struct VendorProbeSource: UpdateSource {
             endpoint = resolved
         }
 
-        if case .installedVersionResponseBody(let parameter) = recipe.mode, let installedVersion {
+        if case .installedVersionJSONURL(let parameter) = recipe.mode, let installedVersion {
             guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
                 return .failure(.malformedResolvedURL("invalid installed-version endpoint"))
             }
@@ -1209,6 +1215,9 @@ public struct VendorProbeSource: UpdateSource {
             items.removeAll { $0.name == parameter }
             items.append(URLQueryItem(name: parameter, value: installedVersion))
             components.queryItems = items
+            // The vendor parses its query as form data, where + means a space.
+            components.percentEncodedQuery = components.percentEncodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
             guard let resolved = components.url else {
                 return .failure(.malformedResolvedURL("invalid installed-version query"))
             }
@@ -1309,7 +1318,7 @@ public struct VendorProbeSource: UpdateSource {
                     status: http.statusCode))
             }
 
-        case .responseBody, .installedVersionResponseBody, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP:
+        case .responseBody, .installedVersionJSONURL, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP:
             return await fetchResponseBody(recipe, endpoint: endpoint)
 
         case .versionedDirectory(let pattern):
@@ -1396,6 +1405,19 @@ public struct VendorProbeSource: UpdateSource {
         }
         guard okRange.contains(http.statusCode) else {
             return .failure(.httpStatus(http.statusCode))
+        }
+        if case .installedVersionJSONURL = recipe.mode {
+            switch http.statusCode {
+            case 200:
+                guard let offer = try? JSONDecoder().decode(UpdateURLResponse.self, from: data) else {
+                    return .failure(.versionPatternNoMatch(sampleBytes: data.count))
+                }
+                return .success(FetchedBody(text: offer.url, resolvedDownload: nil, status: 200))
+            case 204:
+                return .success(FetchedBody(text: "", resolvedDownload: nil, status: 204))
+            default:
+                return .failure(.httpStatus(http.statusCode))
+            }
         }
         if case .dockerAppcast = recipe.mode, http.url != endpoint {
             return .failure(.malformedResolvedURL("Docker appcast redirected from its channel endpoint"))

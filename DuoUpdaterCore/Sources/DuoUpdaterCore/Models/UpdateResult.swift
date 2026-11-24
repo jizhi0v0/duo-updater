@@ -229,6 +229,9 @@ public enum InstallTrust: Sendable, Hashable, CaseIterable {
 public struct RemoteVersion: Sendable, Hashable {
     /// Marketing version, e.g. "1.96.0" (`sparkle:shortVersionString`).
     public let shortVersion: String?
+    /// The updater answered that this installed version has no offer.
+    /// The marketing version is the request's input, not a release target.
+    public var isCopyScopedNoOffer = false
     /// Build version, e.g. "1.96.0" or "45830" (`sparkle:version`). This is
     /// Sparkle's canonical comparison key.
     public let version: String?
@@ -652,10 +655,12 @@ extension UpdateResult {
     ) -> UpdateResult {
         let sameCopy = app.shortVersion == rescanned.shortVersion
             && app.buildVersion == rescanned.buildVersion
+        let staleNoOffer = remote?.isCopyScopedNoOffer == true
+            && (!sameCopy || app.releaseChannel != rescanned.releaseChannel)
         var carried = remote
         if !sameCopy { carried?.releaseChannel = nil }
         var row = UpdateResult(
-            app: rescanned, remote: carried, status: status,
+            app: rescanned, remote: staleNoOffer ? nil : carried, status: staleNoOffer ? .unknown : status,
             provenChannel: proven ?? (sameCopy ? provenChannel : nil))
         // Also about the copy, so also only while it is unchanged. A new copy
         // is read again by the next check.

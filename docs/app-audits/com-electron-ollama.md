@@ -17,7 +17,7 @@ Ollama 的设置开关控制自动下载。Duo 的频道选择独立保存，切
 ## 更新检测
 
 - 复用 [Ollama 的桌面更新 API](https://raw.githubusercontent.com/ollama/ollama/v0.40.17/app/updater/updater.go)，发送 `os=darwin`、`arch=arm64` 和本机的完整版本。公开请求已实测可凭系统、架构和版本这三项查询。
-- `204` 表示服务端当前没有为该拷贝提供更新。返回 ZIP 时，从同一条 `url` 的 GitHub tag 路径读出完整版本，用该 URL 下载。若返回正文不符合预期，按探针失败处理。
+- `204` 表示当前版本和频道无更新。磁盘上的版本或频道变更后需要重新检查。`200` 响应从顶层 JSON `url` 读取完整 GitHub tag 和 ZIP 地址。正文或状态码不符合协议时显示检查失败。
 - GitHub Releases 用于发布说明和承载 API 选定的 ZIP。之前直接查询 `/releases/latest` 的检测已由该 API 取代。
 
 ## Changelog

@@ -154,6 +154,32 @@ struct ScanRowAssemblyTests {
         #expect(moved[0].status == .unknown)
     }
 
+    @Test func aVendorNoOfferAppliesOnlyToTheCheckedCopyAndChannel() {
+        func ollama(_ version: String, build: String, channel: ReleaseChannel) -> InstalledApp {
+            InstalledApp(
+                name: "Ollama", bundleID: "com.electron.ollama", shortVersion: version, buildVersion: build,
+                path: URL(fileURLWithPath: "/Applications/Ollama.app"), isMASApp: false,
+                sparkleFeedURL: nil, releaseChannel: channel, channelIsAuthoritative: true)
+        }
+        let checked = ollama("0.40.18", build: "0.40.18", channel: .stable)
+        var noOffer = remote("0.40.18", channel: nil, source: "Vendor")
+        noOffer.isCopyScopedNoOffer = true
+        let prior = [UpdateResult(app: checked, remote: noOffer, status: .upToDate)]
+
+        let same = ScanRowAssembly.merged([checked], prior: prior, proofs: noProofs)
+        #expect(same[0].status == .upToDate)
+        #expect(same[0].remote == noOffer)
+        for changed in [
+            ollama("0.40.17", build: "0.40.17", channel: .stable),
+            ollama("0.40.18", build: "0.40.19", channel: .stable),
+            ollama("0.40.18", build: "0.40.18", channel: .preview),
+        ] {
+            let rescanned = ScanRowAssembly.merged([changed], prior: prior, proofs: noProofs)
+            #expect(rescanned[0].status == .unknown)
+            #expect(rescanned[0].remote == nil)
+        }
+    }
+
     /// The other half of the same rule: when the copy on disk has been REPLACED,
     /// the old answer is about an app that is gone. Asserting on
     /// `effectiveReleaseChannel` rather than on `provenChannel` is the point —

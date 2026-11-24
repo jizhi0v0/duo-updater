@@ -1975,7 +1975,7 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
                 result.app, version: result.remote?.versionSide),
             toggleIgnore: { model.toggleIgnore(result) },
             ollamaChannel: ollamaChannel,
-            ollamaChannelChangeDisabled: ollamaChannel != nil && model.isChecking,
+            ollamaChannelChangeDisabled: ollamaChannel != nil && !model.canChangeOllamaChannel,
             setOllamaChannel: { model.setOllamaChannel($0, for: result) },
             showsBrewFallback: model.offersBrewFallbackChoice(result),
             brewFallbackChoice: model.brewFallbackOverride(for: result),

@@ -10264,8 +10264,10 @@ final class AppListModel {
         return prefs.ollamaChannel(for: result.app)
     }
 
+    var canChangeOllamaChannel: Bool { !isRefreshing && !isChecking }
+
     func setOllamaChannel(_ channel: ReleaseChannel, for result: UpdateResult) {
-        guard !isChecking, installing[result.id] == nil, let previous = ollamaChannel(for: result),
+        guard canChangeOllamaChannel, installing[result.id] == nil, let previous = ollamaChannel(for: result),
               previous != channel else { return }
         prefs.setOllamaChannel(channel, for: result.app)
         Task { await retry(result) }

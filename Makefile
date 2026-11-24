@@ -110,7 +110,7 @@ test-scripts: check-python
 CORE_TEST_FLAGS ?=
 
 # Share a SwiftPM scratch directory between the packages in test-swift.
-# CI on the mini gives each job its own temporary directory.
+# CI on the mini gives Swift and Release their own persistent directories.
 SWIFTPM_TEST_SCRATCH ?= $(CURDIR)/DuoUpdaterCore/.build
 
 # The two SwiftPM packages, plus the application-test harness built against them.

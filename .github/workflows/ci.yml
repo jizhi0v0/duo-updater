@@ -29,9 +29,9 @@
 # runners are available. Their root-owned hook also checks the event and repo.
 # Assign duo-mini-app and duo-mini-core to different runners. The Core runner
 # serializes Swift and Release disk-image tests, while App can build in parallel.
-# All three jobs use temporary build directories on the mini. Disable the
-# repository variable to use GitHub-hosted macOS runners for new runs, or opt
-# into hosted macOS for one dispatch to refresh its caches.
+# Swift and Release keep separate SwiftPM caches on the mini. App uses a
+# temporary build directory. Disable the repository variable to use hosted macOS
+# runners for new runs, or opt into hosted macOS per dispatch.
 name: CI
 
 on:
@@ -205,8 +205,7 @@ jobs:
         name: Configure Core tests on the mini
         if: runner.environment == 'self-hosted'
         run: |
-          scratch="$(mktemp -d "$RUNNER_TEMP/duo-core-ci.XXXXXX")"
-          echo "SWIFTPM_TEST_SCRATCH=$scratch" >> "$GITHUB_ENV"
+          python3 scripts/ci_mini_core_cache.py prepare
           # These diagnostics print or copy apps selected from the machine's
           # actual inventory. The vendor signature gate uses a fixed app list.
           skip='listUnknownApps|liveFullCheckSmoke|installPipelineDryRun'
@@ -329,6 +328,11 @@ jobs:
         with:
           path: DuoUpdaterCore/.build
           key: ${{ steps.spm-key.outputs.key }}-${{ github.sha }}
+
+      - &mini-core-cache-save
+        name: Keep the successful SwiftPM build on the mini
+        if: success() && runner.environment == 'self-hosted'
+        run: python3 scripts/ci_mini_core_cache.py save
 
   app:
     needs: route
@@ -606,6 +610,8 @@ jobs:
         with:
           path: DuoUpdaterCore/.build
           key: ${{ steps.spm-key.outputs.key }}-${{ github.sha }}
+
+      - *mini-core-cache-save
 
   # LINT.IfChange / LINT.ThenChange links (scripts/check_ifchange.py): a pull
   # request that changes one side of a link must change the other, or say why

@@ -121,40 +121,7 @@ probes[2].requestBody = nil
 probes[2].followRedirects = true
 probes[2].requestHeaders = Dictionary(count: 0)
 
-changelogs = Array(count: 1)
-changelogs[0] = struct ChangelogRecipe
-changelogs[0].bundleID = "com.privateinternetaccess.vpn"
-changelogs[0].source = URL("https://www.privateinternetaccess.com/pages/changelog")
-changelogs[0].sourceTemplate = nil
-changelogs[0].versionFromTemplate = false
-changelogs[0].mode = .html
-changelogs[0].entryPattern = "<article class=\"changelog-release\">(?:(?!</?article\\b).)*?<h3\\b[^>]*>\\s*v(?<version>[0-9]+(?:\\.[0-9]+)+)\\s*</h3>(?:(?!</?article\\b|Release Date:|<ul\\b).)*+(?:Release Date:\\s*(?<date>[A-Za-z]+\\s+[0-9]{1,2},\\s+[0-9]{4}))?(?<body>(?:(?!</?article\\b).)*)</article>"
-changelogs[0].itemPatterns = Array(count: 1)
-changelogs[0].itemPatterns[0] = "<li\\b[^>]*>(?<item>.*?)</li>"
-changelogs[0].stripTags = true
-changelogs[0].decodeEntities = true
-changelogs[0].escapedMarkup = false
-changelogs[0].markdownSource = false
-changelogs[0].maxEntries? = 40
-changelogs[0].minItemLength = 1
-changelogs[0].newestLast = false
-changelogs[0].indexLinkPattern = nil
-changelogs[0].feedPagePattern = nil
-changelogs[0].channel = nil
-changelogs[0].includesPromotedStable = false
-changelogs[0].ordersByPublishedDate = false
-changelogs[0].excludedChannels = Array(count: 0)
-changelogs[0].imagePattern = nil
-changelogs[0].headingPattern = nil
-changelogs[0].minimumAppVersion = nil
-changelogs[0].belowAppVersion = nil
-changelogs[0].carriesOtherTrainEntries = false
-changelogs[0].acknowledgedStaleEntry = nil
-changelogs[0].structuredFormat = nil
-changelogs[0].httpMethod = .get
-changelogs[0].requestBody = nil
-changelogs[0].skipSections = Array(count: 0)
-changelogs[0].tagPattern = nil
+changelogs = Array(count: 0)
 
 githubRules = Array(count: 0)
 
@@ -176,8 +143,7 @@ supersededFeeds = Dictionary(count: 0)
 
 loginWalls = Dictionary(count: 0)
 
-changelogPages = Dictionary(count: 1)
-changelogPages["com.privateinternetaccess.vpn"] = URL("https://www.privateinternetaccess.com/pages/changelog")
+changelogPages = Dictionary(count: 0)
 
 oneClickGates = Array(count: 0)
 

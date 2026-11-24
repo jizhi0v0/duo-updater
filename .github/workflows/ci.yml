@@ -33,6 +33,7 @@
 # temporary build directory. Disable the repository variable to use hosted macOS
 # runners for new runs, or opt into hosted macOS per dispatch.
 name: CI
+run-name: Core recipe benchmark (${{ inputs.benchmark_cold_core && 'cold' || 'warm' }})
 
 on:
   pull_request:
@@ -42,6 +43,10 @@ on:
     inputs:
       hosted_macos:
         description: Run the macOS jobs on GitHub-hosted runners
+        type: boolean
+        default: false
+      benchmark_cold_core:
+        description: Use temporary SwiftPM scratch for the Core benchmark
         type: boolean
         default: false
 
@@ -204,8 +209,16 @@ jobs:
       - &mini-core-build
         name: Configure Core tests on the mini
         if: runner.environment == 'self-hosted'
+        env:
+          BENCHMARK_COLD_CORE: ${{ inputs.benchmark_cold_core }}
         run: |
-          python3 scripts/ci_mini_core_cache.py prepare
+          if [ "$BENCHMARK_COLD_CORE" = true ]; then
+            scratch="$(mktemp -d "$RUNNER_TEMP/duo-core-benchmark.XXXXXX")"
+            echo "SWIFTPM_TEST_SCRATCH=$scratch" >> "$GITHUB_ENV"
+            echo "SwiftPM benchmark cold: using temporary scratch"
+          else
+            python3 scripts/ci_mini_core_cache.py prepare
+          fi
           # These diagnostics print or copy apps selected from the machine's
           # actual inventory. The vendor signature gate uses a fixed app list.
           skip='listUnknownApps|liveFullCheckSmoke|installPipelineDryRun'
@@ -331,7 +344,7 @@ jobs:
 
       - &mini-core-cache-save
         name: Keep the successful SwiftPM build on the mini
-        if: success() && runner.environment == 'self-hosted'
+        if: success() && runner.environment == 'self-hosted' && !inputs.benchmark_cold_core
         run: python3 scripts/ci_mini_core_cache.py save
 
   app:

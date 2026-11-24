@@ -130,23 +130,6 @@ struct ChangelogRecipeSelectionTests {
         #expect(page == .fromSource(URL(string: "https://apps.apple.com/app/id1")!))
     }
 
-    @Test func piaUsesItsOfficialFallbackWhenTheSourceHasNoPage() {
-        let bundleID = "com.privateinternetaccess.vpn"
-        let official = URL(string: "https://www.privateinternetaccess.com/pages/changelog")!
-        let installed = app(store: false, bundleID: bundleID, version: "3.8.0")
-        let homebrew = RemoteVersion(shortVersion: "3.8.0", version: "3.8.0",
-                                    downloadURL: nil, sourceName: "Homebrew")
-        #expect(ChangelogRecipeSelection.fallbackPage(
-            for: UpdateResult(app: installed, remote: nil, status: .unknown)) == .fromCatalog(official))
-        #expect(ChangelogRecipeSelection.fallbackPage(
-            for: UpdateResult(app: installed, remote: homebrew, status: .upToDate)) == .fromCatalog(official))
-
-        let store = app(store: true, bundleID: bundleID, version: "3.8.0")
-        let checking = UpdateResult(app: store, remote: nil, status: .unknown)
-        #expect(ChangelogRecipeSelection.recipe(for: checking) == nil)
-        #expect(ChangelogRecipeSelection.fallbackPage(for: checking) == .withheld)
-    }
-
     /// When a catalog page and recipe overlap, recheck the vendor page's
     /// distribution in `fallbackPage`. SwiftVM's page covers the Developer ID
     /// distributions that use its Stable and Beta Sparkle feeds.
@@ -158,8 +141,8 @@ struct ChangelogRecipeSelectionTests {
         let recipes = Set(ChangelogRecipeRegistry.recipes.map { $0.bundleID.lowercased() })
         #expect(catalog.intersection(recipes) == [
             "app.chatwise", "com.electron.ollama", "com.longbridge.app.desktop",
-            "com.mitchellh.ghostty", "com.privateinternetaccess.vpn", "com.robinebers.openusage",
-            "com.swiftvm.app", "net.imput.helium",
+            "com.mitchellh.ghostty", "com.robinebers.openusage", "com.swiftvm.app",
+            "net.imput.helium",
         ], "The catalog/recipe overlap moved. Re-read ChangelogRecipeSelection.fallbackPage: a new entry here is a vendor page that a store copy could reach through the web view.")
         // The case the whole change is about has no catalog entry, so it lands on
         // "No release notes" rather than a vendor page. If this ever gains one,

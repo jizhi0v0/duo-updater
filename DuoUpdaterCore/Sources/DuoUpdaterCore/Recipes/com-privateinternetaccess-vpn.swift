@@ -22,31 +22,10 @@ enum com_privateinternetaccess_vpn {
                 channel: .beta,
                 variant: "beta-feed"),
         ],
-        changelogs: [
-            // PIA's stable page lists one release per article: h3 version,
-            // release date and bullet notes. Downloads precede the version,
-            // while SHA-256 paragraphs follow the notes. Keep the article
-            // boundary so an empty release cannot borrow the next one's notes.
-            // Beta shares this GA history; it has no beta-only notes here.
-            ChangelogRecipe(
-                bundleID: bundleID,
-                source: changelog,
-                entryPattern:
-                    #"<article class="changelog-release">"#
-                    + #"(?:(?!</?article\b).)*?<h3\b[^>]*>\s*v(?<version>[0-9]+(?:\.[0-9]+)+)\s*</h3>"#
-                    // Stop at the first date, list or article boundary.
-                    + #"(?:(?!</?article\b|Release Date:|<ul\b).)*+"#
-                    + #"(?:Release Date:\s*(?<date>[A-Za-z]+\s+[0-9]{1,2},\s+[0-9]{4}))?"#
-                    + #"(?<body>(?:(?!</?article\b).)*)</article>"#,
-                itemPatterns: [
-                    #"<li\b[^>]*>(?<item>.*?)</li>"#,
-                ]),
-        ],
         channelProofs: [
             ChannelProofKey(bundleID, .beta):
                 .recipeAnchor(#"/(?:pages/changelog|clients/desktop/beta\.json)$"#, in: ["url"]),
-        ],
-        changelogPages: [bundleID: changelog])
+        ])
 
     private static func stableRecipe(channel: ReleaseChannel) -> VendorProbeRecipe {
         let macFilename = #"pia-macos-[0-9]+(?:\.[0-9]+)+-[0-9]+\.zip"#

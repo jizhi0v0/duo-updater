@@ -31,6 +31,7 @@ public final class PermissionFlowController: ObservableObject {
     private let configuration: PermissionFlowConfiguration
     private let tracker = SettingsWindowTracker()
 
+    private var manualAlert: NSAlert?
     private var panel: FloatingDropPanel?
     private var panelPresentationFallback: Timer?
     private var settleTimer: Timer?
@@ -70,6 +71,7 @@ public final class PermissionFlowController: ObservableObject {
         sourceFrameInScreen: CGRect? = nil
     ) {
         closeOtherActivePanelIfNeeded()
+        if manualAlert != nil { closePanel() }
 
         // Reset per-flow presentation state — this controller is long-lived and
         // can be re-authorized without an intervening closePanel().
@@ -99,12 +101,18 @@ public final class PermissionFlowController: ObservableObject {
                 alert.messageText = String(localized: "Grant access in System Settings")
                 let addApp = String(localized: "If DuoUpdater is missing, click + and choose the app at this path:")
                 alert.informativeText = "\(instructions)\n\n\(addApp)\n\(appURL.path)"
-                alert.addButton(withTitle: String(localized: "Open System Settings"))
-                alert.addButton(withTitle: String(localized: "Cancel"))
-                NSApp.activate(ignoringOtherApps: true)
-                if alert.runModal() == .alertFirstButtonReturn {
-                    SystemSettings.open(url: pane.settingsURL)
-                }
+                let open = alert.addButton(withTitle: String(localized: "Open System Settings"))
+                open.target = self
+                open.action = #selector(openManualSettings)
+                let cancel = alert.addButton(withTitle: String(localized: "Cancel"))
+                cancel.target = self
+                cancel.action = #selector(cancelManualSettings)
+                manualAlert = alert
+                Self.activeController = self
+                NSApp.activate()
+                alert.layout()
+                alert.window.center()
+                alert.window.makeKeyAndOrderFront(nil)
                 return
             }
         }
@@ -206,6 +214,16 @@ public final class PermissionFlowController: ObservableObject {
         presentPanel(panel, for: frame)
     }
 
+    @objc private func openManualSettings() {
+        guard let pane = currentPane else { return }
+        closePanel()
+        SystemSettings.open(url: pane.settingsURL)
+    }
+
+    @objc private func cancelManualSettings() {
+        closePanel(returnToPreviousApp: true)
+    }
+
     public func closePanel(returnToPreviousApp: Bool = false) {
         tracker.stopTracking()
         panelPresentationFallback?.invalidate()
@@ -214,6 +232,8 @@ public final class PermissionFlowController: ObservableObject {
         settleTimer = nil
         latestTrackedFrame = nil
         hasPresentedTrackedFrame = false
+        manualAlert?.window.orderOut(nil)
+        manualAlert = nil
         panel?.close()
         panel = nil
         pendingLaunchSourceFrame = nil

@@ -66,11 +66,20 @@ import Foundation
 /// The scoped scan the App uses for a single-row recheck (issue #226) must answer
 /// exactly what the full scan answered for that row — same fields, same identity —
 /// or the recheck silently rewrites a row with a different reading of the same
-/// bundle. Derived from the real machine rather than a fixture list: every app the
-/// full scan returns is re-read alone and compared whole (`InstalledApp` is
-/// `Hashable`). One scanner instance so both reads share the Toolbox/TestFlight
-/// inventories, as the App's recheck does.
+/// bundle. Use private fixtures so receipts and Spotlight metadata do not change
+/// while another app updates on the runner.
 @Test func scopedScanMatchesTheFullScanRowForRow() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("scanner-parity-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    try writeFixtureApp(at: root.appendingPathComponent("Zulu.app"),
+                        id: "com.example.parity.zulu", name: "Zulu")
+    try writeFixtureApp(at: root.appendingPathComponent("Suite/Alpha.app"),
+                        id: "com.example.parity.alpha", name: "Alpha",
+                        extraInfo: ["SUFeedURL": "https://fixture.invalid/alpha.xml"])
+    try writeFixtureApp(at: root.appendingPathComponent("Mike.app"),
+                        id: "com.example.parity.mike", name: "Mike")
+
     // The channel binding is injected, not read. The real one is a live read of
     // another app's preferences under a 2s deadline, and on 2026-10-09 the CI
     // mini's AppData consent gate let the full scan read CotEditor's `.beta` and
@@ -83,6 +92,7 @@ import Foundation
     // whether the preference read itself answers in time — that is
     // `ChannelBindingBoundTests` and the per-app channel tests.
     let scanner = AppScanner(
+        locations: [root],
         testflight: TestFlightInventory(macRows: []),
         channelBinding: { bundleID, feeds, strings in
             guard let bundleID else { return nil }
@@ -94,7 +104,7 @@ import Foundation
                 sparkleChannelNames: Set([bundleID] + strings.map { "\($0.key)=\($0.value)" }))
         })
     let full = scanner.scan()
-    try #require(!full.isEmpty, "expected at least one app in the default locations")
+    try #require(Set(full.map(\.name)) == ["Alpha", "Mike", "Zulu"])
     for app in full {
         let scoped = scanner.scan(bundlesAt: [app.path])
         #expect(scoped == [app], "\(app.path.path) re-read alone differs from its full-scan row")
@@ -279,13 +289,13 @@ private func makeBundleWithNestedSparkle(depth: Int, id: String) throws -> URL {
 
 /// A bundle `readApp` will accept, without the cost of a real app: the only
 /// things it requires are a readable Info.plist and a marketing version.
-private func writeFixtureApp(at bundle: URL, id: String, name: String) throws {
+private func writeFixtureApp(at bundle: URL, id: String, name: String, extraInfo: [String: String] = [:]) throws {
     let contents = bundle.appendingPathComponent("Contents")
     try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
-    try PropertyListSerialization
-        .data(fromPropertyList: [
-            "CFBundleIdentifier": id, "CFBundleShortVersionString": "1.0",
-            "CFBundleVersion": "1", "CFBundleName": name,
-        ], format: .xml, options: 0)
+    let info = [
+        "CFBundleIdentifier": id, "CFBundleShortVersionString": "1.0",
+        "CFBundleVersion": "1", "CFBundleName": name,
+    ].merging(extraInfo) { _, extra in extra }
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         .write(to: contents.appendingPathComponent("Info.plist"))
 }

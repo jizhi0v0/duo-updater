@@ -580,6 +580,9 @@ struct ManagedStopTests {
         kill(pid, SIGKILL)
         _ = try? await run.value
         _ = stop.members()
+        #expect(stop.trackedSessions == [pid], "the scan that noticed the drain was not a fresh miss")
+        _ = stop.members()
+        #expect(stop.trackedSessions == [pid], "one fresh miss after the drain is not enough")
         _ = stop.members()
         #expect(stop.trackedSessions.isEmpty)
         #expect(!stop.alive())
@@ -592,7 +595,8 @@ struct ManagedStopTests {
     /// it (local adversarial review 2, 2 in 10 with a relay changing group
     /// on every hop). `alive` looks again. Mutation: `alive` trusting one
     /// scan.
-    @Test func oneEmptyScanIsNoVerdictWhileASessionIsFollowed() async throws {
+    @Test(arguments: [0, 3])
+    func oneEmptyScanIsNoVerdictWhileASessionIsFollowed(missesWithLiveGroup: Int) async throws {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         let started = Locked<pid_t>(0)
@@ -610,20 +614,23 @@ struct ManagedStopTests {
         let member = pid_t(read(root + "/m")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
         defer { if member > 0 { kill(member, SIGKILL) } }
         #expect(member > 0 && getsid(member) == leader && getpgid(member) == member)
-        // The leader alone, then nothing once, then the real table.
+        // Misses while the known group is still alive cannot count once that
+        // group drains. The first scan after the leader exits misses the
+        // survivor in its new group. The next real scan must still run.
         let calls = Locked(0)
-        let stop = ManagedStop(table: {
+        let stop = ManagedStop(missGap: .zero, table: {
             let call = calls.value
             calls.set(call + 1)
-            switch call {
-            case 0: return [ManagedStop.Member(pid: leader, ppid: getpid(), pgid: leader, started: 0)]
-            case 1: return []
-            default: return ManagedStop.processes()
+            if call == 0 {
+                return [ManagedStop.Member(pid: leader, ppid: getpid(), pgid: leader, started: 0)]
             }
+            if call <= missesWithLiveGroup + 1 { return [] }
+            return ManagedStop.processes()
         })
         stop.finish()
         stop.launched(leader)
         _ = stop.members()
+        for _ in 0..<missesWithLiveGroup { _ = stop.members() }
         kill(leader, SIGKILL)
         _ = try? await run.value
         let alive = await offCooperativePool { stop.alive() }

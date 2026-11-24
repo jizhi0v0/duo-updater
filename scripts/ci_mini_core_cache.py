@@ -52,7 +52,7 @@ def scratch_path(workspace, job):
     return build
 
 
-def prepare(build, key):
+def prepare(build, key, label="SwiftPM"):
     ready = build / READY
     previous_key = ready.read_bytes() if ready.is_file() else None
     # A cancelled/failed job leaves no ready marker. Only a later successful
@@ -62,26 +62,26 @@ def prepare(build, key):
         try:
             restored = restore(build, refresh_changed=True)
         except (OSError, ValueError, TypeError, AttributeError, LookupError, OverflowError) as error:
-            print(f"::warning::Discarding unreadable SwiftPM cache: {error}")
+            print(f"::warning::Discarding unreadable {label} cache: {error}")
         else:
-            print(f"SwiftPM cache warm: {restored}")
+            print(f"{label} cache warm: {restored}")
             return
 
     if build.exists():
         shutil.rmtree(build)
     build.mkdir(parents=True)
-    print("SwiftPM cache cold")
+    print(f"{label} cache cold")
 
 
-def save(build, key):
+def save(build, key, label="SwiftPM", max_kib=None):
     size_kib = int(command("du", "-sk", str(build)).split()[0])
-    if size_kib > MAX_CACHE_KIB or shutil.disk_usage(build).free < MIN_FREE_BYTES:
-        print(f"Discarding SwiftPM cache to limit disk use ({size_kib} KiB)")
+    if size_kib > (MAX_CACHE_KIB if max_kib is None else max_kib) or shutil.disk_usage(build).free < MIN_FREE_BYTES:
+        print(f"Discarding {label} cache to limit disk use ({size_kib} KiB)")
         shutil.rmtree(build)
         return
     stamped = stamp(build)
     (build / READY).write_text(key)
-    print(f"SwiftPM cache saved ({size_kib} KiB): {stamped}")
+    print(f"{label} cache saved ({size_kib} KiB): {stamped}")
 
 
 def prepare_job(workspace, job):

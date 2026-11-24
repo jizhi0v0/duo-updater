@@ -30,7 +30,7 @@
 # Assign duo-mini-app and duo-mini-core to different runners. The Core runner
 # serializes Swift and Release disk-image tests, while App can build in parallel.
 # Swift and Release keep separate SwiftPM caches on the mini. App uses a
-# temporary build directory. Disable the repository variable to use hosted macOS
+# local Xcode build cache. Disable the repository variable to use hosted macOS
 # runners for new runs, or opt into hosted macOS per dispatch.
 name: CI
 
@@ -434,13 +434,18 @@ jobs:
       # with distinct Debug/Release products. Localization's emit-strings build
       # stays separate so its settings and .stringsdata cannot mix with tests;
       # its Sparkle embed also requires artifacts under its own DerivedData.
+      - name: Prepare the mini Xcode cache
+        if: runner.environment == 'self-hosted'
+        env:
+          MINI_PLATFORM: ${{ steps.platform.outputs.digest }}
+        run: python3 scripts/ci_xcode_cache.py prepare-mini
+
       - name: Set Xcode build directories
         id: xcode-key
         run: |
           if [ "$RUNNER_ENVIRONMENT" = self-hosted ]; then
-            scratch="$(mktemp -d "$RUNNER_TEMP/duo-app-ci.XXXXXX")"
-            dd="$scratch/build"
-            loc="$scratch/localizable"
+            dd="$MINI_APP_SCRATCH/build"
+            loc="$MINI_APP_SCRATCH/localizable"
           else
             python3 scripts/ci_xcode_cache.py >> "$GITHUB_OUTPUT"
             dd="$(python3 scripts/derived_data_path.py ci-xcode "$PWD")"
@@ -501,6 +506,10 @@ jobs:
       - name: App and CLI unsigned Release builds
         timeout-minutes: 20
         run: make test-release-build
+
+      - name: Keep the successful Xcode build on the mini
+        if: success() && runner.environment == 'self-hosted'
+        run: python3 scripts/ci_xcode_cache.py save-mini
 
       - name: Record the Xcode build's source times
         if: runner.environment == 'github-hosted' && github.event_name != 'pull_request' && steps.xcode-cache.outputs.cache-hit != 'true'

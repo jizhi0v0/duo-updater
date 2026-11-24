@@ -79,12 +79,14 @@ public struct AntigravityCLIProvider: CLIToolProvider {
 
     /// --version printed only the bare version on both tested stable builds,
     /// including with no network or filesystem writes permitted.
-    static func runVersion(_ executable: URL, home: URL) async -> String? {
+    static func runVersion(
+        _ executable: URL, home: URL, deadline: ChildProcess.Deadline = FxScanner.versionDeadline
+    ) async -> String? {
         guard let outcome = try? await ChildProcess.run(
             executable.path, ["--version"],
             environment: ["PATH": CLIToolCommandRunner.systemPath, "HOME": home.path],
             workingDirectory: home, standardOutput: .capture, standardError: .discard,
-            deadline: FxScanner.versionDeadline, onCancel: .terminateChild),
+            deadline: deadline, onCancel: .terminateChild),
               outcome.succeeded, !outcome.timedOut
         else { return nil }
         let text = String(decoding: outcome.standardOutput, as: UTF8.self)

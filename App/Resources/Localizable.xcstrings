@@ -193,66 +193,66 @@
         }
       }
     },
-    "In Privacy & Security, open System & App Protection Override. Open the details for DuoUpdater and review its access to control the App Store.": {
+    "On the permission page, select DuoUpdater and review its access to control the App Store.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Öffne unter „Datenschutz & Sicherheit“ die Einstellungen zum Übergehen des System- und App-Schutzes. Prüfe in den Details zu DuoUpdater den Zugriff zur Steuerung des App Store."
+            "value": "Wähle auf der Berechtigungsseite DuoUpdater aus und prüfe den Zugriff zur Steuerung des App Store."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "En Privacidad y seguridad, abre los ajustes de anulación de las protecciones del sistema y las apps. En los detalles de DuoUpdater, revisa el acceso para controlar el App Store."
+            "value": "En la página de permisos, selecciona DuoUpdater y revisa su acceso para controlar el App Store."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dans Confidentialité et sécurité, ouvrez les réglages de dérogation aux protections du système et des apps. Dans les détails de DuoUpdater, vérifiez son autorisation de contrôler l’App Store."
+            "value": "Sur la page des autorisations, sélectionnez DuoUpdater et vérifiez son autorisation de contrôler l’App Store."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "In Privacy e sicurezza, apri le impostazioni per ignorare le protezioni del sistema e delle app. Nei dettagli di DuoUpdater, verifica il permesso di controllare App Store."
+            "value": "Nella pagina dei permessi, seleziona DuoUpdater e verifica il permesso di controllare App Store."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "「プライバシーとセキュリティ」でシステムとアプリの保護を上書きする設定を開きます。DuoUpdater の詳細で、App Store を制御する権限を確認してください。"
+            "value": "権限の設定画面で DuoUpdater を選択し、App Store を制御する権限を確認してください。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Em Privacidade e Segurança, abra os ajustes para substituir as proteções do sistema e dos apps. Nos detalhes do DuoUpdater, confira a permissão para controlar a App Store."
+            "value": "Na página de permissões, selecione o DuoUpdater e confira o acesso para controlar a App Store."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "В разделе «Конфиденциальность и безопасность» откройте настройки обхода защиты системы и приложений. В сведениях о DuoUpdater проверьте доступ к управлению App Store."
+            "value": "На странице разрешений выберите DuoUpdater и проверьте его доступ к управлению App Store."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gizlilik ve Güvenlik bölümünde sistem ve uygulama korumasını geçersiz kılma ayarlarını açın. DuoUpdater ayrıntılarında App Store’u denetleme iznini gözden geçirin."
+            "value": "İzin sayfasında DuoUpdater’ı seçip App Store’u denetleme iznini gözden geçirin."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在“隐私与安全性”中打开系统与 App 保护覆盖设置，点按 DuoUpdater 的详情，检查并设置其控制 App Store 的权限。"
+            "value": "在权限页面中选择 DuoUpdater，查看并设置其控制 App Store 的权限。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在「隱私權與安全性」中打開系統與 App 保護覆寫設定。打開 DuoUpdater 的詳細資訊，檢查其控制 App Store 的權限。"
+            "value": "在權限頁面中選擇 DuoUpdater，檢查其控制 App Store 的權限。"
           }
         }
       }

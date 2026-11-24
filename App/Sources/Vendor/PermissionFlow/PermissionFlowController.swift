@@ -90,7 +90,7 @@ public final class PermissionFlowController: ObservableObject {
             case .appManagement:
                 instructions = String(localized: "In Privacy & Security, open App Management and turn on DuoUpdater.")
             case .accessibility:
-                instructions = String(localized: "In Privacy & Security, open System & App Protection Override. Open the details for DuoUpdater and review its access to control the App Store.")
+                instructions = String(localized: "On the permission page, select DuoUpdater and review its access to control the App Store.")
             default:
                 instructions = ""
             }

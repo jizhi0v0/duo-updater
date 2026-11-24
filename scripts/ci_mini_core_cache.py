@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from ci_build_cache import MANIFEST, restore, stamp
 
@@ -58,8 +59,13 @@ def prepare(build, key):
     # job can mark those build products safe to use.
     ready.unlink(missing_ok=True)
     if previous_key == key.encode() and (build / MANIFEST).is_file():
-        print(f"SwiftPM cache warm: {restore(build, refresh_changed=True)}")
-        return
+        try:
+            restored = restore(build, refresh_changed=True)
+        except (OSError, ValueError, TypeError, AttributeError, KeyError, OverflowError) as error:
+            print(f"::warning::Discarding unreadable SwiftPM cache: {error}")
+        else:
+            print(f"SwiftPM cache warm: {restored}")
+            return
 
     if build.exists():
         shutil.rmtree(build)
@@ -73,8 +79,24 @@ def save(build, key):
         print(f"Discarding SwiftPM cache to limit disk use ({size_kib} KiB)")
         shutil.rmtree(build)
         return
-    print(f"SwiftPM cache saved ({size_kib} KiB): {stamp(build)}")
+    stamped = stamp(build)
     (build / READY).write_text(key)
+    print(f"SwiftPM cache saved ({size_kib} KiB): {stamped}")
+
+
+def prepare_job(workspace, job):
+    build = scratch_path(workspace, job)
+    if shutil.disk_usage(workspace).free < MIN_FREE_BYTES:
+        # Both slots belong to this single-job runner. Release their space
+        # before the next build needs it, even if the other profile ran last.
+        for profile in PACKAGES:
+            slot = scratch_path(workspace, profile)
+            if slot.is_dir():
+                shutil.rmtree(slot)
+        raise OSError("Evicted SwiftPM caches because disk space is low")
+    key = cache_key(job)
+    prepare(build, key)
+    return build, key
 
 
 def main(action):
@@ -82,15 +104,21 @@ def main(action):
     workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
     if workspace != Path.cwd():
         raise ValueError(f"Expected to run from the CI checkout: {workspace}")
-    build = scratch_path(workspace, job)
     if action == "prepare":
-        key = cache_key(job)
-        prepare(build, key)
+        try:
+            build, key = prepare_job(workspace, job)
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            print(f"::warning::Using temporary SwiftPM scratch: {error}")
+            build = Path(tempfile.mkdtemp(prefix="duo-core-ci.", dir=os.environ["RUNNER_TEMP"]))
+            key = ""
         with open(os.environ["GITHUB_ENV"], "a") as env:
             print(f"SWIFTPM_TEST_SCRATCH={build}", file=env)
             print(f"DUO_MINI_CORE_CACHE_KEY={key}", file=env)
-    else:
-        save(build, os.environ["DUO_MINI_CORE_CACHE_KEY"])
+    elif key := os.environ["DUO_MINI_CORE_CACHE_KEY"]:
+        try:
+            save(scratch_path(workspace, job), key)
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            print(f"::warning::Could not save the SwiftPM cache: {error}")
 
 
 if __name__ == "__main__":

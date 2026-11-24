@@ -137,5 +137,45 @@ class RoundTrip(unittest.TestCase):
             mini.scratch_path(workspace, "release")
 
 
+    def test_mini_rebuilds_from_scratch_if_the_mtime_manifest_is_unreadable(self):
+        mini.prepare(self.build, "toolchain")
+        (self.build / "old.o").touch()
+        (self.build / mini.READY).write_text("toolchain")
+        (self.build / cbc.MANIFEST).write_text("{")
+
+        mini.prepare(self.build, "toolchain")
+
+        self.assertEqual(list(self.build.iterdir()), [])
+
+    def test_mini_uses_temporary_scratch_after_evicting_caches_for_low_disk(self):
+        workspace = pathlib.Path.cwd()
+        # Put the fixture checkout one level down, so the cache stays within
+        # the temporary directory even though it is next to the checkout.
+        checkout = workspace / "checkout"
+        checkout.mkdir()
+        swift = mini.scratch_path(checkout, "swift")
+        release = mini.scratch_path(checkout, "release")
+        mini.prepare(swift, "key")
+        mini.prepare(release, "key")
+        env_file = workspace / "env"
+        with patch.dict(os.environ, {
+            "GITHUB_JOB": "swift",
+            "GITHUB_WORKSPACE": str(checkout),
+            "GITHUB_ENV": str(env_file),
+            "RUNNER_TEMP": str(workspace),
+        }), patch.object(mini, "MIN_FREE_BYTES", sys.maxsize):
+            os.chdir(checkout)
+            try:
+                mini.main("prepare")
+            finally:
+                os.chdir(workspace)
+
+        self.assertFalse(swift.exists())
+        self.assertFalse(release.exists())
+        scratch_line, key_line = env_file.read_text().splitlines()
+        self.assertTrue(scratch_line.startswith(f"SWIFTPM_TEST_SCRATCH={workspace}/duo-core-ci."))
+        self.assertEqual(key_line, "DUO_MINI_CORE_CACHE_KEY=")
+
+
 if __name__ == "__main__":
     unittest.main()

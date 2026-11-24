@@ -37,7 +37,7 @@ struct RexChangelogTests {
 
             [View Rex.app commit 1a480a41a003](https://github.com/superlogical/rex-app/commit/\(Self.macCommit))
             """
-        let notes = await RexChangelog.load(build: 2061, summary: summary) { responses[$0.path] }
+        let notes = await RexChangelog.load(build: 2061, summary: summary) { (responses[$0.path], nil) }
         #expect(notes.mac == .published(Self.macNotes))
         #expect(notes.server == .published("- Closing terminals."))
         #expect(notes.serverVersion == "0.1.0-preview.21")
@@ -65,7 +65,7 @@ struct RexChangelogTests {
             from: items, bundleID: RexChannel.bundleID))
         let entry = try #require(history.entries.first { $0.title == "0.1.0 (2103)" })
         #expect(entry.markdown == older)
-        let notes = try #require(await RexChangelog.load(entry) { responses[$0.path] })
+        let notes = try #require(await RexChangelog.load(entry) { (responses[$0.path], nil) })
         #expect(notes.mac == .unpublished)
         #expect(notes.server == .published(Self.serverNotes))
         #expect(notes.serverVersion == "0.1.0-preview.23")
@@ -73,8 +73,8 @@ struct RexChangelogTests {
 
     @Test func missingIndexAndWrongCommitAreFailures() async {
         let notes = await RexChangelog.load(build: 2104, summary: Self.snapshotSummary) { url in
-            guard url.path == Self.serverPath else { return nil }
-            return Self.server(version: "0.1.0-preview.23", commit: Self.preview)
+            guard url.path == Self.serverPath else { return (nil, nil) }
+            return (Self.server(version: "0.1.0-preview.23", commit: Self.preview), 200)
         }
         #expect(notes.mac == .failed)
         #expect(notes.server == .failed)
@@ -82,10 +82,70 @@ struct RexChangelogTests {
 
     @Test func indexedMacWithMissingBodyDoesNotLookUnpublished() async {
         let notes = await RexChangelog.load(build: 2061, summary: nil) {
-            $0.path == Self.indexPath ? Self.index : nil
+            ($0.path == Self.indexPath ? Self.index : nil, nil)
         }
         #expect(notes.mac == .failed)
         #expect(notes.server == .unidentified)
+    }
+
+    @Test(arguments: [true, false])
+    func signedServerCommitAllowsAliasesAndRejectsConflictingIncludes(sameCommit: Bool) async {
+        let alias = "0.1.0-preview.21"
+        let includedCommit = sameCommit ? Self.snapshot : Self.preview
+        let responses = [
+            Self.indexPath: Self.index,
+            Self.macPath: Self.mac(including: alias, commit: includedCommit),
+            Self.serverPath: Self.server(version: "0.1.0-preview.23", commit: Self.snapshot),
+            "/public/changelog/server/\(alias).json": Self.server(
+                version: alias, commit: includedCommit, notes: "- Alias notes.")
+        ]
+        let notes = await RexChangelog.load(build: 2061, summary: Self.snapshotSummary) {
+            (responses[$0.path], nil)
+        }
+        #expect(notes.mac == .published(Self.macNotes))
+        #expect(notes.server == .published(sameCommit ? "- Alias notes." : Self.serverNotes))
+        #expect(notes.serverVersion == (sameCommit ? alias : "0.1.0-preview.23"))
+    }
+
+    @Test func retryKeepsMacNotesAndLoadsTheFailedServer() async {
+        let responses = [
+            Self.indexPath: Self.index,
+            Self.macPath: Self.mac(including: "0.1.0-preview.23", commit: Self.snapshot)
+        ]
+        let initial = await RexChangelog.load(build: 2061, summary: nil) { (responses[$0.path], nil) }
+        #expect(initial.mac == .published(Self.macNotes))
+        #expect(initial.server == .failed)
+        #expect(initial.canRetry)
+
+        let retried = await RexChangelog.load(build: 2061, summary: nil, retrying: initial) { url in
+            #expect(url.path != Self.macPath)
+            if url.path == Self.serverPath {
+                return (Self.server(version: "0.1.0-preview.23", commit: Self.snapshot), 200)
+            }
+            return (responses[url.path], nil)
+        }
+        #expect(retried.mac == .published(Self.macNotes))
+        #expect(retried.server == .published(Self.serverNotes))
+        #expect(!retried.canRetry)
+    }
+
+    @Test func onlyAnUnindexedServer404IsUnpublished() async {
+        let unindexed = "{\"schemaVersion\":1,\"releases\":[]}"
+        let cases: [(String?, Int?, RexChangelog.Section)] = [
+            (unindexed, 404, .unpublished),
+            (Self.index, 404, .failed),
+            (nil, 404, .failed),
+            (unindexed, 503, .failed),
+            (unindexed, nil, .failed),
+            (unindexed, 200, .failed)
+        ]
+        for (index, status, expected) in cases {
+            let notes = await RexChangelog.load(build: 2104, summary: Self.snapshotSummary) { url in
+                url.path == Self.indexPath ? (index, 200) : (nil, status)
+            }
+            #expect(notes.server == expected)
+            #expect(notes.canRetry == (expected == .failed))
+        }
     }
 
     @Test func usesTheSelectedFeedEvenWhenInstalledSnapshotIsNewerThanPreview() {
@@ -111,6 +171,15 @@ struct RexChangelogTests {
         """
         {"schemaVersion":1,"platform":"server","version":"\(version)","build":null,
         "commit":"\(commit)","includes":[],"markdown":"\(notes)"}
+        """
+    }
+
+    private static func mac(including version: String, commit: String) -> String {
+        """
+        {"schemaVersion":1,"platform":"mac","build":2061,"version":"0.1.0-preview.33",
+        "commit":"\(macCommit)","markdown":"\(macNotes)","includes":[
+          {"platform":"server","version":"\(version)","commit":"\(commit)"}
+        ]}
         """
     }
 }

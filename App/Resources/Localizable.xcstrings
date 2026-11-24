@@ -60211,6 +60211,71 @@
         }
       }
     },
+    "No Server & CLI release notes for this version.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für diese Version gibt es keine Versionshinweise für Server und CLI."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión no tiene notas del servidor ni de la CLI."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version ne dispose pas de notes pour le serveur et la CLI."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non ci sono note di rilascio per il server e la CLI di questa versione."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このバージョンにはサーバーと CLI のリリースノートがありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não há notas de versão do servidor e da CLI para esta versão."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этой версии нет списка изменений сервера и CLI."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sürüm için sunucu ve CLI sürüm notları yok."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本未发布服务端与 CLI 更新说明。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本未發布伺服器與 CLI 版本說明。"
+          }
+        }
+      }
+    },
     "The bundled Server & CLI version could not be identified.": {
       "extractionState": "manual",
       "localizations": {

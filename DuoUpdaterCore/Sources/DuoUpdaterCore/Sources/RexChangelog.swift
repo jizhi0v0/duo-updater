@@ -23,24 +23,28 @@ public enum RexChangelog {
     public struct Sections: Sendable {
         public let mac: Section
         public let server: Section
-        public let serverVersion: String?
+        public var serverVersion: String? { serverReference?.version }
+        public var canRetry: Bool { mac == .failed || server == .failed }
+        fileprivate let serverReference: Reference?
     }
 
-    public static func load(_ entry: Changelog.Entry) async -> Sections? {
-        await load(entry) { await ChangelogService.fetchBody($0, session: .updates) }
+    typealias Fetch = @Sendable (URL) async -> (body: String?, status: Int?)
+
+    public static func load(_ entry: Changelog.Entry, retrying previous: Sections? = nil) async -> Sections? {
+        await load(entry, retrying: previous) { await ChangelogService.fetch($0, session: .updates) }
     }
 
     static func load(
-        _ entry: Changelog.Entry, fetch: @Sendable (URL) async -> String?
+        _ entry: Changelog.Entry, retrying previous: Sections? = nil, fetch: Fetch
     ) async -> Sections? {
         guard entry.titleNamesVersionAndBuild, let title = entry.title,
               let build = Int(title.dropFirst(entry.version.count + 2).dropLast())
         else { return nil }
-        return await load(build: build, summary: entry.markdown, fetch: fetch)
+        return await load(build: build, summary: entry.markdown, retrying: previous, fetch: fetch)
     }
 
     static func load(
-        build: Int, summary: String?, fetch: @Sendable (URL) async -> String?
+        build: Int, summary: String?, retrying previous: Sections? = nil, fetch: Fetch
     ) async -> Sections {
         let lines = summary?.split(whereSeparator: \.isNewline) ?? []
         let feedServer = lines.lazy.compactMap { line -> Reference? in
@@ -55,36 +59,56 @@ public enum RexChangelog {
             return String(match.1)
         }.first
 
-        let index: Index? = decode(await fetch(base.appending(path: "index.json")))
-        let macEntries = index?.releases.filter { $0.platform == "mac" && $0.build == build } ?? []
-        var macRelease: Release?
+        let decodedIndex: Index? = decode(await fetch(base.appending(path: "index.json")).body)
+        let index = decodedIndex?.schemaVersion == 1 ? decodedIndex : nil
         let mac: Section
-        if index?.schemaVersion != 1 {
-            mac = .failed
-        } else if macEntries.isEmpty {
-            mac = .unpublished
-        } else if macEntries.count == 1, let entry = macEntries.first,
-                  let release = await release(platform: "mac", version: entry.version, fetch: fetch),
-                  release.build == build, macCommit.map({ $0 == release.commit }) ?? true {
-            macRelease = release
-            mac = .published(release.markdown)
+        let serverReference: Reference?
+        if let previous, previous.mac != .failed {
+            mac = previous.mac
+            serverReference = previous.serverReference
+        } else if let index {
+            let entries = index.releases.filter { $0.platform == "mac" && $0.build == build }
+            if entries.isEmpty {
+                mac = .unpublished
+                serverReference = feedServer
+            } else if entries.count == 1, let entry = entries.first,
+                      let release = await release(platform: "mac", version: entry.version, fetch: fetch).detail,
+                      release.build == build, macCommit.map({ $0 == release.commit }) ?? true {
+                mac = .published(release.markdown)
+                // The appcast's commit identifies the bundled Server. Release JSON
+                // can name a different version alias for that same commit.
+                let included = release.includes?.first { $0.platform == "server" }
+                if let included, feedServer.map({ $0.commit == included.commit }) ?? true {
+                    serverReference = included
+                } else {
+                    serverReference = feedServer
+                }
+            } else {
+                mac = .failed
+                serverReference = feedServer
+            }
         } else {
             mac = .failed
+            serverReference = feedServer
         }
 
-        let serverReference = macRelease?.includes?.first(where: { $0.platform == "server" }) ?? feedServer
         let server: Section
-        if let ref = serverReference {
-            if let release = await release(platform: "server", version: ref.version, fetch: fetch),
-               release.commit == ref.commit {
-                server = .published(release.markdown)
+        if let previous, previous.server != .failed, previous.serverReference == serverReference {
+            server = previous.server
+        } else if let ref = serverReference {
+            let response = await release(platform: "server", version: ref.version, fetch: fetch)
+            if let detail = response.detail, detail.commit == ref.commit {
+                server = .published(detail.markdown)
+            } else if response.status == 404, let index,
+                      !index.releases.contains(where: { $0.platform == "server" && $0.version == ref.version }) {
+                server = .unpublished
             } else {
                 server = .failed
             }
         } else {
             server = .unidentified
         }
-        return Sections(mac: mac, server: server, serverVersion: serverReference?.version)
+        return Sections(mac: mac, server: server, serverReference: serverReference)
     }
 
     private struct Index: Decodable {
@@ -98,7 +122,7 @@ public enum RexChangelog {
         let releases: [Entry]
     }
 
-    private struct Reference: Decodable {
+    fileprivate struct Reference: Decodable, Equatable, Sendable {
         let platform: String
         let version: String
         let commit: String
@@ -115,16 +139,17 @@ public enum RexChangelog {
     }
 
     private static func release(
-        platform: String, version: String, fetch: @Sendable (URL) async -> String?
-    ) async -> Release? {
-        guard version.wholeMatch(of: /[0-9][A-Za-z0-9.-]*/) != nil else { return nil }
+        platform: String, version: String, fetch: Fetch
+    ) async -> (detail: Release?, status: Int?) {
+        guard version.wholeMatch(of: /[0-9][A-Za-z0-9.-]*/) != nil else { return (nil, nil) }
         let url = base.appending(path: platform).appending(path: version + ".json")
-        let release: Release? = decode(await fetch(url))
+        let response = await fetch(url)
+        let release: Release? = decode(response.body)
         guard let release, release.schemaVersion == 1,
               release.platform == platform, release.version == version,
               !release.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return nil }
-        return release
+        else { return (nil, response.status) }
+        return (release, response.status)
     }
 
     private static func decode<Value: Decodable>(_ body: String?) -> Value? {

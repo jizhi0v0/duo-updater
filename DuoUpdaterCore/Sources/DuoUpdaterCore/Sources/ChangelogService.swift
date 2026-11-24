@@ -609,7 +609,7 @@ public enum ChangelogService {
     /// of a two-stage index/detail recipe); pass it only for the single request a
     /// structured recipe makes, so a `.post` recipe's method/body actually rides
     /// along (see `fetch(_:recipe:session:)`).
-    static func fetchBody(
+    private static func fetchBody(
         _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
     ) async -> String? {
         await fetch(url, recipe: recipe, session: session).body
@@ -623,7 +623,7 @@ public enum ChangelogService {
     /// Notion. Only the one request a caller explicitly threads a recipe through
     /// can ever be a POST; every other fetch in this file (the two-stage index
     /// page, its detail page) is hard-coded to GET by simply not passing one.
-    private static func fetch(
+    static func fetch(
         _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
     ) async -> (body: String?, status: Int?) {
         // The same gate the web view applies to a changelog URL. The URL here can

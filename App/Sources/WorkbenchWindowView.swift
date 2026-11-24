@@ -4006,14 +4006,30 @@ private struct RexReleaseNotesPane: View {
 
     var body: some View {
         ChangelogEntriesView(changelog: history) { entry in
-            let sections = await RequestAttribution.withApp(appID) { await RexChangelog.load(entry) }
-            return sections.map { enriched(entry, with: $0) }
+            await load(entry)
         }
     }
 
+    private func load(
+        _ entry: Changelog.Entry, retrying previous: RexChangelog.Sections? = nil
+    ) async -> ChangelogEntriesView.LoadedEntry {
+        let sections = await RequestAttribution.withApp(appID) {
+            await RexChangelog.load(entry, retrying: previous)
+        }
+        guard let sections else { return .init(entry: entry) }
+        var loaded = ChangelogEntriesView.LoadedEntry(entry: enriched(entry, with: sections))
+        if sections.canRetry {
+            loaded.retry = { await load(entry, retrying: sections) }
+        }
+        return loaded
+    }
+
     private func enriched(_ entry: Changelog.Entry, with sections: RexChangelog.Sections) -> Changelog.Entry {
-        let mac = body(for: sections.mac, fallback: entry.markdown)
-        let server = body(for: sections.server)
+        let mac = body(
+            for: sections.mac, unpublished: String(localized: "No separate Mac release notes for this build."),
+            fallback: entry.markdown)
+        let server = body(
+            for: sections.server, unpublished: String(localized: "No Server & CLI release notes for this version."))
         let serverLabel = String(localized: "Server & CLI")
         let serverHeading = sections.serverVersion.map { "\(serverLabel) · \($0)" } ?? serverLabel
         let markdown = """
@@ -4030,13 +4046,12 @@ private struct RexReleaseNotesPane: View {
             items: [mac, server], markdown: markdown)
     }
 
-    private func body(for section: RexChangelog.Section, fallback: String? = nil) -> String {
+    private func body(for section: RexChangelog.Section, unpublished: String, fallback: String? = nil) -> String {
         switch section {
         case .published(let markdown):
             return markdown
         case .unpublished:
-            return [String(localized: "No separate Mac release notes for this build."), fallback]
-                .compactMap { $0 }.joined(separator: "\n\n")
+            return [unpublished, fallback].compactMap { $0 }.joined(separator: "\n\n")
         case .failed:
             return [String(localized: "Couldn't load the release notes"), fallback]
                 .compactMap { $0 }.joined(separator: "\n\n")
@@ -4299,6 +4314,12 @@ struct ChangelogEntriesView: View {
         case paragraphs
     }
 
+    struct LoadedEntry {
+        let entry: Changelog.Entry
+        /// Retain the available notes while retrying on the next visit.
+        var retry: (() async -> LoadedEntry)?
+    }
+
     let changelog: Changelog
     var itemStyle: ItemStyle = .bulleted
     /// The version the reader is on, marked in the rail. Nil for a vendor
@@ -4311,8 +4332,8 @@ struct ChangelogEntriesView: View {
     /// The latest click on a version in the pane's Compatibility row: shown
     /// like a click on that version's ⚠ in the rail (`showBreaking`).
     var breakingJump: BreakingChangesJump?
-    var loadEntry: ((Changelog.Entry) async -> Changelog.Entry?)? = nil
-    @State private var enrichedEntries: [Changelog.Entry: Changelog.Entry] = [:]
+    var loadEntry: ((Changelog.Entry) async -> LoadedEntry)? = nil
+    @State private var enrichedEntries: [Changelog.Entry: LoadedEntry] = [:]
     @AppStorage("changelogLayout") private var layout: ChangelogLayout = .columns
     @State private var selection = 0
     /// Cached rail width. The measurement below runs AppKit text sizing over every
@@ -4506,16 +4527,20 @@ struct ChangelogEntriesView: View {
     private var displayedChangelog: Changelog {
         guard !enrichedEntries.isEmpty else { return changelog }
         return Changelog(
-            entries: changelog.entries.map { enrichedEntries[$0] ?? $0 },
+            entries: changelog.entries.map { enrichedEntries[$0]?.entry ?? $0 },
             itemSyntax: changelog.itemSyntax)
     }
 
     private func loadEntryIfNeeded(_ source: Changelog.Entry) async {
-        guard let loadEntry, enrichedEntries[source] == nil else { return }
-        let enriched = await loadEntry(source)
-        if !Task.isCancelled, enrichedEntries[source] == nil {
-            enrichedEntries[source] = enriched ?? source
+        guard let loadEntry else { return }
+        let enriched: LoadedEntry
+        if let previous = enrichedEntries[source] {
+            guard let retry = previous.retry else { return }
+            enriched = await retry()
+        } else {
+            enriched = await loadEntry(source)
         }
+        if !Task.isCancelled { enrichedEntries[source] = enriched }
     }
 
     private func awaitsNotes(_ entry: Changelog.Entry) -> Bool {

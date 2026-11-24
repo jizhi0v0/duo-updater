@@ -373,9 +373,17 @@ struct ArchitectureDowngradeWiringTests {
     /// So pass 1 takes a small top-level app when one exists (the author's Mac),
     /// and pass 2 descends into exactly the apps the cap rejected (the runner).
     private static func findUniversalFixture() async -> URL? {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: URL(fileURLWithPath: "/Applications"), includingPropertiesForKeys: nil
-        ) else {
+        let applications = URL(fileURLWithPath: "/Applications")
+        let entries: [URL]
+        if ProcessInfo.processInfo.environment["RUNNER_ENVIRONMENT"] == "self-hosted" {
+            // Chrome is provisioned on the mini. Keep other installed apps out
+            // of the test's fixture selection and public output.
+            entries = [applications.appendingPathComponent("Google Chrome.app")]
+        } else if let installed = try? FileManager.default.contentsOfDirectory(
+            at: applications, includingPropertiesForKeys: nil
+        ) {
+            entries = installed
+        } else {
             Issue.record("ARCH DOWNGRADE FIXTURE: /Applications could not be listed.")
             return nil
         }

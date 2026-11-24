@@ -22,7 +22,11 @@ struct AntigravityCLIProviderTests {
         #expect(await unsigned.installed()?.signature == .adHoc)
         #expect(await unsigned.installed()?.version == nil)
 
-        let signed = AntigravityCLIProvider(home: home, signature: { _ in .vendor })
+        let signed = AntigravityCLIProvider(home: home, signature: { _ in .vendor }, readVersion: { executable, home in
+            // Keep the real subprocess and parser under the parallel suite's load.
+            await AntigravityCLIProvider.runVersion(
+                executable, home: home, deadline: .init(terminateAfter: .seconds(60), killAfter: .seconds(65)))
+        })
         #expect(await signed.installed()?.version == "1.5.11")
     }
 

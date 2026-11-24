@@ -127,10 +127,19 @@ import Testing
     /// `.enabled` trait's, on the cooperative pool.
     private static let signedApp = Task<URL?, Never> { await offCooperativePool { () -> URL? in
         let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(
-            at: URL(fileURLWithPath: "/Applications"),
-            includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles])
-        else { return nil }
+        let entries: [URL]
+        if ProcessInfo.processInfo.environment["RUNNER_ENVIRONMENT"] == "self-hosted" {
+            // Use a public, copyable signed bundle from the mini's toolchain.
+            guard let developerDir = ProcessInfo.processInfo.environment["DEVELOPER_DIR"] else { return nil }
+            let xcodeContents = URL(fileURLWithPath: developerDir).deletingLastPathComponent()
+            entries = [xcodeContents.appendingPathComponent("Applications/Accessibility Inspector.app")]
+        } else {
+            guard let installed = try? fm.contentsOfDirectory(
+                at: URL(fileURLWithPath: "/Applications"),
+                includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles])
+            else { return nil }
+            entries = installed
+        }
         let candidates = entries.filter { $0.pathExtension == "app" }.sorted {
             $0.lastPathComponent < $1.lastPathComponent
         }

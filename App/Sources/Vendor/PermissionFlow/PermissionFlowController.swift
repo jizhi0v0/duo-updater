@@ -82,6 +82,32 @@ public final class PermissionFlowController: ObservableObject {
         currentPane = pane
         pendingLaunchSourceFrame = sourceFrameInScreen
         mergeDroppedApps(with: suggestedAppURLs)
+        if #available(macOS 27.3, *), let appURL = preferredAppURL {
+            let instructions: String
+            switch pane {
+            case .fullDiskAccess:
+                instructions = String(localized: "In Privacy & Security, open Full Disk Access and turn on DuoUpdater.")
+            case .appManagement:
+                instructions = String(localized: "In Privacy & Security, open App Management and turn on DuoUpdater.")
+            case .accessibility:
+                instructions = String(localized: "In Privacy & Security, open System & App Protection Override. Open the details for DuoUpdater and review its access to control the App Store.")
+            default:
+                instructions = ""
+            }
+            if !instructions.isEmpty {
+                let alert = NSAlert()
+                alert.messageText = String(localized: "Grant access in System Settings")
+                let addApp = String(localized: "If DuoUpdater is missing, click + and choose the app at this path:")
+                alert.informativeText = "\(instructions)\n\n\(addApp)\n\(appURL.path)"
+                alert.addButton(withTitle: String(localized: "Open System Settings"))
+                alert.addButton(withTitle: String(localized: "Cancel"))
+                NSApp.activate(ignoringOtherApps: true)
+                if alert.runModal() == .alertFirstButtonReturn {
+                    SystemSettings.open(url: pane.settingsURL)
+                }
+                return
+            }
+        }
         SystemSettings.open(url: pane.settingsURL)
 
         guard pane.supportsFloatingAuthorizationPanel else { return }

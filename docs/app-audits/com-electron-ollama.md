@@ -9,7 +9,7 @@
 
 | 官方端点 | 更新请求 | 使用方式 |
 |---|---|---|
-| 桌面更新器（默认） | 官方桌面更新 API 接收当前版本 | 用于现有安装，包括手动装入的预发行包 |
+| 桌面更新器（默认） | 官方桌面更新 API 接收当前版本 | 用于走 Vendor 检查的安装，包括手动装入的预发行包 |
 | Preview | 同一 API 加 `channel=preview` | 官方提供手动安装。Duo 夜扫校验此端点与安装包 |
 
 Ollama 0.40.18 的自动下载开关保存在 SQLite 的 `auto_update_enabled` 字段。核对 macOS 更新器、偏好读写和签名包后，未发现供 Duo 监听的频道 defaults。Ollama 的 Preview 文档提供 [手动安装入口](https://docs.ollama.com/faq#how-do-i-install-a-pre-release)。[应用设置存储](https://github.com/ollama/ollama/blob/v0.40.18/app/store/database.go)
@@ -60,7 +60,7 @@ API 返回的 `Ollama-darwin.zip` 内包含 `Ollama.app`，使用现有 Vendor Z
 
 当天 16:36（北京时间）复测，[同一 GitHub release 记录](https://api.github.com/repos/ollama/ollama/releases/456227993)的标题和 tag 均为 `v0.40.18`，`prerelease` 为 `false`。早些时候记录的标题已是 `v0.40.18`，tag 仍为 `v0.40.18-rc0`。Stable 和 Preview 此次都返回同一个 `v0.40.18/Ollama-darwin.zip`。
 
-随后按原应用接入方式撤除 Duo 的实验性频道菜单及独立偏好。已安装拷贝始终使用 Ollama 桌面更新器所用的默认端点，Preview 继续用于夜扫覆盖。
+随后按原应用接入方式撤除 Duo 的实验性频道菜单及独立偏好。Vendor 检查使用 Ollama 桌面更新器的默认端点，Homebrew 管理的副本沿用原有来源优先级，Preview 继续用于夜扫覆盖。
 
 ### Recipes/com-electron-ollama.swift — ChangelogRecipe（GitHub releases 页）
 

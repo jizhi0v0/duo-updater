@@ -52,7 +52,9 @@ struct UpdateSourceLabel: Equatable {
         // `homebrewSourceIdentifier`). Naming that source on a copy it gave
         // nothing new to reads as if brew were not involved: the up-to-date
         // answer is Homebrew's, and an update from elsewhere says brew had none.
-        guard source != "Homebrew", result.homebrewSourceIdentifier != nil else {
+        // Ollama's selected Preview feed can answer even when Brew has an offer.
+        guard source != "Homebrew", result.homebrewSourceIdentifier != nil,
+              !result.usesOllamaPreviewFeed else {
             self = label
             return
         }
@@ -176,8 +178,6 @@ func installerHandoffHelp(for result: UpdateResult, stagedFileName: String?) -> 
 }
 
 func ollamaPreviewQuitHelp(for result: UpdateResult) -> String? {
-    guard result.app.bundleID == OllamaUpdateChannel.bundleID,
-          result.app.releaseChannel == .preview, result.app.channelIsAuthoritative,
-          result.remote?.sourceName == "Vendor" else { return nil }
+    guard result.hasUpdate, result.usesOllamaPreviewFeed else { return nil }
     return String(localized: "Quit Ollama before installing this Preview update.")
 }

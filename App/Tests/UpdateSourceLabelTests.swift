@@ -52,6 +52,14 @@ struct UpdateSourceLabelTests {
         let help = ollamaPreviewQuitHelp(for: offer)
         #expect(help == (channel == .preview ? "Quit Ollama before installing this Preview update." : nil))
         #expect(ollamaPreviewQuitHelp(for: remoteOffer(app: app, source: "Homebrew")) == nil)
+
+        var brewCopy = offer
+        brewCopy.homebrewSourceIdentifier = "ollama-app"
+        if channel == .preview {
+            #expect(UpdateSourceLabel(brewCopy)?.phrase == "via the developer’s site")
+        } else {
+            #expect(UpdateSourceLabel(brewCopy)?.phrase == "no Homebrew update · via the developer’s site")
+        }
     }
 
     private func remoteOffer(app: InstalledApp, source: String) -> UpdateResult {

@@ -625,6 +625,13 @@ extension UpdateResult {
         remote?.releaseChannel ?? provenChannel ?? app.releaseChannel
     }
 
+    /// This track is selected in Duo and is separate from Ollama's own updater.
+    public var usesOllamaPreviewFeed: Bool {
+        app.bundleID == OllamaUpdateChannel.bundleID
+            && app.releaseChannel == .preview && app.channelIsAuthoritative
+            && remote?.sourceName == "Vendor"
+    }
+
     /// Move this row onto a freshly-scanned copy at the same path.
     ///
     /// Exists because a rescan re-derives a row's VERDICT while its IDENTITY has

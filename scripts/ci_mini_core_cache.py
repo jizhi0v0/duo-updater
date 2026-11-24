@@ -61,7 +61,7 @@ def prepare(build, key):
     if previous_key == key.encode() and (build / MANIFEST).is_file():
         try:
             restored = restore(build, refresh_changed=True)
-        except (OSError, ValueError, TypeError, AttributeError, KeyError, OverflowError) as error:
+        except (OSError, ValueError, TypeError, AttributeError, LookupError, OverflowError) as error:
             print(f"::warning::Discarding unreadable SwiftPM cache: {error}")
         else:
             print(f"SwiftPM cache warm: {restored}")
@@ -86,13 +86,15 @@ def save(build, key):
 
 def prepare_job(workspace, job):
     build = scratch_path(workspace, job)
-    if shutil.disk_usage(workspace).free < MIN_FREE_BYTES:
-        # Both slots belong to this single-job runner. Release their space
-        # before the next build needs it, even if the other profile ran last.
-        for profile in PACKAGES:
-            slot = scratch_path(workspace, profile)
-            if slot.is_dir():
-                shutil.rmtree(slot)
+    low_disk = shutil.disk_usage(workspace).free < MIN_FREE_BYTES
+    # Both slots belong to this single-job runner, so an unfinished sibling
+    # slot is abandoned. Reclaim it before the next build can add to disk use.
+    for profile in PACKAGES:
+        slot = scratch_path(workspace, profile)
+        abandoned = profile != job and not (slot / READY).is_file()
+        if slot.is_dir() and (low_disk or abandoned):
+            shutil.rmtree(slot)
+    if low_disk:
         raise OSError("Evicted SwiftPM caches because disk space is low")
     key = cache_key(job)
     prepare(build, key)

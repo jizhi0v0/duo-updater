@@ -138,14 +138,31 @@ class RoundTrip(unittest.TestCase):
 
 
     def test_mini_rebuilds_from_scratch_if_the_mtime_manifest_is_unreadable(self):
-        mini.prepare(self.build, "toolchain")
-        (self.build / "old.o").touch()
-        (self.build / mini.READY).write_text("toolchain")
-        (self.build / cbc.MANIFEST).write_text("{")
+        blob = cbc.tracked()["same.swift"]
+        for manifest in ("{", '{"same.swift": ["%s"]}' % blob):
+            with self.subTest(manifest=manifest):
+                mini.prepare(self.build, "toolchain")
+                (self.build / "old.o").touch()
+                (self.build / mini.READY).write_text("toolchain")
+                (self.build / cbc.MANIFEST).write_text(manifest)
 
-        mini.prepare(self.build, "toolchain")
+                mini.prepare(self.build, "toolchain")
 
-        self.assertEqual(list(self.build.iterdir()), [])
+                self.assertEqual(list(self.build.iterdir()), [])
+
+    def test_mini_reclaims_an_abandoned_sibling_before_building(self):
+        checkout = pathlib.Path.cwd() / "checkout"
+        checkout.mkdir()
+        abandoned = mini.scratch_path(checkout, "release")
+        mini.prepare(abandoned, "key")
+        (abandoned / "partial.o").touch()
+
+        with patch.object(mini, "MIN_FREE_BYTES", 0), patch.object(mini, "cache_key", return_value="key"):
+            current, key = mini.prepare_job(checkout, "swift")
+
+        self.assertFalse(abandoned.exists())
+        self.assertTrue(current.is_dir())
+        self.assertEqual(key, "key")
 
     def test_mini_uses_temporary_scratch_after_evicting_caches_for_low_disk(self):
         workspace = pathlib.Path.cwd()

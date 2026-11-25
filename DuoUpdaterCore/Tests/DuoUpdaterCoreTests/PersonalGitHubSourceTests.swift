@@ -47,6 +47,13 @@ struct PersonalGitHubSourceTests {
         let app = input.appendingPathComponent("Wrapper/Demo.app/Contents")
         try fm.createDirectory(at: app, withIntermediateDirectories: true)
         try Data("fixture".utf8).write(to: app.appendingPathComponent("Info.plist"))
+        // AppleDouble v2 with one 32-byte empty FinderInfo entry. It belongs
+        // to Info.plist and must never become an extra unsealed bundle file.
+        var sidecar = Data([0, 5, 22, 7, 0, 2, 0, 0])
+        sidecar.append(Data(repeating: 0, count: 16))
+        sidecar.append(contentsOf: [0, 1, 0, 0, 0, 9, 0, 0, 0, 38, 0, 0, 0, 32])
+        sidecar.append(Data(repeating: 0, count: 32))
+        try sidecar.write(to: app.appendingPathComponent("._Info.plist"))
         for unsafe in [false, true] {
             if unsafe { try Data().write(to: input.appendingPathComponent("Setup.pkg")) }
             let archive = scratch.appendingPathComponent("fixture-\(unsafe).zip")
@@ -59,6 +66,7 @@ struct PersonalGitHubSourceTests {
             } else {
                 let extracted = try PersonalSourceZIP.unpack(archive, into: output)
                 #expect(extracted.lastPathComponent == "Demo.app")
+                #expect(!fm.fileExists(atPath: extracted.appendingPathComponent("Contents/._Info.plist").path))
             }
         }
     }

@@ -17,6 +17,7 @@ public enum PersonalSourceZIP {
         var seen = Set<String>()
         var roots = Set<String>()
         var files = [String]()
+        var metadataPartners = Set<String>()
         var links = [(destination: URL, target: String)]()
         var total = 0
         var buffer = [UInt8](repeating: 0, count: 65536)
@@ -38,6 +39,22 @@ public enum PersonalSourceZIP {
                 guard index <= 3 else { throw invalid }
                 roots.insert(parts[...index].joined(separator: "/"))
             } else if !directory { throw invalid }
+            if let leaf = parts.last, leaf.hasPrefix("._") {
+                guard kind == S_IFREG, leaf.count > 2 else { throw invalid }
+                var metadata = Data()
+                while true {
+                    let count = archive_read_data(reader, &buffer, buffer.count)
+                    guard count >= 0, metadata.count + count <= 65536 else { throw invalid }
+                    if count == 0 { break }
+                    metadata.append(contentsOf: buffer.prefix(count))
+                }
+                guard isMetadataSidecar(metadata) else { throw invalid }
+                let partner = (parts.dropLast() + [String(leaf.dropFirst(2))]).joined(separator: "/")
+                metadataPartners.insert(partner)
+                total += metadata.count
+                guard total <= 1_073_741_824 else { throw invalid }
+                continue
+            }
             files.append(relative)
             let dest = root.appendingPathComponent(relative)
             try FileManager.default.createDirectory(at: directory ? dest : dest.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -63,7 +80,7 @@ public enum PersonalSourceZIP {
                 try output.write(contentsOf: Data(buffer.prefix(count)))
             }
         }
-        guard roots.count == 1, let app = roots.first,
+        guard metadataPartners.isSubset(of: Set(files)), roots.count == 1, let app = roots.first,
               files.allSatisfy({ $0 == app || $0.hasPrefix(app + "/") || app.hasPrefix($0 + "/") }) else { throw invalid }
         let application = root.appendingPathComponent(app)
         // Create links only after the last file write. A link masquerading as
@@ -80,6 +97,38 @@ public enum PersonalSourceZIP {
             guard String(cString: resolved).hasPrefix(prefix) else { throw invalid }
         }
         return application
+    }
+
+    /// ditto packs filesystem metadata beside the actual entry in some ZIPs.
+    /// Do not materialize these as signed resources, restore untrusted xattrs,
+    /// or drop a payload-bearing resource fork. The companion must also exist.
+    private static func isMetadataSidecar(_ bytes: Data) -> Bool {
+        func number(_ start: Int, _ count: Int) -> Int {
+            bytes[start..<(start + count)].reduce(0) { ($0 << 8) | Int($1) }
+        }
+        guard bytes.count >= 26, number(0, 4) == 0x00051607, number(4, 4) == 0x00020000 else { return false }
+        let count = number(24, 2)
+        let headersEnd = 26 + count * 12
+        guard (1...2).contains(count), headersEnd <= bytes.count else { return false }
+        var ids = Set<Int>()
+        for i in 0..<count {
+            let entry = 26 + i * 12
+            let id = number(entry, 4), offset = number(entry + 4, 4), length = number(entry + 8, 4)
+            guard ids.insert(id).inserted, offset >= headersEnd, offset + length <= bytes.count else { return false }
+            switch id {
+            case 2: guard length == 0 else { return false }
+            case 9:
+                // Empty FinderInfo, optionally followed by the macOS extended
+                // attributes section. Neither is a standalone file to extract.
+                guard length >= 32, bytes[offset..<(offset + 32)].allSatisfy({ $0 == 0 }) else { return false }
+                if length > 32 {
+                    let attributes = (offset + 32 + 3) & ~3
+                    guard attributes + 4 <= offset + length, number(attributes, 4) == 0x41545452 else { return false }
+                }
+            default: return false
+            }
+        }
+        return ids.contains(9)
     }
 
     public struct Identity: Codable, Equatable, Sendable {

@@ -3744,6 +3744,7 @@ final class AppListModel {
         // User-added scan folders (Settings → Folders). Captured on the main actor
         // before hopping off it, since `prefs` is `@MainActor`-isolated.
         let extraScan = prefs.customScanLocations
+        let personalSourcePaths = Set(PersonalSources.shared.records.keys)
         // Start token resolution early and off-main so a slow `gh` CLI overlaps the
         // local scan instead of freezing the UI or delaying the whole refresh later.
         let explicitToken = explicitGitHubToken()
@@ -3753,7 +3754,7 @@ final class AppListModel {
         // The rows' filesystem facts are observed in the same hop, for the list
         // the scan just found — see `pathFacts` for why not on the main actor.
         let (scanned, scannedPathFacts) = await Task.detached(priority: .userInitiated) {
-            let apps = AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
+            let apps = AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF, preservingPaths: personalSourcePaths).scan()
             return (apps, InstallPathFacts.observing(apps.map(\.path)))
         }.value
         var found = scanned
@@ -4365,6 +4366,7 @@ final class AppListModel {
         // Keeping it is a floor under the live path, not a substitute for it.
         refreshRunningApps()
         let extraScan = prefs.customScanLocations
+        let personalSourcePaths = Set(PersonalSources.shared.records.keys)
         // The scanner's default reads TestFlight's store — not when that read
         // cannot succeed, and not when nobody asked for this rescan. A timer or an
         // FSEvents change reaching the ATTENDED gate would open another app's
@@ -4395,7 +4397,8 @@ final class AppListModel {
                 let found = AppScanner(
                     extraLocations: extraScan,
                     testflight: readsTestFlight
-                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
+                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false),
+                    preservingPaths: personalSourcePaths
                 ).scan()
                 let merged = ScanRowAssembly.merged(
                     found, prior: prior, proofs: ResolvedChannelStore.Snapshot())
@@ -11430,6 +11433,7 @@ final class AppListModel {
     private func clearSettledExternalUpdates() async {
         guard !results.isEmpty else { return }
         let extraScan = prefs.customScanLocations
+        let personalSourcePaths = Set(PersonalSources.shared.records.keys)
         // Unattended, and this function's ONLY caller is `backgroundLocalRescan` —
         // a timer or an FSEvents change — so it takes the unattended gate. The
         // attended one admits `.unknown`, which here would open TestFlight's
@@ -11444,7 +11448,8 @@ final class AppListModel {
                 AppScanner(
                     extraLocations: extraScan,
                     testflight: readsTestFlight
-                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
+                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false),
+                    preservingPaths: personalSourcePaths
                 ).scan()
             }
         }
@@ -11823,12 +11828,13 @@ final class AppListModel {
         let resolved = await githubTokenForRecheck()
         let githubToken = resolved.token
         let bundles = targets.map(\.app.path)
+        let personalSourcePaths = Set(PersonalSources.shared.records.keys)
         // Scanned without TestFlight's store, which `ScanRowAssembly.recheck` reads
         // afterwards and only for a TestFlight row — so a post-install recheck
         // still never waits on that container's gate.
         let scanned = await Task.detached(priority: .userInitiated) {
-            AppScanner(toolbox: toolbox, testflight: TestFlightInventory(macRows: [], accessible: false))
-                .scan(bundlesAt: bundles)
+            AppScanner(toolbox: toolbox, testflight: TestFlightInventory(macRows: [], accessible: false),
+                       preservingPaths: personalSourcePaths).scan(bundlesAt: bundles)
         }.value
         // Identity is the resolved path, which is what a row already carries, so
         // this normally admits everything. Kept as the guard it always was: a bundle

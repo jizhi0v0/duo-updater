@@ -184,7 +184,6 @@ public actor PersonalGitHubClient {
     private let resolveToken: @Sendable () async -> String?
     private enum Access: Hashable { case anonymous, authenticated(Int) }
     private struct Lookup: Hashable { let slug: String; let access: Access }
-    private var rateLimitReset: [Access: Date] = [:]
     private struct LookupInProgress {
         let task: Task<PersonalGitHubSource.Snapshot, Error>
         var callers: Set<UUID>
@@ -257,9 +256,9 @@ public actor PersonalGitHubClient {
         guard generation == GitHubCredentials.current.generation else { throw Source.Failure("GitHub credentials changed. Try again.") }
     }
 
-    private func responseBytes(_ request: URLRequest, session: URLSession, token: String?, generation: Int) async throws -> (URLSession.AsyncBytes, URLResponse) {
+    private func responseBytes(_ request: URLRequest, session: URLSession, purpose: RequestPurpose, token: String?, generation: Int) async throws -> (URLSession.CountedBytes, URLResponse) {
         try checkCredentialGeneration(generation)
-        guard let url = request.url, ChangelogService.isGitHubAPI(url) else { return try await session.bytes(for: request) }
+        guard let url = request.url, ChangelogService.isGitHubAPI(url) else { return try await session.countedBytes(for: request, purpose: purpose) }
         var outbound = request
         let access: Access
         if let token, !GitHubCredentials.current.isRejected(generation: generation) {
@@ -270,19 +269,21 @@ public actor PersonalGitHubClient {
             let message = access == .anonymous ? "Anonymous GitHub rate limit reached." : "GitHub account rate limit reached."
             return Source.Failure(message + " Try again after " + until.formatted() + ".", access == .anonymous ? .anonymousLimit : .retry)
         }
-        if let reset = rateLimitReset[access], reset > Date() { throw limited(until: reset) }
-        let result = try await session.bytes(for: outbound)
+        let result: (URLSession.CountedBytes, URLResponse)
+        do {
+            result = try await session.countedBytes(for: outbound, purpose: purpose)
+        } catch let refusal as GitHubRateLimitGate.Refused {
+            throw limited(until: refusal.closure.until)
+        }
         if GitHubCredentials.isRejection(of: outbound, result.1) {
             GitHubCredentials.current.recordRejection(generation: generation)
-            return try await responseBytes(request, session: session, token: nil, generation: generation)
+            return try await responseBytes(request, session: session, purpose: purpose, token: nil, generation: generation)
         }
         if let http = result.1 as? HTTPURLResponse {
             let headers = http.allHeaderFields.reduce(into: [String: String]()) { fields, field in
                 if let key = field.key as? String { fields[key] = String(describing: field.value) }
             }
             if let limit = GitHubRateLimitGate.closure(status: http.statusCode, headers: headers, body: nil, strikesBefore: 0, now: Date()) {
-                rateLimitReset = rateLimitReset.filter { $0.value > Date() }
-                rateLimitReset[access] = limit.until
                 if http.statusCode >= 400 { throw limited(until: limit.until) }
             }
         }
@@ -290,7 +291,7 @@ public actor PersonalGitHubClient {
     }
 
     private func request(_ url: URL, metadataRedirect: Bool, token: String?, generation: Int) async throws -> Data {
-        let (bytes, response) = try await responseBytes(URLRequest(url: url, cachePolicy: URLRequest.versionFeedCachePolicy), session: metadataSession, token: token, generation: generation)
+        let (bytes, response) = try await responseBytes(URLRequest(url: url, cachePolicy: URLRequest.versionFeedCachePolicy), session: metadataSession, purpose: .versionCheck, token: token, generation: generation)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if metadataRedirect, [301, 302, 307, 308].contains(http.statusCode),
            let location = http.value(forHTTPHeaderField: "Location"),
@@ -322,7 +323,7 @@ extension PersonalGitHubClient {
         for _ in 0..<4 {
             var request = URLRequest(url: url)
             request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
-            let (bytes, response) = try await responseBytes(request, session: assetSession, token: token, generation: generation)
+            let (bytes, response) = try await responseBytes(request, session: assetSession, purpose: .install, token: token, generation: generation)
             guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
             if [301, 302, 303, 307, 308].contains(http.statusCode) {
                 guard let raw = http.value(forHTTPHeaderField: "Location"), let next = URL(string: raw),

@@ -122,7 +122,11 @@ public enum PersonalGitHubSource {
             let candidates = releases.compactMap { release -> (release: Release, version: Version)? in
                 guard !release.draft, let version = Version(release.tag_name) else { return nil }
                 if version.stage == 4 {
-                    guard !release.prerelease, track == .stable || (includeStable && local?.stage != 4 && local?.base == version.base) else { return nil }
+                    guard !release.prerelease else { return nil }
+                    if track != .stable {
+                        guard includeStable, let local, local.stage != 4,
+                              VersionComparator.compare(local.base, version.base) == .orderedSame else { return nil }
+                    }
                 } else if track != (version.stage == 0 ? .nightly : .preview) {
                     return nil
                 }

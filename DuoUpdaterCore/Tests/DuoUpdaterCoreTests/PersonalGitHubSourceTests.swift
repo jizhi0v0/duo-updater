@@ -13,6 +13,8 @@ struct PersonalGitHubSourceTests {
         let snapshot = Source.Snapshot(repository: repo, releases: rows, checked: Date(), truncated: true)
         #expect(snapshot.matches(track: .stable, installed: nil, includeStable: false).map(\.tag_name) == ["v2.5.0", "v2.4.0"])
         #expect(snapshot.matches(track: .preview, installed: "2.4.0-rc.1", includeStable: true).map(\.tag_name) == ["v2.4.0", "v2.4.0-rc0"])
+        #expect(snapshot.changelog(track: .preview, installed: "2.4-rc.1", includeStable: true).entries.map(\.version) == ["v2.4.0", "v2.4.0-rc0"])
+        #expect(snapshot.changelog(track: .preview, installed: "2.3-rc.1", includeStable: true).entries.map(\.version) == ["v2.4.0-rc0"])
         #expect(snapshot.matches(track: .nightly, installed: nil, includeStable: false).map(\.tag_name) == ["v2.6.0-nightly.2"])
         #expect(rows[0].tagIssue == .stableFlagOnPreviewTag)
         #expect(rows[4].tagIssue == .unrecognized)

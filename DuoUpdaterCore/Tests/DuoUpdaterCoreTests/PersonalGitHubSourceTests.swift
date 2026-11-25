@@ -130,6 +130,10 @@ private final class PersonalGitHubFixture: URLProtocol, @unchecked Sendable {
             switch url.path {
             case "/repos/demo/fixture" where auth == nil:
                 body = #"{ "private":false,"visibility":"public","id":40,"full_name":"demo/fixture","owner":{"id":12}}"#
+            case "/repos/demo/secondary" where auth == "Bearer fixture":
+                status = 403
+                headers = ["X-RateLimit-Limit": "60"]
+                body = "You exceeded a secondary rate limit."
             case "/repos/demo/limited" where auth == nil:
                 status = 403
                 headers = ["X-RateLimit-Remaining":"0","X-RateLimit-Reset":String(Int(Date().timeIntervalSince1970) + 600)]
@@ -193,6 +197,18 @@ private actor SourceTestLogin {
 }
 
 extension PersonalGitHubSourceTests {
+    @Test func bodyOnlySecondaryLimitUsesTheBudgetThatAnsweredWithoutAnActiveGate() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PersonalGitHubFixture.self]
+        let client = PersonalGitHubClient(configuration: config, resolveToken: { "fixture" })
+        do {
+            _ = try await client.fetch("demo/secondary")
+            Issue.record("Expected a GitHub refusal")
+        } catch let error as Source.Failure {
+            #expect(error.disposition == .anonymousLimit)
+        }
+    }
+
     @Test func accountCanContinueAfterAnonymousLimit() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [PersonalGitHubFixture.self]

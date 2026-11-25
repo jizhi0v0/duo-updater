@@ -260,32 +260,20 @@ public actor PersonalGitHubClient {
         try checkCredentialGeneration(generation)
         guard let url = request.url, ChangelogService.isGitHubAPI(url) else { return try await session.countedBytes(for: request, purpose: purpose) }
         var outbound = request
-        let access: Access
         if let token, !GitHubCredentials.current.isRejected(generation: generation) {
             outbound.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-            access = .authenticated(generation)
-        } else { access = .anonymous }
-        func limited(until: Date) -> Source.Failure {
-            let message = access == .anonymous ? "Anonymous GitHub rate limit reached." : "GitHub account rate limit reached."
-            return Source.Failure(message + " Try again after " + until.formatted() + ".", access == .anonymous ? .anonymousLimit : .retry)
         }
         let result: (URLSession.CountedBytes, URLResponse)
         do {
-            result = try await session.countedBytes(for: outbound, purpose: purpose)
+            result = try await session.countedBytes(for: outbound, purpose: purpose, classifyGitHubErrors: true)
         } catch let refusal as GitHubRateLimitGate.Refused {
-            throw limited(until: refusal.closure.until)
+            let anonymous = refusal.credential == .anonymous
+            let message = anonymous ? "Anonymous GitHub rate limit reached." : "GitHub account rate limit reached."
+            throw Source.Failure(message + " Try again after " + refusal.closure.until.formatted() + ".", anonymous ? .anonymousLimit : .retry)
         }
         if GitHubCredentials.isRejection(of: outbound, result.1) {
             GitHubCredentials.current.recordRejection(generation: generation)
             return try await responseBytes(request, session: session, purpose: purpose, token: nil, generation: generation)
-        }
-        if let http = result.1 as? HTTPURLResponse {
-            let headers = http.allHeaderFields.reduce(into: [String: String]()) { fields, field in
-                if let key = field.key as? String { fields[key] = String(describing: field.value) }
-            }
-            if let limit = GitHubRateLimitGate.closure(status: http.statusCode, headers: headers, body: nil, strikesBefore: 0, now: Date()) {
-                if http.statusCode >= 400 { throw limited(until: limit.until) }
-            }
         }
         return result
     }

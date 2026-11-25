@@ -198,15 +198,19 @@ public enum GitHubRateLimitGate {
             }
         }
 
-        func complete(_ data: Data?, _ response: URLResponse?) async {
-            let http = response as? HTTPURLResponse
-            let headers = (http?.allHeaderFields ?? [:]).reduce(into: [String: String]()) {
+        static func headers(_ http: HTTPURLResponse?) -> [String: String] {
+            (http?.allHeaderFields ?? [:]).reduce(into: [String: String]()) {
                 if let key = $1.key as? String, let value = $1.value as? String { $0[key] = value }
             }
+        }
+
+        @discardableResult
+        func complete(_ data: Data?, _ response: URLResponse?) async -> Refused? {
+            let http = response as? HTTPURLResponse
             // The body only names a secondary limit on a refusal.
             let refusal = http.map { $0.statusCode == 403 || $0.statusCode == 429 } ?? false
-            await gate.complete(credential, generation: identity, canary: canary,
-                                status: http?.statusCode, headers: headers, body: refusal ? data : nil)
+            return await gate.complete(credential, generation: identity, canary: canary,
+                                status: http?.statusCode, headers: Self.headers(http), body: refusal ? data : nil)
         }
 
         /// `GET /rate_limit` with `request`'s credential.
@@ -371,10 +375,12 @@ public enum GitHubRateLimitGate {
         /// window's reset instead of the anonymous one
         /// (`answered(_:headers:)`). The canary stays the sent credential's,
         /// since it is that credential's probe which admitted the request.
+        @discardableResult
         public func complete(
             _ credential: Credential, generation: Int, canary: Bool,
             status: Int?, headers: [String: String], body: Data?
-        ) {
+        ) -> Refused? {
+            var refusal: Refused?
             let at = now()
             let answering = GitHubRateLimitGate.answered(credential, headers: headers)
             let answeringGeneration: Int = answering == .anonymous ? 0 : generation
@@ -390,6 +396,9 @@ public enum GitHubRateLimitGate {
                     status: status, headers: headers, body: body, strikesBefore: before, now: at) {
                     if case .secondary(let strike) = closure.reason { entry.strikes = strike }
                     close(&entry, closure, answering, status: status)
+                    if status >= 400, case .closed(let enforced) = entry.phase {
+                        refusal = Refused(credential: answering, closure: enforced)
+                    }
                 } else if (200..<400).contains(status) {
                     entry.strikes = 0
                 }
@@ -412,6 +421,7 @@ public enum GitHubRateLimitGate {
                 }
             }
             entries[answering] = entry
+            return refusal
         }
 
         /// Until when each credential is closed now; one absent is open.

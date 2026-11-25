@@ -130,12 +130,15 @@ import Testing
             #expect(store.snapshot(for: second.path)?.releases.first?.body == "Private release body")
             await store.refresh(installed) { _ in
                 await store.refresh(secondApp) { _ in
+                    try store.saveConfiguration(for: second, repository: repo.full_name, track: .stable,
+                                                filters: ["Stable": "edited-during-check"], includeStable: false)
                     throw PersonalGitHubSource.Failure("HTTP 404", .repositoryAccess, confirmsRepositoryDenial: true)
                 }
                 return evidence
             }
             #expect(store.snapshot(for: app.path) == nil)
             #expect(store.snapshot(for: second.path) == nil)
+            #expect(store.record(second.path)?.filenameContains == "edited-during-check")
             #expect(store.accessible(evidence, since: beforeDenial) == nil)
             #expect(throws: PersonalGitHubSource.Failure.self) {
                 try store.saveConfiguration(for: app, repository: repo.full_name, track: .nightly, filters: [:],

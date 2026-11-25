@@ -127,6 +127,20 @@ final class PersonalSources {
         }
     }
 
+    /// A current request can prove repository-wide denial even if the user
+    /// edited or removed the originating binding while the request was in flight.
+    private func handleFailure(_ error: Error, for binding: BindingRecord, path: String,
+                               generation: Int, revision: Int) -> Bool {
+        let repo = binding.repository
+        guard credentials.generation == generation, accessUnchanged(name: repo.full_name, id: repo.id, since: revision) else {
+            return false
+        }
+        if (error as? PersonalGitHubSource.Failure)?.confirmsRepositoryDenial == true {
+            repositoryDenied(repo.full_name, id: repo.id, since: revision, message: error.localizedDescription)
+        }
+        return record(path) == binding
+    }
+
     func credentialsDidChange(rejected: Bool = false) {
         credentialRevision &+= 1
         // A rejected token can still yield a public result or an access error
@@ -314,14 +328,9 @@ final class PersonalSources {
                 messages[path] = updated.confirmedVersion.map { String(localized: "Confirmed installation of \($0).") }
             }
         } catch {
-            guard credentials.generation == generation, self.record(path) == record,
-                  accessUnchanged(name: record.repository.full_name, id: record.repository.id, since: revision) else { return }
+            guard handleFailure(error, for: record, path: path, generation: generation, revision: revision) else { return }
             let last = record.lastSuccessfulCheck
-            let failure = error as? PersonalGitHubSource.Failure
-            if failure?.confirmsRepositoryDenial == true {
-                repositoryDenied(record.repository.full_name, id: record.repository.id, since: revision, message: error.localizedDescription)
-            }
-            let disposition = failure?.disposition
+            let disposition = (error as? PersonalGitHubSource.Failure)?.disposition
             if disposition == .reviewSource || disposition == .repositoryAccess { clear(path) }
             needsGitHubSettings.remove(path)
             if disposition?.needsGitHubSettings == true { needsGitHubSettings.insert(path) }
@@ -425,16 +434,11 @@ final class PersonalSources {
                 messages[path] = "Verified \(identity.version) · \(identity.team ?? "") · SHA-256 matched."
             }
         } catch {
-            guard credentials.generation == generation, self.record(path) == record,
-                  accessUnchanged(name: record.repository.full_name, id: record.repository.id, since: revision) else {
+            guard handleFailure(error, for: record, path: path, generation: generation, revision: revision) else {
                 if let scratch { try? FileManager.default.removeItem(at: scratch) }
                 return
             }
-            let failure = error as? PersonalGitHubSource.Failure
-            if failure?.confirmsRepositoryDenial == true {
-                repositoryDenied(record.repository.full_name, id: record.repository.id, since: revision, message: error.localizedDescription)
-            }
-            switch failure?.disposition {
+            switch (error as? PersonalGitHubSource.Failure)?.disposition {
             case .anonymousLimit: needsGitHubSettings.insert(path)
             case .repositoryAccess:
                 clear(path)

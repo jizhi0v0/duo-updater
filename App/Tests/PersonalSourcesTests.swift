@@ -78,7 +78,7 @@ import Testing
             let preview = PersonalGitHubSource.Snapshot(repository: repo, releases: [release], checked: .now,
                                                        truncated: false, restrictedCredentialGeneration: credentials.generation)
             try store.saveConfiguration(for: app, repository: repo.full_name, track: .stable, filters: ["Stable": "arm"],
-                                        includeStable: false, validation: (preview, anchor))
+                                        includeStable: false, validation: (preview, anchor, 0))
             let staged = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
             defer { try? FileManager.default.removeItem(at: staged) }
             try FileManager.default.createDirectory(at: staged, withIntermediateDirectories: true)
@@ -95,11 +95,11 @@ import Testing
                 store.credentialsDidChange()
                 return preview
             }
-            #expect(store.accessible(preview) == nil)
+            #expect(store.accessible(preview, since: 0) == nil)
             #expect(store.snapshot(for: app.path) == nil)
             #expect(throws: PersonalGitHubSource.Failure.self) {
                 try store.saveConfiguration(for: app, repository: repo.full_name, track: .nightly, filters: [:],
-                                            includeStable: false, validation: (preview, anchor))
+                                            includeStable: false, validation: (preview, anchor, 0))
             }
             #expect(store.record(app.path) == original)
             #expect(store.checked[app.path] == nil)
@@ -111,8 +111,40 @@ import Testing
             credentials.recordRejection(generation: credentials.generation)
             store.credentialsDidChange(rejected: true)
             credentials.beginRound()
-            #expect(store.accessible(newPreview) == nil)
+            #expect(store.accessible(newPreview, since: 0) == nil)
             #expect(store.snapshot(for: app.path) == nil)
+            // Two copies are bound to the same repository. A denial from one
+            // arrives while the other is still reading under the same account.
+            let second = staged.deletingLastPathComponent().appendingPathComponent(suite + "-second.app")
+            defer { try? FileManager.default.removeItem(at: second) }
+            try FileManager.default.copyItem(at: app, to: second)
+            let secondAnchor = try PersonalSourceZIP.Identity(at: second)
+            let secondApp = InstalledApp(name: "Second", bundleID: anchor.bundle, shortVersion: anchor.version,
+                                         buildVersion: nil, path: second, isMASApp: false, sparkleFeedURL: nil)
+            let evidence = PersonalGitHubSource.Snapshot(repository: repo, releases: [release], checked: .now,
+                                                        truncated: false, restrictedCredentialGeneration: credentials.generation)
+            let beforeDenial = store.repositoryRevision
+            try store.saveConfiguration(for: second, repository: repo.full_name, track: .stable, filters: [:],
+                                        includeStable: false, validation: (evidence, secondAnchor, beforeDenial))
+            await store.refresh(installed) { _ in evidence }
+            #expect(store.snapshot(for: second.path)?.releases.first?.body == "Private release body")
+            await store.refresh(installed) { _ in
+                await store.refresh(secondApp) { _ in
+                    throw PersonalGitHubSource.Failure("HTTP 404", .repositoryAccess, confirmsRepositoryDenial: true)
+                }
+                return evidence
+            }
+            #expect(store.snapshot(for: app.path) == nil)
+            #expect(store.snapshot(for: second.path) == nil)
+            #expect(store.accessible(evidence, since: beforeDenial) == nil)
+            #expect(throws: PersonalGitHubSource.Failure.self) {
+                try store.saveConfiguration(for: app, repository: repo.full_name, track: .nightly, filters: [:],
+                                            includeStable: false, validation: (evidence, anchor, beforeDenial))
+            }
+            #expect(FileManager.default.fileExists(atPath: delivered.path))
+            await store.refresh(installed) { _ in evidence }
+            #expect(store.snapshot(for: app.path)?.releases.count == 1)
+            #expect(store.accessible(evidence, since: beforeDenial) == nil)
             let publicPreview = PersonalGitHubSource.Snapshot(repository: repo, releases: [release], checked: .now, truncated: false)
             await store.refresh(installed) { _ in publicPreview }
             credentials.changed()
@@ -171,12 +203,12 @@ import Testing
         let checked = PersonalSources.Checked(release: first, asset: asset, directory: staged, application: candidate,
                                               identity: try .init(at: candidate), manifest: try #require(BackupManifest.compute(for: candidate)))
         try store.saveConfiguration(for: app, repository: repo.full_name, track: .stable, filters: [:],
-                                    includeStable: false, validation: (snapshot([first]), anchor))
+                                    includeStable: false, validation: (snapshot([first]), anchor, store.repositoryRevision))
         store.checked[app.path] = checked
         try store.recordHandoff(try #require(store.record(app.path)), checked: checked, path: app.path)
         #expect(!store.needsAction(row))
         try store.saveConfiguration(for: app, repository: repo.full_name, track: .stable, filters: ["Nightly": "arm"],
-                                    includeStable: false, validation: (snapshot([first]), anchor))
+                                    includeStable: false, validation: (snapshot([first]), anchor, store.repositoryRevision))
         #expect(PersonalSources(defaults: defaults).record(app.path)?.handoff?.asset == asset)
         #expect(FileManager.default.fileExists(atPath: candidate.path))
         await store.refresh(installed) { _ in snapshot([latest, first]) }
@@ -189,7 +221,7 @@ import Testing
         // background refresh window while Finder still shows its checked app.
         let window = snapshot([latest], truncated: true)
         try store.saveConfiguration(for: app, repository: repo.full_name, track: .stable, filters: [:],
-                                    includeStable: false, validation: (window, anchor))
+                                    includeStable: false, validation: (window, anchor, store.repositoryRevision))
         await store.refresh(installed) { _ in window }
         let handoff = try #require(PersonalSources(defaults: defaults).record(app.path)?.handoff)
         #expect(FileManager.default.fileExists(atPath: candidate.path))

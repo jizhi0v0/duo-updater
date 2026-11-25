@@ -211,7 +211,8 @@ private struct PersonalSourceEditor: View {
     private var filenameContains: String { filters[track.rawValue] ?? "" }
     @State private var includeStable: Bool
     @State private var fetchedPreview: GitSource.Snapshot?
-    private var preview: GitSource.Snapshot? { store.accessible(fetchedPreview) }
+    @State private var previewRevision = 0
+    private var preview: GitSource.Snapshot? { store.accessible(fetchedPreview, since: previewRevision) }
     @State private var anchor: PersonalSourceZIP.Identity?
     @State private var message: String?
     @State private var validationTask: Task<Void, Never>?
@@ -263,8 +264,8 @@ private struct PersonalSourceEditor: View {
         }
         .padding(20).frame(width: 490)
         .onDisappear { cancelValidation() }
-        .onChange(of: store.credentialRevision) {
-            if fetchedPreview != nil, preview == nil {
+        .onChange(of: preview != nil) { _, isAvailable in
+            if fetchedPreview != nil, !isAvailable {
                 fetchedPreview = nil
                 anchor = nil
                 message = nil
@@ -393,12 +394,14 @@ private struct PersonalSourceEditor: View {
 
     private func validate() {
         let input = repository
+        let knownRepositoryID = preview?.repository.id ?? store.record(result.app.path.path, matchingRepository: input)?.repository.id
         needsGitHubSettings = false
         cancelValidation()
         fetchedPreview = nil
         anchor = nil
         message = nil
         let generation = GitHubCredentials.shared.generation
+        let revision = store.repositoryRevision
         validationTask = Task {
             defer { if !Task.isCancelled { validationTask = nil } }
             do {
@@ -408,8 +411,9 @@ private struct PersonalSourceEditor: View {
                 let current = try await offCooperativePool { try PersonalSourceZIP.Identity(at: result.app.path) }
                 try Task.checkCancellation()
                 let snapshot = try await PersonalGitHubClient.shared.fetch(input)
-                guard !Task.isCancelled, repository == input, generation == GitHubCredentials.shared.generation, store.accessible(snapshot) != nil else { return }
+                guard !Task.isCancelled, repository == input, generation == GitHubCredentials.shared.generation, store.accessible(snapshot, since: revision) != nil else { return }
                 anchor = current
+                previewRevision = revision
                 fetchedPreview = snapshot
                 if let previous = store.record(result.app.path.path),
                    previous.repository.id != snapshot.repository.id || previous.repository.owner.id != snapshot.repository.owner.id || previous.anchor != current {
@@ -417,8 +421,12 @@ private struct PersonalSourceEditor: View {
                 }
             } catch {
                 if !Task.isCancelled, repository == input, generation == GitHubCredentials.shared.generation {
+                    let failure = error as? GitSource.Failure
+                    if failure?.confirmsRepositoryDenial == true {
+                        store.repositoryDenied(input, id: knownRepositoryID, since: revision, message: error.localizedDescription)
+                    }
                     message = error.localizedDescription
-                    needsGitHubSettings = (error as? GitSource.Failure)?.disposition.needsGitHubSettings == true
+                    needsGitHubSettings = failure?.disposition.needsGitHubSettings == true
                 }
             }
         }
@@ -433,7 +441,7 @@ private struct PersonalSourceEditor: View {
                     throw GitSource.Failure(String(localized: "This app is no longer eligible for a custom source."))
                 }
             }
-            let validation = preview.flatMap { snapshot in anchor.map { (snapshot: snapshot, anchor: $0) } }
+            let validation = preview.flatMap { snapshot in anchor.map { (snapshot: snapshot, anchor: $0, revision: previewRevision) } }
             try store.saveConfiguration(for: result.app.path, repository: repository, track: track,
                                         filters: filters, includeStable: includeStable, validation: validation)
             dismiss()

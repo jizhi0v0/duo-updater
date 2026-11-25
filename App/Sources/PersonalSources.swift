@@ -73,6 +73,9 @@ final class PersonalSources {
     private(set) var records: [String: Data]
     private var snapshots: [String: PersonalGitHubSource.Snapshot] = [:]
     private(set) var credentialRevision = 0
+    private(set) var repositoryRevision = 0
+    private var deniedRepositoryIDs: [Int64: Int] = [:]
+    private var deniedRepositoryNames: [String: Int] = [:]
     private(set) var needsGitHubSettings = Set<String>()
     var messages: [String: String] = [:]
     var busy = Set<String>()
@@ -90,14 +93,38 @@ final class PersonalSources {
     }
 
     // SwiftUI observes this revision because the Core credential state is lock-backed.
-    func accessible(_ snapshot: PersonalGitHubSource.Snapshot?) -> PersonalGitHubSource.Snapshot? {
+    func accessible(_ snapshot: PersonalGitHubSource.Snapshot?, since revision: Int) -> PersonalGitHubSource.Snapshot? {
         _ = credentialRevision
-        guard let snapshot, snapshot.isAccessibleWithCurrentCredentials else { return nil }
+        guard let snapshot, snapshot.isAccessibleWithCurrentCredentials,
+              accessUnchanged(name: snapshot.repository.full_name, id: snapshot.repository.id, since: revision) else { return nil }
         return snapshot
     }
 
     func snapshot(for path: String) -> PersonalGitHubSource.Snapshot? {
-        accessible(snapshots[path])
+        accessible(snapshots[path], since: repositoryRevision)
+    }
+
+    private func accessUnchanged(name: String, id: Int64?, since revision: Int) -> Bool {
+        deniedRepositoryNames[name.lowercased(), default: 0] <= revision
+            && (id.flatMap { deniedRepositoryIDs[$0] } ?? 0) <= revision
+    }
+
+    func repositoryDenied(_ input: String, id: Int64?, since revision: Int, message: String) {
+        guard let name = PersonalGitHubSource.slug(input)?.lowercased(),
+              accessUnchanged(name: name, id: id, since: revision) else { return }
+        repositoryRevision &+= 1
+        deniedRepositoryNames[name] = repositoryRevision
+        if let id { deniedRepositoryIDs[id] = repositoryRevision }
+        for path in records.keys {
+            guard let binding = record(path),
+                  binding.repository.id == id || binding.repository.full_name.lowercased() == name else { continue }
+            deniedRepositoryIDs[binding.repository.id] = repositoryRevision
+            deniedRepositoryNames[binding.repository.full_name.lowercased()] = repositoryRevision
+            clear(path)
+            paused.insert(path)
+            needsGitHubSettings.insert(path)
+            messages[path] = message
+        }
     }
 
     func credentialsDidChange(rejected: Bool = false) {
@@ -128,13 +155,13 @@ final class PersonalSources {
     func saveConfiguration(
         for app: URL, repository input: String, track: PersonalGitHubSource.Track,
         filters: [String: String], includeStable: Bool,
-        validation: (snapshot: PersonalGitHubSource.Snapshot, anchor: PersonalSourceZIP.Identity)? = nil
+        validation: (snapshot: PersonalGitHubSource.Snapshot, anchor: PersonalSourceZIP.Identity, revision: Int)? = nil
     ) throws {
         let path = app.path
         let previous = record(path)
         var updated: BindingRecord
         if let validation {
-            guard accessible(validation.snapshot) != nil else {
+            guard accessible(validation.snapshot, since: validation.revision) != nil else {
                 throw PersonalGitHubSource.Failure("GitHub credentials changed. Try again.")
             }
             if let previous, previous.anchor == validation.anchor,
@@ -215,7 +242,7 @@ final class PersonalSources {
     /// One result per repository and credential generation in a scan, including
     /// failures. Another local installation can choose a track from the same result.
     func refreshRegistered(_ apps: [InstalledApp]) async {
-        var round: [String: Result<PersonalGitHubSource.Snapshot, Error>] = [:]
+        var round: [String: (result: Result<PersonalGitHubSource.Snapshot, Error>, revision: Int)] = [:]
         var generation = credentialRevision
         for app in apps {
             await refresh(app) { slug in
@@ -225,13 +252,27 @@ final class PersonalSources {
                     generation = currentGeneration
                 }
                 let key = slug.lowercased()
-                if let result = round[key] { return try result.get() }
+                if let cached = round[key] {
+                    switch cached.result {
+                    case .success(let snapshot):
+                        if accessible(snapshot, since: cached.revision) != nil { return snapshot }
+                    case .failure(let error):
+                        // A confirmed denial was already applied to every bound
+                        // copy. Replaying it must not revoke a later validation.
+                        if let failure = error as? PersonalGitHubSource.Failure, failure.confirmsRepositoryDenial {
+                            if let recovered = snapshot(for: app.path.path) { return recovered }
+                            throw PersonalGitHubSource.Failure(failure.localizedDescription, .repositoryAccess)
+                        }
+                        throw error
+                    }
+                }
+                let revision = repositoryRevision
                 do {
                     let result = try await PersonalGitHubClient.shared.fetch(slug)
-                    round[key] = .success(result)
+                    round[key] = (.success(result), revision)
                     return result
                 } catch {
-                    round[key] = .failure(error)
+                    round[key] = (.failure(error), revision)
                     throw error
                 }
             }
@@ -244,13 +285,14 @@ final class PersonalSources {
         let path = app.path.path
         guard var record = record(path), busy.insert(path).inserted else { return }
         let generation = credentials.generation
+        let revision = repositoryRevision
         defer { if credentials.generation == generation { busy.remove(path) } }
         do {
             guard let continued = try await reconcileInstallation(app.path, record: record) else { return }
             record = continued
             guard credentials.generation == generation else { return }
             let snapshot = try await fetch(record.repository.full_name)
-            guard credentials.generation == generation, accessible(snapshot) != nil, self.record(path) == record else { return }
+            guard credentials.generation == generation, accessible(snapshot, since: revision) != nil, self.record(path) == record else { return }
             try validateRepository(snapshot, record: record)
             var updated = record
             updated.lastSuccessfulCheck = snapshot.checked
@@ -272,9 +314,14 @@ final class PersonalSources {
                 messages[path] = updated.confirmedVersion.map { String(localized: "Confirmed installation of \($0).") }
             }
         } catch {
-            guard credentials.generation == generation, self.record(path) == record else { return }
+            guard credentials.generation == generation, self.record(path) == record,
+                  accessUnchanged(name: record.repository.full_name, id: record.repository.id, since: revision) else { return }
             let last = record.lastSuccessfulCheck
-            let disposition = (error as? PersonalGitHubSource.Failure)?.disposition
+            let failure = error as? PersonalGitHubSource.Failure
+            if failure?.confirmsRepositoryDenial == true {
+                repositoryDenied(record.repository.full_name, id: record.repository.id, since: revision, message: error.localizedDescription)
+            }
+            let disposition = failure?.disposition
             if disposition == .reviewSource || disposition == .repositoryAccess { clear(path) }
             needsGitHubSettings.remove(path)
             if disposition?.needsGitHubSettings == true { needsGitHubSettings.insert(path) }
@@ -335,13 +382,14 @@ final class PersonalSources {
         let path = result.app.path.path
         guard let record = record(path), eligible(), busy.insert(path).inserted else { return }
         let generation = credentials.generation
+        let revision = repositoryRevision
         defer { if credentials.generation == generation { busy.remove(path) } }
         needsGitHubSettings.remove(path)
         var localInspection = false
         var scratch: URL?
         do {
             let fresh = try await PersonalGitHubClient.shared.fetch(record.repository.full_name)
-            guard credentials.generation == generation, accessible(fresh) != nil else { return }
+            guard credentials.generation == generation, accessible(fresh, since: revision) != nil else { return }
             try validateRepository(fresh, record: record)
             guard let latest = fresh.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable).first,
                   latest.id == release.id, latest.tag_name == release.tag_name, latest.assets.contains(asset) else {
@@ -364,7 +412,7 @@ final class PersonalSources {
             guard let manifest = await offCooperativePool({ BackupManifest.compute(for: candidate) }) else {
                 throw PersonalGitHubSource.Failure("Cannot read all verified package contents.", .blocked)
             }
-            guard credentials.generation == generation, accessible(fresh) != nil, self.record(path) == record, eligible() else { throw PersonalGitHubSource.Failure("The source or update route changed.") }
+            guard credentials.generation == generation, accessible(fresh, since: revision) != nil, self.record(path) == record, eligible() else { throw PersonalGitHubSource.Failure("The source or update route changed.") }
             if reveal {
                 guard let previousCheck = checked[path], identity == previousCheck.identity, manifest == previousCheck.manifest else { throw PersonalGitHubSource.Failure("The staged package changed.") }
                 try recordHandoff(record, checked: previousCheck, path: path)
@@ -377,11 +425,16 @@ final class PersonalSources {
                 messages[path] = "Verified \(identity.version) · \(identity.team ?? "") · SHA-256 matched."
             }
         } catch {
-            guard credentials.generation == generation, self.record(path) == record else {
+            guard credentials.generation == generation, self.record(path) == record,
+                  accessUnchanged(name: record.repository.full_name, id: record.repository.id, since: revision) else {
                 if let scratch { try? FileManager.default.removeItem(at: scratch) }
                 return
             }
-            switch (error as? PersonalGitHubSource.Failure)?.disposition {
+            let failure = error as? PersonalGitHubSource.Failure
+            if failure?.confirmsRepositoryDenial == true {
+                repositoryDenied(record.repository.full_name, id: record.repository.id, since: revision, message: error.localizedDescription)
+            }
+            switch failure?.disposition {
             case .anonymousLimit: needsGitHubSettings.insert(path)
             case .repositoryAccess:
                 clear(path)

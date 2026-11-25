@@ -39,6 +39,22 @@ struct PersonalGitHubSourceTests {
         }
     }
 
+    @Test func oversizedOrNonregularInfoPlistIsRejected() throws {
+        let fm = FileManager.default
+        let app = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".app")
+        defer { try? fm.removeItem(at: app) }
+        let contents = app.appendingPathComponent("Contents")
+        try fm.createDirectory(at: contents, withIntermediateDirectories: true)
+        let info = ["CFBundleIdentifier": "example.demo", "large": String(repeating: "x", count: 4 * 1024 * 1024)]
+        let data = try PropertyListSerialization.data(fromPropertyList: info, format: .binary, options: 0)
+        let plist = contents.appendingPathComponent("Info.plist")
+        try data.write(to: plist)
+        #expect(throws: Source.Failure.self) { try PersonalSourceZIP.Identity(at: app) }
+        try fm.removeItem(at: plist)
+        try #require(mkfifo(plist.path, 0o600) == 0)
+        #expect(throws: Source.Failure.self) { try PersonalSourceZIP.Identity(at: app) }
+    }
+
     @Test func wrappedAppIsUniqueAndSiblingInstallerRejected() async throws {
         let fm = FileManager.default
         let scratch = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -92,6 +108,9 @@ private final class PersonalGitHubFixture: URLProtocol, @unchecked Sendable {
         let auth = request.value(forHTTPHeaderField: "Authorization")
         if url.host == "release-assets.githubusercontent.com", url.path == "/example", auth == nil {
             body = "CDN"
+        } else if request.value(forHTTPHeaderField: "Accept") != "application/octet-stream" && request.cachePolicy != URLRequest.versionFeedCachePolicy {
+            status = 400
+            body = ""
         } else if url.host != "api.github.com" || request.value(forHTTPHeaderField: "Cookie") != nil {
             status = 400
             body = ""

@@ -146,10 +146,18 @@ public enum PersonalSourceZIP {
 
         public init(at url: URL) throws {
             var stat = Darwin.stat()
-            guard lstat(url.path, &stat) == 0, (stat.st_mode & S_IFMT) == S_IFDIR,
-                  let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: url)),
+            let invalid = Failure("Cannot read the installed application identity.")
+            guard lstat(url.path, &stat) == 0, (stat.st_mode & S_IFMT) == S_IFDIR else { throw invalid }
+            let fd = open(BundleLayout.infoPlistURL(for: url).path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+            guard fd >= 0 else { throw invalid }
+            let file = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+            defer { try? file.close() }
+            let limit = 4 * 1024 * 1024
+            var infoStat = Darwin.stat()
+            guard fstat(fd, &infoStat) == 0, (infoStat.st_mode & S_IFMT) == S_IFREG, infoStat.st_size <= limit,
+                  let data = try file.read(upToCount: limit + 1), data.count <= limit,
                   let info = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-                  let bundle = info["CFBundleIdentifier"] as? String, !bundle.isEmpty else { throw Failure("Cannot read the installed application identity.") }
+                  let bundle = info["CFBundleIdentifier"] as? String, !bundle.isEmpty else { throw invalid }
             self.bundle = bundle
             version = info["CFBundleShortVersionString"] as? String ?? ""
             build = info["CFBundleVersion"] as? String ?? ""

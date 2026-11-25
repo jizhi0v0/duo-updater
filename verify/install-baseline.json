@@ -427,14 +427,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:burakgon\/OpenScreens:stable" : {
-      "consecutiveActionable" : 2,
+      "consecutiveActionable" : 3,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2219,
       "lastCommentedAt" : "2026-11-24T17:02:28Z",
       "lastSignature" : "identityChanged: Sparkle key none → Zah\/",
       "previousSignature" : "identityChanged: Sparkle key none → Zah\/",
-      "sweepsSinceComment" : 0
+      "sweepsSinceComment" : 1
     },
     "install:github:chekusu\/yomado:stable" : {
       "closedAt" : "2026-10-29T03:05:32Z",
@@ -1061,11 +1061,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:ollama\/ollama:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 2222,
+      "lastCommentedAt" : "2026-11-25T02:21:34Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "inventoryEntryMissing: a previously trac",
+      "sweepsSinceComment" : 0
     },
     "install:github:onebadidea\/swiftquit:stable" : {
       "consecutiveActionable" : 0,
@@ -1418,10 +1421,11 @@
       "sweepsSinceComment" : 0
     },
     "install:github:wickenico\/WailBrew:stable" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 1,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "lastSignature" : "identityChanged: architectures arm64+x86",
+      "sweepsSinceComment" : 1
     },
     "install:github:wulkano\/kap:stable" : {
       "consecutiveActionable" : 0,
@@ -1538,11 +1542,14 @@
       "sweepsSinceComment" : 0
     },
     "install:sparkle:com.cindori.Backdrop:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 2221,
+      "lastCommentedAt" : "2026-11-25T02:21:32Z",
       "lastSignature" : "identityChanged: architectures arm64+x86",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "identityChanged: architectures arm64+x86",
+      "sweepsSinceComment" : 0
     },
     "install:sparkle:com.coconut-flavour.coconutBattery:stable" : {
       "consecutiveActionable" : 0,
@@ -1905,14 +1912,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 28,
+      "consecutiveActionable" : 29,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-22T14:22:27Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 5
+      "sweepsSinceComment" : 6
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2707,14 +2714,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.youqu.todesk.mac:stable" : {
-      "consecutiveActionable" : 4,
+      "consecutiveActionable" : 5,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2201,
       "lastCommentedAt" : "2026-11-23T17:32:30Z",
       "lastSignature" : "install.content",
       "previousSignature" : "install.content",
-      "sweepsSinceComment" : 2
+      "sweepsSinceComment" : 3
     },
     "install:vendor:com.zarifpour.superconductor:nightly" : {
       "consecutiveActionable" : 0,
@@ -2942,10 +2949,10 @@
     },
     "install:vendor:org.inkscape.Inkscape:stable" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 2,
+      "consecutiveInfra" : 3,
       "consecutiveInstallTransient" : 0,
       "infraSince" : "2026-11-22T23:31:57Z",
-      "sweepsSinceComment" : 2
+      "sweepsSinceComment" : 3
     },
     "install:vendor:org.krita:stable:download-page" : {
       "consecutiveActionable" : 0,
@@ -3075,5 +3082,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-24T17:02:28Z"
+  "updatedAt" : "2026-11-25T02:21:34Z"
 }

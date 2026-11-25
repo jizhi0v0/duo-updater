@@ -133,14 +133,14 @@ final class PersonalSources {
     func repositoryDenied(_ input: String, id: Int64?, since revision: Int, message: String) {
         guard let name = PersonalGitHubSource.slug(input)?.lowercased(),
               accessUnchanged(name: name, id: id, since: revision) else { return }
+        let bindings = records.keys.compactMap { path in record(path).map { (path, $0.repository) } }
+        var repositoryIDs = Set(bindings.filter { $0.1.full_name.lowercased() == name }.map { $0.1.id })
+        if let id { repositoryIDs.insert(id) }
         repositoryRevision &+= 1
         deniedRepositoryNames[name] = repositoryRevision
-        if let id { deniedRepositoryIDs[id] = repositoryRevision }
-        for path in records.keys {
-            guard let binding = record(path),
-                  binding.repository.id == id || binding.repository.full_name.lowercased() == name else { continue }
-            deniedRepositoryIDs[binding.repository.id] = repositoryRevision
-            deniedRepositoryNames[binding.repository.full_name.lowercased()] = repositoryRevision
+        for repositoryID in repositoryIDs { deniedRepositoryIDs[repositoryID] = repositoryRevision }
+        for (path, repository) in bindings where repositoryIDs.contains(repository.id) {
+            deniedRepositoryNames[repository.full_name.lowercased()] = repositoryRevision
             clear(path)
             paused.insert(path)
             needsGitHubSettings.insert(path)
@@ -167,7 +167,7 @@ final class PersonalSources {
         // A rejected token can still yield a public result or an access error
         // through the in-flight query’s anonymous retry.
         if !rejected { busy.removeAll() }
-        for path in records.keys where snapshots[path]?.isAccessibleWithCurrentCredentials != true {
+        for path in records.keys where snapshots[path]?.isAccessibleWithCurrentCredentials == false {
             // An open Settings request belongs to the error's button. Keep that
             // button mounted while its credential resolution and retry complete.
             let requestedSettings = needsGitHubSettings.contains(path)
@@ -329,7 +329,8 @@ final class PersonalSources {
         try await PersonalGitHubClient.shared.fetch($0)
     }) async {
         let path = app.path.path
-        guard !recovering.contains(path), !installing.contains(path), var record = record(path), busy.insert(path).inserted else { return }
+        guard !recovering.contains(path), !installing.contains(path), var record = record(path),
+              record.replacementID == nil, busy.insert(path).inserted else { return }
         let generation = credentials.generation
         let revision = repositoryRevision
         defer { if credentials.generation == generation { busy.remove(path) } }
@@ -375,7 +376,8 @@ final class PersonalSources {
     /// Reading a manual handoff does not depend on network access.
     func reconcileLocal(_ app: InstalledApp) async {
         let path = app.path.path
-        guard !recovering.contains(path), !installing.contains(path), let record = record(path), !busy.contains(path) else { return }
+        guard !recovering.contains(path), !installing.contains(path), let record = record(path),
+              record.replacementID == nil, !busy.contains(path) else { return }
         do {
             _ = try await reconcileInstallation(app.path, record: record)
         } catch {
@@ -429,6 +431,7 @@ final class PersonalSources {
         needsGitHubSettings.remove(path)
         var localInspection = false
         var scratch: URL?
+        defer { if let scratch { try? FileManager.default.removeItem(at: scratch) } }
         do {
             let fresh = try await PersonalGitHubClient.shared.fetch(record.repository.full_name)
             guard credentials.generation == generation, accessible(fresh, since: revision) != nil else { return }
@@ -454,6 +457,7 @@ final class PersonalSources {
             guard let manifest = await offCooperativePool({ BackupManifest.compute(for: candidate) }) else {
                 throw PersonalGitHubSource.Failure("Cannot read all verified package contents.", .blocked)
             }
+            localInspection = false
             guard credentials.generation == generation, accessible(fresh, since: revision) != nil, self.record(path) == record, eligible() else { throw PersonalGitHubSource.Failure("The source or update route changed.") }
             if reveal {
                 guard let previousCheck = checked[path], identity == previousCheck.identity, manifest == previousCheck.manifest else { throw PersonalGitHubSource.Failure("The staged package changed.") }
@@ -483,10 +487,8 @@ final class PersonalSources {
                 messages[path] = "Verified \(identity.version) · \(identity.team ?? "") · SHA-256 matched."
             }
         } catch {
-            guard handleFailure(error, for: record, path: path, generation: generation, revision: revision) else {
-                if let scratch { try? FileManager.default.removeItem(at: scratch) }
-                return
-            }
+            guard !Task.isCancelled, !(error is CancellationError), (error as? URLError)?.code != .cancelled,
+                  handleFailure(error, for: record, path: path, generation: generation, revision: revision) else { return }
             switch (error as? PersonalGitHubSource.Failure)?.disposition {
             case .anonymousLimit: needsGitHubSettings.insert(path)
             case .repositoryAccess:
@@ -502,7 +504,6 @@ final class PersonalSources {
             discardChecked(path)
             messages[path] = error.localizedDescription
         }
-        if let scratch { try? FileManager.default.removeItem(at: scratch) }
     }
 
     private var installing = Set<String>()
@@ -533,15 +534,16 @@ final class PersonalSources {
     func startReplacement(_ result: UpdateResult, package: Checked, installed: @escaping @MainActor () async -> Void,
                           eligible: @escaping @MainActor () -> Bool) {
         let path = result.app.path.path
-        guard let binding = record(path), let grant = binding.grant, grant.path == path,
+        guard let binding = record(path), binding.replacementID == nil, let grant = binding.grant, grant.path == path,
+              !recovering.contains(path),
               !busy.contains(path), installing.insert(path).inserted else { return }
         busy.insert(path)
         installTasks[path] = Task {
             defer { installing.remove(path); busy.remove(path); installTasks[path] = nil }
             do {
-                try await replace(result, binding: binding, grant: grant, package: package, eligible: eligible)
-                if let binding = record(path), binding.anchor.code == package.identity.code,
-                   binding.confirmedVersion == package.identity.version { await installed() }
+                if try await replace(result, binding: binding, grant: grant, package: package, eligible: eligible) {
+                    await installed()
+                }
             } catch {
                 messages[path] = error is CancellationError ? String(localized: "Update canceled.") : error.localizedDescription
             }
@@ -549,10 +551,10 @@ final class PersonalSources {
     }
 
     private func replace(_ result: UpdateResult, binding: BindingRecord, grant: ReplacementGrant, package: Checked,
-                         eligible: @escaping @MainActor () -> Bool) async throws {
+                         eligible: @escaping @MainActor () -> Bool) async throws -> Bool {
         let target = result.app.path
         let path = target.path
-        guard package.permitsReplacement(using: binding) else { return }
+        guard package.permitsReplacement(using: binding) else { return false }
         let generation = credentials.generation
         let revision = repositoryRevision
         func validateLocal() throws {
@@ -581,19 +583,17 @@ final class PersonalSources {
         let lock = try InstallLock.acquire()
         defer { lock.release() }
         try await validateRelease()
+        // A personal source must never close a running app during preparation.
+        // The install path checks this again immediately before moving it.
+        try await offCooperativePool { try PersonalSourceReplacement.checkStopped(target) }
         let plan = try await offCooperativePool {
             try PersonalSourceReplacement.prepare(target: target, app: package.application, anchor: binding.anchor,
                 checked: package.identity, manifest: package.manifest, authorization: grant.id,
                 repository: binding.repository, track: binding.track, release: package.release, asset: package.asset)
         }
-        var committing = false
         let directory = plan.preparationDirectory
-        defer { if !committing { try? FileManager.default.removeItem(at: directory) } }
+        defer { try? FileManager.default.removeItem(at: directory) }
         try validateLocal()
-        switch await AppRestarter.quitForUpdate(result.app) {
-        case .notRunning, .quit: break
-        default: throw PersonalGitHubSource.Failure("Quit the app normally and try again.")
-        }
         let staged = directory.appendingPathComponent("Candidate.app")
         let inspected = try await PersonalSourceZIP.inspect(app: staged, installed: target, anchor: binding.anchor, tag: package.release.tag_name)
         guard inspected == plan.candidate else { throw PersonalGitHubSource.Failure("The staged app changed.") }
@@ -602,38 +602,39 @@ final class PersonalSources {
         }
         try await validateRelease()
         try validateLocal()
-        committing = true
-        do {
-            try await InstallCommit.run("personal GitHub update") { @MainActor in
-                guard self.record(path) == binding, eligible(), self.checked[path]?.identity == package.identity,
-                      self.credentials.generation == generation, self.accessible(self.snapshots[path], since: revision) != nil,
-                      self.installTasks[path]?.isCancelled == false else { throw CancellationError() }
-                var committingBinding = binding
-                committingBinding.replacementID = plan.preparationID
-                try self.save(committingBinding, path: path)
+        return try await InstallCommit.run("personal GitHub update", landed: { $0 }) { @MainActor in
+            guard self.record(path) == binding, eligible(), self.checked[path]?.identity == package.identity,
+                  self.credentials.generation == generation, self.accessible(self.snapshots[path], since: revision) != nil,
+                  self.installTasks[path]?.isCancelled == false else { throw CancellationError() }
+            var committingBinding = binding
+            committingBinding.replacementID = plan.preparationID
+            try self.save(committingBinding, path: path)
+            do {
                 guard self.defaults.synchronize() else { throw PersonalGitHubSource.Failure("Cannot save the recovery record.") }
                 try await offCooperativePool { try plan.commit() }
-            }
-        }
-        catch {
-            if (try? PersonalSourceReplacement.load(for: target))?.preparationID == plan.preparationID {
-                await reconcileReplacement(target)
-            } else {
-                committing = false
-                if var current = self.record(path), current.replacementID == plan.preparationID {
-                    current.replacementID = nil
-                    try save(current, path: path)
+            } catch {
+                switch await self.reconcileReplacement(target) {
+                case .installed: return true
+                case .needsReview: return false
+                case .original: throw error
                 }
             }
-            throw error
+            return await self.reconcileReplacement(target) == .installed
         }
-        await reconcileReplacement(target)
     }
 
-    private func reconcileReplacement(_ target: URL) async {
+    enum ReplacementSettlement { case installed, original, needsReview }
+
+    @discardableResult
+    func reconcileReplacement(
+        _ target: URL,
+        reconcile: @MainActor (PersonalSourceReplacement) async throws -> PersonalSourceReplacement.Outcome = { plan in
+            try await offCooperativePool { try plan.reconcile() }
+        }
+    ) async -> ReplacementSettlement {
         let path = target.path
         do {
-            guard var saved = record(path), let transaction = saved.replacementID else { return }
+            guard var saved = record(path), let transaction = saved.replacementID else { return .needsReview }
             guard let plan = try PersonalSourceReplacement.load(for: target) else {
                 guard try PersonalSourceZIP.Identity(at: target) == saved.anchor else {
                     throw PersonalGitHubSource.Failure("Recovery record is missing. Review the installation.")
@@ -641,46 +642,48 @@ final class PersonalSources {
                 saved.replacementID = nil
                 try save(saved, path: path)
                 recovering.remove(path)
-                return
+                return .original
             }
             guard plan.preparationID == transaction, saved.repository.id == plan.repositoryID,
                   saved.repository.owner.id == plan.ownerID, [plan.original, plan.candidate, plan.backupIdentity].contains(saved.anchor) else {
                 throw PersonalGitHubSource.Failure("The recovery record does not match this installation.")
             }
-            let outcome = try await offCooperativePool { try plan.reconcile() }
+            let outcome = try await reconcile(plan)
+            guard var current = record(path), current.replacementID == transaction,
+                  current.repository.id == plan.repositoryID, current.repository.owner.id == plan.ownerID,
+                  [plan.original, plan.candidate, plan.backupIdentity].contains(current.anchor) else {
+                throw PersonalGitHubSource.Failure("Source changed during recovery. Review the installation.")
+            }
             switch outcome {
             case .installed:
-                guard var binding = record(path), binding.repository.id == plan.repositoryID,
-                      binding.repository.owner.id == plan.ownerID, binding.anchor == plan.original || binding.anchor == plan.candidate else {
-                    throw PersonalGitHubSource.Failure("Source changed during recovery. Review the installation.")
-                }
-                binding.anchor = plan.candidate
-                binding.confirmedVersion = plan.candidate.version
-                binding.highestInstalledVersion = plan.candidate.version
-                binding.handoff = nil
-                try save(binding, path: path)
-                discardChecked(path)
-                messages[path] = String(localized: "Confirmed installation of \(plan.candidate.version).")
+                current.anchor = plan.candidate
+                current.confirmedVersion = plan.candidate.version
+                current.highestInstalledVersion = plan.candidate.version
+                current.handoff = nil
             case .restoredBackup:
-                saved.anchor = plan.backupIdentity
-                try save(saved, path: path)
-                fallthrough
+                current.anchor = plan.backupIdentity
             case .original:
-                discardChecked(path)
-                messages[path] = String(localized: "The original app is in place. Verify the update again.")
+                current.anchor = plan.original
             case .needsReview:
                 throw PersonalGitHubSource.Failure("Installation changed during recovery. Review the installed app and recovery files.")
             }
+            try save(current, path: path)
             guard defaults.synchronize() else { throw PersonalGitHubSource.Failure("Cannot save the installation result.") }
             try FileManager.default.removeItem(at: PersonalSourceReplacement.directory(for: target))
-            if var current = record(path) {
-                current.replacementID = nil
-                try save(current, path: path)
-            }
+            current.replacementID = nil
+            try save(current, path: path)
+            discardChecked(path)
             recovering.remove(path)
+            if outcome == .installed {
+                messages[path] = String(localized: "Confirmed installation of \(plan.candidate.version).")
+                return .installed
+            }
+            messages[path] = String(localized: "The original app is in place. Verify the update again.")
+            return .original
         } catch {
             recovering.insert(path)
             messages[path] = error.localizedDescription
+            return .needsReview
         }
     }
 
@@ -693,6 +696,26 @@ final class PersonalSources {
             await reconcileReplacement(URL(fileURLWithPath: path))
             busy.remove(path)
         }
+    }
+
+    func keepCurrentApp(_ target: URL) throws -> URL? {
+        let path = target.path
+        guard recovering.contains(path), !busy.contains(path), !installing.contains(path),
+              var binding = record(path), binding.replacementID != nil else { return nil }
+        let lock = try InstallLock.acquire()
+        defer { lock.release() }
+        let actual = try PersonalSourceZIP.Identity(at: target)
+        let archive = try PersonalSourceReplacement.archiveRecovery(for: target)
+        binding.replacementID = nil
+        binding.grant = nil
+        binding.handoff = nil
+        try save(binding, path: path)
+        recovering.remove(path)
+        clear(path)
+        if actual != binding.anchor {
+            messages[path] = "The installation changed (now \(actual.version)). Review the source to continue."
+        }
+        return archive
     }
 
     func recordHandoff(_ record: BindingRecord, checked: Checked, path: String) throws {

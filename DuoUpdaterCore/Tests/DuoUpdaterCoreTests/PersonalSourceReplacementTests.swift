@@ -5,7 +5,10 @@ import Testing
 struct PersonalSourceReplacementTests {
     private static let signedFixture = Task { await DigestOnlyInstallTests.teamSignedApp() }
 
-    enum Interruption: CaseIterable { case beforeMove, missing, damagedOriginal, foreign, committed, badBackup, externalUpdate, unwritable }
+    enum Interruption: CaseIterable {
+        case beforeMove, missing, damagedOriginal, damagedCandidate, damagedCandidateAndOriginal
+        case foreign, committed, badBackup, externalUpdate, unwritable
+    }
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["DUO_TEST_PERSONAL_TIGHT_VOLUME"] != nil))
     func insufficientSpacePreservesInstalledCopy() throws {
@@ -92,8 +95,11 @@ struct PersonalSourceReplacementTests {
             if interruption != .beforeMove {
                 try fm.moveItem(at: target, to: directory.appendingPathComponent("Original.app"))
             }
-            if interruption == .damagedOriginal {
+            if interruption == .damagedOriginal || interruption == .damagedCandidateAndOriginal {
                 try Data("damaged".utf8).write(to: directory.appendingPathComponent("Original.app/Contents/Info.plist"))
+            }
+            if interruption == .damagedCandidate || interruption == .damagedCandidateAndOriginal {
+                try Data("damaged".utf8).write(to: directory.appendingPathComponent("Candidate.app/Contents/Info.plist"))
             }
             if interruption == .foreign { try fm.copyItem(at: candidate, to: target) }
         }
@@ -104,7 +110,7 @@ struct PersonalSourceReplacementTests {
         case .committed:
             #expect(outcome == .installed)
             #expect(try PersonalSourceZIP.Identity(at: target) == plan.candidate)
-        case .damagedOriginal:
+        case .damagedOriginal, .damagedCandidateAndOriginal:
             #expect(outcome == .restoredBackup)
             #expect(try PersonalSourceZIP.Identity(at: target) == plan.backupIdentity)
         case .foreign, .externalUpdate:

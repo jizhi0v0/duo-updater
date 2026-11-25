@@ -83,6 +83,113 @@ import Testing
         }
     }
 
+    @Test func backupSettlementUsesAuthorizationAtWriteTime() async throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let target = root.appendingPathComponent("Demo.app")
+        let directory = PersonalSourceReplacement.directory(for: target)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        let store = PersonalSources(defaults: defaults)
+        let original = try JSONDecoder().decode(PersonalSourceZIP.Identity.self, from: Data(
+            #"{"bundle":"test.demo","version":"1","build":"1","team":"publisher","device":1,"inode":2}"#.utf8))
+        let backup = try JSONDecoder().decode(PersonalSourceZIP.Identity.self, from: Data(
+            #"{"bundle":"test.demo","version":"1","build":"1","team":"publisher","device":1,"inode":3}"#.utf8))
+        let candidate = try JSONDecoder().decode(PersonalSourceZIP.Identity.self, from: Data(
+            #"{"bundle":"test.demo","version":"2","build":"2","team":"publisher","device":1,"inode":4}"#.utf8))
+        let repo = PersonalGitHubSource.Repository(id: 1, full_name: "example/demo", owner: .init(id: 2))
+        let grant = PersonalSources.ReplacementGrant(id: UUID(), path: target.path, requirement: "publisher")
+        let manifest = BackupManifest(digest: "", fileCount: 0)
+        let asset = PersonalGitHubSource.Asset(id: 5, name: "Demo.zip", size: 10, digest: nil, updated_at: "")
+        let plan = PersonalSourceReplacement(target: target, preparationID: UUID(), original: original,
+            backupIdentity: backup, candidate: candidate, originalManifest: manifest, candidateManifest: manifest,
+            authorization: grant.id, repositoryID: repo.id, ownerID: repo.owner.id, track: .preview,
+            releaseID: 6, asset: asset, tag: "2", preparationDirectory: root)
+        try JSONEncoder().encode(plan).write(to: directory.appendingPathComponent("transaction.json"))
+        let prior = PersonalSources.BindingRecord(schema: 2, repository: repo, track: .preview, filenameContains: "demo",
+            includeStable: true, anchor: original, confirmedVersion: "1", highestInstalledVersion: "1",
+            replacementID: plan.preparationID, grant: grant)
+        try store.save(prior, path: target.path)
+
+        let outcome = await store.reconcileReplacement(target) { loaded in
+            #expect(loaded.preparationID == plan.preparationID)
+            try store.setReplacement(false, path: target.path)
+            #expect(store.record(target.path)?.replacementID == plan.preparationID)
+            return .restoredBackup
+        }
+        #expect(outcome == .original)
+        var expected = prior
+        expected.anchor = backup
+        expected.grant = nil
+        expected.replacementID = nil
+        #expect(PersonalSources(defaults: defaults).record(target.path) == expected)
+        #expect(!FileManager.default.fileExists(atPath: directory.path))
+    }
+
+    @Test func keepingAnExternalCopyArchivesRecoveryAndRetainsSourceSettings() async throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let target = root.appendingPathComponent("Demo.app")
+        let path = target.path
+        let directory = PersonalSourceReplacement.directory(for: target)
+        let journal = directory.appendingPathComponent("transaction.json")
+        let store = PersonalSources(defaults: defaults)
+        let original = try JSONDecoder().decode(PersonalSourceZIP.Identity.self, from: Data(
+            #"{"bundle":"test.demo","version":"1","build":"1","device":1,"inode":2}"#.utf8))
+        let repo = PersonalGitHubSource.Repository(id: 1, full_name: "example/demo", owner: .init(id: 2))
+        let pending = UUID()
+        let grant = PersonalSources.ReplacementGrant(id: UUID(), path: path, requirement: "publisher")
+        let prior = PersonalSources.BindingRecord(schema: 2, repository: repo, track: .preview, filenameContains: "demo",
+            includeStable: true, anchor: original, confirmedVersion: "1", highestInstalledVersion: "1",
+            replacementID: pending, grant: grant)
+        try store.save(prior, path: path)
+
+        // An absent volume and an unreadable journal both keep the pointer.
+        #expect(await store.reconcileReplacement(target) == .needsReview)
+        #expect(PersonalSources(defaults: defaults).record(path) == prior)
+        #expect(throws: (any Error).self) { try store.keepCurrentApp(target) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        #expect(throws: (any Error).self) { try PersonalSourceReplacement.load(for: target) }
+        let corrupt = Data("incomplete record".utf8)
+        try corrupt.write(to: journal)
+        #expect(await store.reconcileReplacement(target) == .needsReview)
+        #expect(PersonalSources(defaults: defaults).record(path) == prior)
+
+        let contents = target.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let info = ["CFBundleIdentifier": "test.demo", "CFBundleShortVersionString": "1.3"]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+            .write(to: contents.appendingPathComponent("Info.plist"))
+        let foreign = try PersonalSourceZIP.Identity(at: target)
+        let archive = try #require(try store.keepCurrentApp(target))
+        #expect(try PersonalSourceZIP.Identity(at: target) == foreign)
+        #expect(!FileManager.default.fileExists(atPath: directory.path))
+        #expect(try Data(contentsOf: archive.appendingPathComponent("transaction.json")) == corrupt)
+        #expect(!store.recovering.contains(path))
+        var expected = prior
+        expected.grant = nil
+        expected.replacementID = nil
+        #expect(PersonalSources(defaults: defaults).record(path) == expected)
+        let validation = PersonalGitHubSource.Snapshot(repository: repo, releases: [], checked: .now, truncated: false)
+        try store.saveConfiguration(for: target, repository: repo.full_name, track: .preview,
+                                    filters: ["Preview": "demo"], includeStable: true,
+                                    validation: (validation, foreign, store.repositoryRevision))
+        #expect(store.record(path)?.anchor == foreign)
+        #expect(store.record(path)?.grant == nil)
+        #expect(store.record(path)?.highestInstalledVersion == "1")
+    }
+
     @Test func credentialChangesInvalidatePrivateHistoryAndEditorEvidence() async throws {
         let credentials = GitHubCredentials()
         try await GitHubCredentials.$current.withValue(credentials) {
@@ -184,6 +291,21 @@ import Testing
             credentials.changed()
             store.credentialsDidChange()
             #expect(store.snapshot(for: app.path)?.releases.count == 1)
+
+            // A third editor can learn of a denial by name alone. A partial
+            // refresh may already have saved the renamed slug on one copy.
+            let renamed = PersonalGitHubSource.Repository(id: repo.id, full_name: "org/renamed", owner: repo.owner)
+            let renamedPreview = PersonalGitHubSource.Snapshot(repository: renamed, releases: [release], checked: .now,
+                                                               truncated: false)
+            await store.refresh(secondApp) { _ in renamedPreview }
+            #expect(store.snapshot(for: second.path)?.repository == renamed)
+            let savedBeforeDenial = store.record(second.path)
+            store.repositoryDenied(repo.full_name, id: nil, since: store.repositoryRevision, message: "HTTP 404")
+            #expect(store.snapshot(for: app.path) == nil)
+            #expect(store.snapshot(for: second.path) == nil)
+            #expect(store.paused.contains(second.path))
+            #expect(PersonalSources(defaults: defaults).record(second.path) == savedBeforeDenial)
+            #expect(FileManager.default.fileExists(atPath: delivered.path))
         }
     }
 

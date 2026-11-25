@@ -402,14 +402,7 @@ struct WorkbenchWindowView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ForEach(PersonalSources.shared.recovering.sorted(), id: \.self) { path in
-                HStack {
-                    Label("Update recovery needs attention", systemImage: "exclamationmark.triangle")
-                    Text(verbatim: path).lineLimit(1).truncationMode(.middle).help(path)
-                    Spacer()
-                    Button("Show Recovery Files") {
-                        NSWorkspace.shared.activateFileViewerSelecting([PersonalSourceReplacement.directory(for: URL(fileURLWithPath: path))])
-                    }
-                }.padding(8).background(.bar)
+                PersonalSourceRecoveryNotice(path: path)
             }
         }
         .navigationTitle("DuoUpdater")

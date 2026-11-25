@@ -83,7 +83,7 @@ struct PersonalSourceControls: View {
                         }
                     }
                     Button("Check Again") { Task { await store.refresh(result.app) } }
-                        .disabled(isRoundInFlight || store.busy.contains(path))
+                        .disabled(isRoundInFlight || store.busy.contains(path) || record.replacementID != nil)
                     Divider()
                     if let page = GitSource.page(repository: record.repository, release: nil) {
                         Link("Open release page", destination: page)
@@ -249,6 +249,37 @@ struct PersonalSourceAction: View {
                 return model.acceptsPersonalSource(row)
             }
         }
+    }
+}
+
+struct PersonalSourceRecoveryNotice: View {
+    let path: String
+    @State private var confirming = false
+    private let store = PersonalSources.shared
+    private var target: URL { URL(fileURLWithPath: path) }
+
+    var body: some View {
+        HStack {
+            Label("Update recovery needs attention", systemImage: "exclamationmark.triangle")
+            Text(verbatim: path).lineLimit(1).truncationMode(.middle).help(store.messages[path] ?? path)
+            Spacer()
+            Button("Show Recovery Files") {
+                NSWorkspace.shared.activateFileViewerSelecting([PersonalSourceReplacement.directory(for: target)])
+            }
+            Button("Keep Current App") { confirming = true }
+                .disabled(store.busy.contains(path) || store.replacing(path))
+                .confirmationDialog("Keep Current App", isPresented: $confirming, titleVisibility: .visible) {
+                    Button("Keep Current App") {
+                        do {
+                            if let archive = try store.keepCurrentApp(target) {
+                                NSWorkspace.shared.activateFileViewerSelecting([archive])
+                            }
+                        } catch { store.messages[path] = error.localizedDescription }
+                    }
+                } message: {
+                    Text("Duo Updater will keep the app at this path, preserve any recovery files, and revoke its one-click authorization.")
+                }
+        }.padding(8).background(.bar)
     }
 }
 

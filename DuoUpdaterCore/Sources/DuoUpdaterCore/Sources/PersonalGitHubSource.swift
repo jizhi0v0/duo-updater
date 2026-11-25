@@ -206,8 +206,11 @@ public actor PersonalGitHubClient {
     private let metadataSession: URLSession
     private let assetSession: URLSession
     private let resolveToken: @Sendable () async -> String?
-    private enum Access: Hashable { case anonymous, authenticated(Int) }
-    private struct Lookup: Hashable { let slug: String; let access: Access }
+    private struct Lookup: Hashable {
+        let slug: String
+        let generation: Int
+        let authenticated: Bool
+    }
     private struct LookupInProgress {
         let task: Task<PersonalGitHubSource.Snapshot, Error>
         var callers: Set<UUID>
@@ -231,8 +234,14 @@ public actor PersonalGitHubClient {
         let generation = GitHubCredentials.current.generation
         let token = await resolveToken()
         guard GitHubCredentials.current.generation == generation else { return try await fetch(input) }
-        let key = Lookup(slug: slug, access: token != nil && !GitHubCredentials.current.isRejected ? .authenticated(generation) : .anonymous)
         try Task.checkCancellation()
+        // Stale lookups cannot produce usable results and must not use up the
+        // new credential generation's request slots.
+        for stale in pending.keys where stale.generation != generation {
+            pending.removeValue(forKey: stale)?.task.cancel()
+        }
+        let requestToken = GitHubCredentials.current.isRejected(generation: generation) ? nil : token
+        let key = Lookup(slug: slug, generation: generation, authenticated: requestToken != nil)
         let caller = UUID()
         let task: Task<PersonalGitHubSource.Snapshot, Error>
         if let existing = pending[key] {
@@ -240,7 +249,7 @@ public actor PersonalGitHubClient {
             pending[key]?.callers.insert(caller)
         } else {
             guard pending.count < 2 else { throw Source.Failure("Other GitHub sources are being checked. Try again shortly.") }
-            task = Task(priority: .utility) { try await load(slug, token: token, generation: generation) }
+            task = Task(priority: .utility) { try await load(slug, token: requestToken, generation: generation) }
             pending[key] = LookupInProgress(task: task, callers: [caller])
         }
         defer { finishLookup(key, caller: caller) }

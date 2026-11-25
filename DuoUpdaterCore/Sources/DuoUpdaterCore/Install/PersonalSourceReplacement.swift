@@ -77,22 +77,21 @@ public struct PersonalSourceReplacement: Codable, Sendable {
     private static func verifyExternalServices(bundle: URL) throws {
         let fm = FileManager.default
         let id = try Identity(at: bundle).bundle
+        let appName = bundle.deletingPathExtension().lastPathComponent.lowercased()
+        let namespace = id.lowercased().split(separator: ".").dropLast()
         for plist in try fm.contentsOfDirectory(at: URL(fileURLWithPath: "/Library/LaunchDaemons"),
                                                 includingPropertiesForKeys: nil) where plist.pathExtension == "plist" {
             // A machine may have unrelated, root-private launchd configuration.
             // A matching vendor namespace or app name is evidence about this app.
             let serviceName = plist.deletingPathExtension().lastPathComponent.lowercased()
-            let appName = bundle.deletingPathExtension().lastPathComponent.lowercased()
-            let namespace = id.lowercased().split(separator: ".").dropLast().joined(separator: ".")
-            if !fm.isReadableFile(atPath: plist.path) {
-                guard !serviceName.contains(appName), !namespace.isEmpty, !serviceName.hasPrefix(namespace + ".") else {
+            let related = serviceName == id.lowercased() || serviceName.hasPrefix(id.lowercased() + ".") ||
+                serviceName.contains(appName) || (namespace.count >= 2 && serviceName.hasPrefix(namespace.joined(separator: ".") + "."))
+            guard let data = try? Data(contentsOf: plist),
+                  let job = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] else {
+                if related {
                     throw Failure("Cannot verify this app’s privileged service.")
                 }
                 continue
-            }
-            let data = try Data(contentsOf: plist)
-            guard let job = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
-                throw Failure("Cannot verify installed privileged services.")
             }
             let executable = (job["Program"] as? String) ?? (job["ProgramArguments"] as? [String])?.first
             let label = job["Label"] as? String ?? ""
@@ -117,16 +116,23 @@ public struct PersonalSourceReplacement: Codable, Sendable {
     private var displaced: URL { directory.appendingPathComponent("Original.app") }
     private var backup: URL { directory.appendingPathComponent("Backup.app") }
 
-    public static func load(for target: URL) throws -> Self? {
-        let url = directory(for: target).appendingPathComponent("transaction.json")
+    private static func existingRecoveryDirectory(for target: URL) throws -> URL? {
         var dirStat = stat()
         let folder = directory(for: target)
-        if lstat(folder.path, &dirStat) != 0 && errno == ENOENT { return nil }
+        guard lstat(folder.path, &dirStat) == 0 else {
+            if errno == ENOENT { return nil }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
         guard (dirStat.st_mode & S_IFMT) == S_IFDIR, dirStat.st_uid == geteuid(), dirStat.st_mode & 0o077 == 0 else {
             throw Failure("Cannot verify the recovery directory.")
         }
+        return folder
+    }
+
+    public static func load(for target: URL) throws -> Self? {
+        guard let folder = try existingRecoveryDirectory(for: target) else { return nil }
+        let url = folder.appendingPathComponent("transaction.json")
         var st = stat()
-        if lstat(url.path, &st) != 0 && errno == ENOENT { return nil }
         let fd = open(url.path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard fd >= 0 else { throw Failure("Cannot read the recovery record.") }
         let file = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
@@ -138,6 +144,18 @@ public struct PersonalSourceReplacement: Codable, Sendable {
         let plan = try JSONDecoder().decode(Self.self, from: data)
         guard plan.target.isFileURL, plan.target.path == target.path else { throw Failure("The saved installation path changed. Review recovery files.") }
         return plan
+    }
+
+    /// Explicitly retain an unresolved transaction for inspection. The caller
+    /// holds the install lock and has confirmed keeping the occupied target.
+    public static func archiveRecovery(for target: URL) throws -> URL? {
+        guard let folder = try existingRecoveryDirectory(for: target) else { return nil }
+        let parent = folder.deletingLastPathComponent()
+        let archive = parent.appendingPathComponent(folder.lastPathComponent + "-recovery-" + UUID().uuidString,
+                                                    isDirectory: true)
+        try moveExclusive(folder, archive)
+        try syncDirectory(parent)
+        return archive
     }
 
     public static func prepare(target: URL, app: URL, anchor: Identity, checked: Identity, manifest: BackupManifest,
@@ -196,45 +214,57 @@ public struct PersonalSourceReplacement: Codable, Sendable {
         let handle = try FileHandle(forWritingTo: file)
         try handle.synchronize()
         try handle.close()
-        try syncDirectory(preparationDirectory)
-        try moveExclusive(preparationDirectory, directory)
-        try syncDirectory(target.deletingLastPathComponent())
+        try Self.syncDirectory(preparationDirectory)
+        try Self.moveExclusive(preparationDirectory, directory)
+        try Self.syncDirectory(target.deletingLastPathComponent())
         guard try Identity(at: target) == original, try Identity(at: staged) == candidate else {
             throw Failure("The installation or verified package changed.")
         }
         try Self.checkStopped(target)
-        try moveExclusive(target, displaced)
+        try Self.moveExclusive(target, displaced)
         // An external updater could have won immediately before our first rename.
         // Put the exact object back, exclusively, before using our candidate.
         guard matches(displaced, original, originalManifest) else {
-            try moveExclusive(displaced, target)
+            try Self.moveExclusive(displaced, target)
             throw Failure("Another updater changed this installation.")
         }
         guard matches(staged, candidate, candidateManifest) else { throw Failure("The staged app changed before replacement.") }
-        try moveExclusive(staged, target)
-        try syncDirectory(directory)
-        try syncDirectory(target.deletingLastPathComponent())
+        try Self.moveExclusive(staged, target)
+        try syncResult()
     }
 
     public enum Outcome: Sendable { case installed, original, restoredBackup, needsReview }
 
     public func reconcile() throws -> Outcome {
-        if matches(target, candidate, candidateManifest) { return .installed }
-        if matches(target, original, originalManifest) { return .original }
-        if matches(target, backupIdentity, originalManifest) { return .restoredBackup }
+        if matches(target, candidate, candidateManifest) {
+            try syncResult()
+            return .installed
+        }
+        if matches(target, original, originalManifest) {
+            try syncResult()
+            return .original
+        }
+        if matches(target, backupIdentity, originalManifest) {
+            try syncResult()
+            return .restoredBackup
+        }
         var st = stat()
         // The candidate still at its original inode proves it was never delivered.
         // With the exact displaced original this identifies our interrupted move.
-        guard lstat(target.path, &st) != 0, errno == ENOENT, matches(staged, candidate, candidateManifest),
+        guard lstat(target.path, &st) != 0, errno == ENOENT, inodeMatches(staged, candidate),
               inodeMatches(displaced, original) else { return .needsReview }
         try Self.checkStopped(target)
         if !matches(displaced, original, originalManifest) {
             guard matches(backup, backupIdentity, originalManifest) else { return .needsReview }
-            try moveExclusive(backup, target)
-            return matches(target, backupIdentity, originalManifest) ? .restoredBackup : .needsReview
+            try Self.moveExclusive(backup, target)
+            guard matches(target, backupIdentity, originalManifest) else { return .needsReview }
+            try syncResult()
+            return .restoredBackup
         }
-        try moveExclusive(displaced, target)
-        return matches(target, original, originalManifest) ? .original : .needsReview
+        try Self.moveExclusive(displaced, target)
+        guard matches(target, original, originalManifest) else { return .needsReview }
+        try syncResult()
+        return .original
     }
 
     /// A displaced original can have damaged contents while its volume and
@@ -247,9 +277,11 @@ public struct PersonalSourceReplacement: Codable, Sendable {
 
     public static func checkStopped(_ target: URL) throws {
         let processes = NestedAppGuard.liveProcesses(includeUninspectable: true)
-        guard !processes.isEmpty, !processes.contains(where: { $0.pid == 0 }),
-              !AutomaticInstall.hasRunningProcess(at: target, processes: processes) else {
-            throw Failure("The app is running or its processes could not be checked.")
+        guard !processes.isEmpty, !processes.contains(where: { $0.pid == 0 }) else {
+            throw Failure("Running processes could not be checked.")
+        }
+        guard !AutomaticInstall.hasRunningProcess(at: target, processes: processes) else {
+            throw Failure("Quit the app normally and try again.")
         }
         try NestedAppGuard.check(target, appName: target.deletingPathExtension().lastPathComponent) { processes }
     }
@@ -262,13 +294,18 @@ public struct PersonalSourceReplacement: Codable, Sendable {
         } catch { return false }
     }
 
-    private func moveExclusive(_ from: URL, _ to: URL) throws {
+    private func syncResult() throws {
+        try Self.syncDirectory(directory)
+        try Self.syncDirectory(target.deletingLastPathComponent())
+    }
+
+    private static func moveExclusive(_ from: URL, _ to: URL) throws {
         guard renamex_np(from.path, to.path, UInt32(RENAME_EXCL)) == 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
     }
 
-    private func syncDirectory(_ url: URL) throws {
+    private static func syncDirectory(_ url: URL) throws {
         let fd = open(url.path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
         defer { close(fd) }

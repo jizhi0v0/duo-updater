@@ -56,3 +56,4 @@
 - [聚焦时的格式提示](./redesign-focus.png)常驻仓库框下。真实 gh 查询返回[仓库校验结果](./redesign-verified.png)，卡片显示仓库、Stable、v1.0.7 和 KeyRemap-1.0.7.zip，并单独说明安装包尚未验签。
 - 视觉 agent 在同一安装副本分别填写 Stable 的 KeyRemap、Preview 的 beta-only 和 Nightly 的 nightly-arm。保存后重开编辑器，切换发布线可分别读回三个值。[Nightly 筛选](./redesign-nightly-filter.png)
 - 6 项 Core 测试及 App 配置测试通过，覆盖取消唯一在途查询、旧记录默认归入其活动发布线和多发布线保存。使用独立签名 QA 偏好及钥匙串服务；慢响应场景额外延迟 8 秒交回真实查询结果，用于观察按钮和取消后的状态。
+- 修正后再验：[校验进行中](./redesign-loading.png) 的原位按钮可被辅助功能识别为“Cancel validation”，支持 AXPress。[悬停时](./redesign-hover.png)显示 × Cancel；取消后草稿保留，晚到的回复没有覆盖状态。底部 Close 可在校验期间直接关闭编辑器。测试关联已移除，独立测试环境已清理。

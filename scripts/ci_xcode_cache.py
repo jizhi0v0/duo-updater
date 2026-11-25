@@ -14,7 +14,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import sys
+import tempfile
+
+import ci_mini_core_cache as mini
 
 
 CONFIG = (
@@ -30,6 +35,7 @@ CONFIG = (
     "scripts/check_localizable_keys.py",
     "scripts/ci_build_cache.py",
     "scripts/ci_xcode_cache.py",
+    "scripts/ci_mini_core_cache.py",
     "scripts/pinned-xcodegen.sh",
 )
 
@@ -49,8 +55,65 @@ def cache_key(root, toolchain):
     return "xcode-v1-" + digest.hexdigest()[:24]
 
 
+def mini_slot(workspace):
+    slot = workspace.parent / ".duo-app-cache"
+    if slot.is_symlink():
+        raise ValueError(f"Unexpected symlink in App cache path: {slot}")
+    return slot
+
+
+def prepare_mini(workspace, platform):
+    try:
+        slot = mini_slot(workspace)
+        if shutil.disk_usage(workspace).free < mini.MIN_FREE_BYTES:
+            if slot.is_dir():
+                shutil.rmtree(slot)
+            raise OSError("insufficient disk space for a persistent App cache")
+        key = cache_key(workspace, platform)
+        mini.prepare(slot, key, "Xcode")
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print(f"::warning::Using temporary Xcode build directories: {error}")
+        slot = Path(tempfile.mkdtemp(prefix="duo-app-ci.", dir=os.environ["RUNNER_TEMP"]))
+        key = ""
+    with open(os.environ["GITHUB_ENV"], "a") as env:
+        print(f"MINI_APP_SCRATCH={slot}", file=env)
+        print(f"MINI_APP_CACHE_KEY={key}", file=env)
+
+
+def save_mini(workspace, key):
+    if not key:
+        return
+    try:
+        slot = mini_slot(workspace)
+        # CI's failure upload uses globs, so old test reports must not survive.
+        # Keep Xcode's build state together, including the SDK stat cache.
+        for name in ("build", "localizable"):
+            directory = slot / name
+            if directory.is_symlink():
+                raise ValueError(f"Unexpected DerivedData symlink: {directory}")
+            for pattern in ("Logs", "Index.noindex", "ci-xcresult", "app-tests-*.log", "app-tests-*.xcresult"):
+                for entry in directory.glob(pattern):
+                    if entry.is_symlink() or not entry.is_dir():
+                        entry.unlink()
+                    else:
+                        shutil.rmtree(entry)
+        mini.save(slot, key, "Xcode", max_kib=8 * 1024**2)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print(f"::warning::Could not save the Xcode cache: {error}")
+
+
 def main():
     root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
+    if len(sys.argv) > 1:
+        if root.resolve() != Path(os.environ["GITHUB_WORKSPACE"]).resolve() or os.environ["GITHUB_JOB"] != "app":
+            sys.exit("Expected the App runner checkout")
+        if sys.argv[1:] == ["prepare-mini"]:
+            prepare_mini(root.resolve(), os.environ["MINI_PLATFORM"])
+        elif sys.argv[1:] == ["save-mini"]:
+            save_mini(root.resolve(), os.environ["MINI_APP_CACHE_KEY"])
+        else:
+            sys.exit("usage: ci_xcode_cache.py [prepare-mini|save-mini]")
+        return
     commands = (["xcodebuild", "-version"], ["swift", "--version"],
                 ["xcrun", "--sdk", "macosx", "--show-sdk-version"],
                 ["sw_vers", "-buildVersion"], ["uname", "-m"])

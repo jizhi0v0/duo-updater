@@ -83,6 +83,39 @@ class Compatibility(unittest.TestCase):
         self.git("add", "README.md")
         self.assertEqual(self.current(), self.key)
 
+    def test_mini_reuses_products_but_only_after_a_complete_run(self):
+        checkout = self.root
+        slot_parent = checkout / "runner"
+        slot_parent.mkdir()
+        workspace = slot_parent / "checkout"
+        # The helper stamps the current checkout, just as it does in Actions.
+        subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+        env_file = checkout / "env"
+        old = Path.cwd()
+        os.chdir(workspace)
+        self.addCleanup(os.chdir, old)
+        with mock.patch.dict(os.environ, {"GITHUB_ENV": str(env_file), "RUNNER_TEMP": str(checkout)}), \
+             mock.patch.object(cache.mini, "MIN_FREE_BYTES", 0):
+            cache.prepare_mini(workspace, "platform")
+            slot = cache.mini_slot(workspace)
+            key = cache.cache_key(workspace, "platform")
+            for name in ("build", "localizable"):
+                dd = slot / name
+                (dd / "Build").mkdir(parents=True)
+                (dd / "Build/product").touch()
+                (dd / "app-tests-123.log").touch()
+                (dd / "app-tests-123.xcresult").mkdir()
+                (dd / "Logs").mkdir()
+            cache.save_mini(workspace, key)
+            self.assertEqual((slot / cache.mini.READY).read_text(), key)
+            cache.prepare_mini(workspace, "platform")
+            for name in ("build", "localizable"):
+                self.assertEqual(sorted(p.name for p in (slot / name).iterdir()), ["Build"])
+                self.assertTrue((slot / name / "Build/product").is_file())
+            # Cancel before save. The next job must discard both build trees.
+            cache.prepare_mini(workspace, "platform")
+            self.assertEqual(list(slot.iterdir()), [])
+
     def test_localization_keeps_its_own_sparkle_artifacts_with_shared_modules(self):
         project = self.root / "DuoUpdater.xcodeproj"
         project.mkdir()

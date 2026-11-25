@@ -1111,7 +1111,10 @@ final class AppListModel {
     /// blind pass indefinitely: the count filters `results`, and a deleted app has
     /// no row there.
     func needsAction(_ result: UpdateResult) -> Bool {
-        UpdatePolicy.needsAction(
+        if PersonalSources.shared.candidate(result) != nil,
+           PersonalSources.shared.record(result.app.path.path)?.handoff == nil,
+           acceptsPersonalSource(result) { return true }
+        return UpdatePolicy.needsAction(
             result,
             isIgnored: prefs.isIgnored(result.app),
             isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) },
@@ -3575,6 +3578,14 @@ final class AppListModel {
     }
 
     private func performRefresh(intent: RefreshIntent) async {
+        defer {
+            let subscriptions = results.filter { PersonalSources.shared.records[$0.app.path.path] != nil }
+            if !subscriptions.isEmpty {
+                Task(priority: .utility) {
+                    await PersonalSources.shared.refreshRegistered(subscriptions.map(\.app))
+                }
+            }
+        }
         // Without Full Disk Access no read of TestFlight's store can succeed, and on
         // macOS 27 each attempt costs the user a "Data Access Blocked" notice — so
         // none is attempted: not the store, not the sync that exists to feed it, not
@@ -4418,6 +4429,9 @@ final class AppListModel {
         await computeSelfUpdateStaging()
         await refreshBackupIndex()
         syncDockBadge()
+        for row in results where PersonalSources.shared.records[row.app.path.path] != nil {
+            await PersonalSources.shared.reconcileLocal(row.app)
+        }
         await repairStaleXcodeCopyNames()
     }
 

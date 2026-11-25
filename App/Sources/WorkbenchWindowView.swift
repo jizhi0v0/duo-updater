@@ -1772,6 +1772,9 @@ struct WorkbenchWindowView: View {
         let hasBackup = model.backupVersion(result.id) != nil
         VStack(alignment: .leading, spacing: 0) {
             DetailHeader(result: result, model: model)
+            if result.app.bundleID != nil && result.app.path.pathExtension.lowercased() == "app" {
+                PersonalSourcePanel(result: result, model: model).id(result.app.path)
+            }
             if let sunset = ProductSunsetCatalog.sunset(forBundleID: result.app.bundleID) {
                 ProductSunsetNotice(name: result.app.name, sunset: sunset)
                     .padding(.horizontal, 16)
@@ -1796,7 +1799,9 @@ struct WorkbenchWindowView: View {
                 .padding(.bottom, 10)
             }
             Divider()
-            DetailLenses(result: result, model: model, lens: hasBackup ? detailMode : .releaseNotes)
+            if !(model.acceptsPersonalSource(result) && PersonalSources.shared.snapshots[result.app.path.path] != nil && (!hasBackup || detailMode == .releaseNotes)) {
+                DetailLenses(result: result, model: model, lens: hasBackup ? detailMode : .releaseNotes)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -3578,44 +3583,48 @@ private struct DetailHeader: View {
                 // The contextual primary action (Update / Relaunch / Get),
                 // so an update can be acted on right here while its notes are open —
                 // no trip back to the menu-bar popover.
-                WorkbenchRowAction(
-                    state: model.rowState(for: result),
-                    result: result,
-                    actions: RowActions.live(
-                        install: { Task { await model.install(result) } },
-                        installBackingUpOnce: { Task { await model.install(result, backUpOnce: true) } },
-                        openStagedPackage: { Task { await model.openStagedPackage(result) } },
-                        retry: { Task { await model.retry(result) } },
-                        restart: { Task { await model.restart(result) } },
-                        relaunchStaged: { Task { await model.relaunchStagedUpdate(result) } },
-                        confirmQuit: { model.confirmQuit(result.id, proceed: true) },
-                        openSelfUpdater: { model.openSelfUpdater(result) },
-                        openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight(for: result) },
-                        openHomebrewSuite: { cask in
-                            model.requestedWorkbenchHomebrewCask = cask
-                            model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
-                        },
-                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                        openTestFlightSetting: {
-                            model.requestedSettingsSection = .general
-                            model.requestedSettingsAnchor = .testFlightDetection
-                            openWindow(id: SettingsView.windowID)
-                            model.surfaceWindow(sceneID: SettingsView.windowID)
-                        },
-                        openBackupSetting: {
-                            model.requestedSettingsAnchor = .keepBackups
-                            openWindow(id: SettingsView.windowID)
-                            model.surfaceWindow(sceneID: SettingsView.windowID)
-                        },
-                        signInToAppleDeveloper: { model.signInToAppleDeveloper() },
-                        cancelInstall: { model.cancelInstall(result) },
-                        restoreInterrupted: { Task { await model.restoreInterrupted(result) } },
-                        retryPausedUntil: model.gitHubPausedUntil),
-                    helperEnabled: model.helperEnabled,
-                    testFlightUnboundedReason: model.testFlightUnboundedReason,
-                    installCancel: model.installRows.cancels[result.id],
-                    installCancelPending: model.installRows.cancelPending.contains(result.id))
+                if PersonalSources.shared.record(result.app.path.path) != nil, model.acceptsPersonalSource(result) {
+                    PersonalSourceAction(result: result, model: model)
+                } else {
+                    WorkbenchRowAction(
+                        state: model.rowState(for: result),
+                        result: result,
+                        actions: RowActions.live(
+                            install: { Task { await model.install(result) } },
+                            installBackingUpOnce: { Task { await model.install(result, backUpOnce: true) } },
+                            openStagedPackage: { Task { await model.openStagedPackage(result) } },
+                            retry: { Task { await model.retry(result) } },
+                            restart: { Task { await model.restart(result) } },
+                            relaunchStaged: { Task { await model.relaunchStagedUpdate(result) } },
+                            confirmQuit: { model.confirmQuit(result.id, proceed: true) },
+                            openSelfUpdater: { model.openSelfUpdater(result) },
+                            openToolbox: { model.openToolbox() },
+                            openTestFlight: { model.openTestFlight(for: result) },
+                            openHomebrewSuite: { cask in
+                                model.requestedWorkbenchHomebrewCask = cask
+                                model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                            },
+                            grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+                            openTestFlightSetting: {
+                                model.requestedSettingsSection = .general
+                                model.requestedSettingsAnchor = .testFlightDetection
+                                openWindow(id: SettingsView.windowID)
+                                model.surfaceWindow(sceneID: SettingsView.windowID)
+                            },
+                            openBackupSetting: {
+                                model.requestedSettingsAnchor = .keepBackups
+                                openWindow(id: SettingsView.windowID)
+                                model.surfaceWindow(sceneID: SettingsView.windowID)
+                            },
+                            signInToAppleDeveloper: { model.signInToAppleDeveloper() },
+                            cancelInstall: { model.cancelInstall(result) },
+                            restoreInterrupted: { Task { await model.restoreInterrupted(result) } },
+                            retryPausedUntil: model.gitHubPausedUntil),
+                        helperEnabled: model.helperEnabled,
+                        testFlightUnboundedReason: model.testFlightUnboundedReason,
+                        installCancel: model.installRows.cancels[result.id],
+                        installCancelPending: model.installRows.cancelPending.contains(result.id))
+                }
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")

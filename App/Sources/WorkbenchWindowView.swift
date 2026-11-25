@@ -3882,7 +3882,24 @@ private struct ReleaseNotesPane: View {
     let usesPersonalSource: Bool
 
     private var personalChangelog: Changelog? {
-        PersonalSources.shared.snapshots[result.app.path.path]?.changelog
+        let path = result.app.path.path
+        guard let binding = PersonalSources.shared.record(path) else { return nil }
+        return PersonalSources.shared.snapshots[path]?.changelog(
+            track: binding.track, installed: binding.anchor.version, includeStable: binding.includeStable)
+    }
+
+    @ViewBuilder
+    private func personalNotes(_ notes: Changelog) -> some View {
+        if notes.entries.isEmpty {
+            ContentUnavailableView {
+                Label("No release notes", systemImage: "doc.text.magnifyingglass")
+            } description: {
+                Text(PersonalSources.shared.snapshots[result.app.path.path]?.truncated == true
+                     ? "No match in the latest 60 releases." : "No matching releases.")
+            }
+        } else {
+            ChangelogEntriesView(changelog: notes)
+        }
     }
 
     private var changelogURL: URL? {
@@ -3945,7 +3962,7 @@ private struct ReleaseNotesPane: View {
 
     var body: some View {
         if usesPersonalSource, let notes = personalChangelog {
-            ChangelogEntriesView(changelog: notes)
+            personalNotes(notes)
         } else if let feed = RexChangelog.feed(for: result), let history = result.remote?.structuredChangelog {
             RexReleaseNotesPane(appID: result.app.id, history: history)
                 .id(feed)
@@ -4009,7 +4026,7 @@ private struct ReleaseNotesPane: View {
             CachedWebView(url: url)
                 .onAppear { logWebViewPane(url, via: "direct") }
         } else if let notes = personalChangelog {
-            ChangelogEntriesView(changelog: notes)
+            personalNotes(notes)
         } else {
             emptyNotes
         }
@@ -4031,7 +4048,7 @@ private struct ReleaseNotesPane: View {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         } else if let notes = personalChangelog {
-            ChangelogEntriesView(changelog: notes)
+            personalNotes(notes)
         } else {
             emptyNotes
         }

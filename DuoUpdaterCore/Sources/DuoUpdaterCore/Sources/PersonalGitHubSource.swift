@@ -106,9 +106,9 @@ public enum PersonalGitHubSource {
         public let checked: Date
         public let truncated: Bool
 
-        public var changelog: Changelog? {
-            guard !releases.isEmpty else { return nil }
-            return Changelog(entries: releases.map { release in
+        public func changelog(track: Track, installed: String?, includeStable: Bool) -> Changelog {
+            let selected = matches(track: track, installed: installed, includeStable: includeStable)
+            return Changelog(entries: selected.map { release in
                 let body = release.body?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let markdown = body.flatMap { $0.isEmpty ? nil : $0 }
                 return Changelog.Entry(

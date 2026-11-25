@@ -1,6 +1,70 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Close": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fermer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chiudi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閉じる"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fechar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉"
+          }
+        }
+      }
+    },
     "Cancel validation": {
       "localizations": {
         "de": {
@@ -833,70 +897,6 @@
         }
       }
     },
-    "Package not yet verified. Choose Update to download and check a package.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paket noch nicht geprüft. Wähle „Aktualisieren“, um es zu laden und zu prüfen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paquete sin verificar. Selecciona Actualizar para descargarlo y verificarlo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paquet non vérifié. Choisissez Mettre à jour pour le télécharger et le vérifier."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pacchetto non ancora verificato. Scegli Aggiorna per scaricarlo e verificarlo."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "パッケージは未検証です。「アップデート」からダウンロードして検証できます。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pacote ainda não verificado. Selecione Atualizar para baixá-lo e verificá-lo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пакет ещё не проверен. Выберите «Обновить», чтобы скачать и проверить пакет."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paket henüz doğrulanmadı. İndirip doğrulamak için Güncelle’yi seçin."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安装包尚未验证。请在“更新”菜单中选择下载并检查。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安裝套件尚未驗證。請在「更新」選單中選擇下載並檢查。"
-          }
-        }
-      }
-    },
     "Preview": {
       "localizations": {
         "de": {
@@ -1473,70 +1473,6 @@
         }
       }
     },
-    "Checking public GitHub releases…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Öffentliche GitHub-Releases werden geprüft…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Comprobando versiones públicas de GitHub…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vérification des versions publiques sur GitHub…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verifica delle versioni pubbliche su GitHub…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub の公開リリースを確認中…"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verificando versões públicas no GitHub…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверка публичных выпусков на GitHub…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Herkese açık GitHub sürümleri denetleniyor…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在检查 GitHub 公开发布的版本…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在檢查 GitHub 公開發佈的版本…"
-          }
-        }
-      }
-    },
     "Download & Verify %@": {
       "localizations": {
         "de": {
@@ -1921,70 +1857,6 @@
         }
       }
     },
-    "Installation is manual. DuoUpdater can check a package before you reveal it in Finder.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Installation erfolgt manuell. DuoUpdater kann das Paket vor dem Anzeigen im Finder prüfen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La instalación es manual. DuoUpdater puede verificar el paquete antes de mostrarlo en Finder."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’installation est manuelle. DuoUpdater peut vérifier le paquet avant son affichage dans le Finder."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’installazione è manuale. DuoUpdater può verificare il pacchetto prima di mostrarlo nel Finder."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "インストールは手動です。Finder に表示する前にパッケージを検証できます。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A instalação é manual. O DuoUpdater pode verificar o pacote antes de mostrá-lo no Finder."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Установка выполняется вручную. DuoUpdater может проверить пакет перед показом в Finder."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kurulum elle yapılır. DuoUpdater, paketi Finder’da göstermeden önce doğrulayabilir."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手动完成安装。DuoUpdater 可先检查安装包，再在访达中显示。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手動完成安裝。DuoUpdater 可先檢查安裝套件，再於 Finder 顯示。"
-          }
-        }
-      }
-    },
     "Manual update options for %@": {
       "localizations": {
         "de": {
@@ -2045,70 +1917,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 的手動更新選項"
-          }
-        }
-      }
-    },
-    "No comparable release on this track.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kein vergleichbares Release in diesem Kanal."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No hay una versión comparable en este canal."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aucune version comparable sur ce canal."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessuna versione confrontabile in questo canale."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このチャンネルには比較できるリリースがありません。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nenhuma versão comparável neste canal."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "В этом канале нет сопоставимых выпусков."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu kanalda karşılaştırılabilir sürüm yok."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "该发布线没有可比较的版本。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此發佈頻道沒有可比較的版本。"
           }
         }
       }
@@ -2241,70 +2049,6 @@
         }
       }
     },
-    "No matching release in the latest 60 releases.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kein passendes Release unter den letzten 60."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ninguna versión coincide entre las últimas 60."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aucune version correspondante parmi les 60 dernières."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessuna versione corrispondente tra le ultime 60."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "直近60件に該当するリリースがありません。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nenhuma versão correspondente entre as últimas 60."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Среди последних 60 нет подходящего выпуска."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Son 60 sürüm arasında eşleşen sürüm yok."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近 60 个版本中没有找到符合条件的发布。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近 60 個版本中找不到符合條件的發佈。"
-          }
-        }
-      }
-    },
     "No matching releases.": {
       "localizations": {
         "de": {
@@ -2365,70 +2109,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒有符合條件的版本。"
-          }
-        }
-      }
-    },
-    "No release notes.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keine Versionshinweise."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin notas de la versión."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aucune note de version."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessuna nota di rilascio."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リリースノートはありません。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sem notas da versão."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нет описания выпуска."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sürüm notu yok."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有发布说明。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "沒有發佈說明。"
           }
         }
       }
@@ -2557,134 +2237,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "選填，例如 Lite"
-          }
-        }
-      }
-    },
-    "Platform and architecture are estimated from the filename.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Plattform und Architektur werden aus dem Dateinamen abgeleitet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La plataforma y la arquitectura se estiman a partir del nombre."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La plateforme et l’architecture sont déduites du nom de fichier."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La piattaforma e l’architettura sono stimate dal nome del file."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プラットフォームとアーキテクチャはファイル名による推定です。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A plataforma e a arquitetura são estimadas pelo nome do arquivo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Платформа и архитектура определены приблизительно по имени файла."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Platform ve mimari dosya adından tahmin edilir."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "平台和架构根据文件名推断。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "平台和架構依檔名推測。"
-          }
-        }
-      }
-    },
-    "Release history": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versionsverlauf"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Historial de versiones"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Historique des versions"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cronologia delle versioni"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リリース履歴"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Histórico de versões"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "История выпусков"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sürüm geçmişi"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "版本历史"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "版本記錄"
           }
         }
       }
@@ -2881,70 +2433,6 @@
         }
       }
     },
-    "Tracking releases. The app’s existing update route takes priority.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Releases werden verfolgt. Der bestehende Updateweg der App hat Vorrang."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se siguen las versiones. La vía de actualización existente tiene prioridad."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versions suivies. Le mode de mise à jour existant reste prioritaire."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versioni seguite. Il percorso di aggiornamento esistente ha la precedenza."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リリースを追跡中です。既存の更新経路が優先されます。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Acompanhando versões. A via de atualização existente tem prioridade."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Выпуски отслеживаются. Приоритет у текущего способа обновления."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sürümler izleniyor. Uygulamanın mevcut güncelleme yöntemi önceliklidir."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在关注发布版本。更新此 App 时优先使用已有来源。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在追蹤發佈版本。更新此 App 時優先使用現有來源。"
-          }
-        }
-      }
-    },
     "Unsupported source configuration. Subscription paused.": {
       "localizations": {
         "de": {
@@ -3069,70 +2557,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "驗證儲存庫"
-          }
-        }
-      }
-    },
-    "owner/repo or https://github.com/owner/repo": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo oder https://github.com/owner/repo"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo o https://github.com/owner/repo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo ou https://github.com/owner/repo"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo o https://github.com/owner/repo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo または https://github.com/owner/repo"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo ou https://github.com/owner/repo"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo или https://github.com/owner/repo"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo veya https://github.com/owner/repo"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo 或 https://github.com/owner/repo"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "owner/repo 或 https://github.com/owner/repo"
           }
         }
       }

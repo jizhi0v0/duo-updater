@@ -143,12 +143,14 @@ final class PersonalSources {
     func save(_ record: BindingRecord, path: String) throws {
         records[path] = try JSONEncoder().encode(record)
         defaults.set(records, forKey: key)
+        if record.handoff == nil { releaseFinderDirectory(path) }
     }
 
     func remove(_ path: String) {
         records.removeValue(forKey: path)
         defaults.set(records, forKey: key)
         clear(path)
+        releaseFinderDirectory(path)
     }
 
     private func discardChecked(_ path: String) {
@@ -163,9 +165,10 @@ final class PersonalSources {
         }
     }
 
-    func clear(_ path: String, preservingReleaseHistory: Bool = false) {
+    // A failed lookup invalidates the current results. The file already shown
+    // in Finder lives as long as its saved handoff, including during outages.
+    private func clear(_ path: String, preservingReleaseHistory: Bool = false) {
         discardChecked(path)
-        releaseFinderDirectory(path)
         if !preservingReleaseHistory { snapshots[path] = nil }
         paused.remove(path)
         blocked[path] = nil
@@ -217,7 +220,6 @@ final class PersonalSources {
             updated.repository = snapshot.repository
             if let handoff = updated.handoff, !handoff.isPublished(in: snapshot) { updated.handoff = nil }
             try save(updated, path: path)
-            if updated.handoff == nil { releaseFinderDirectory(path) }
             needsGitHubSettings.remove(path)
             paused.remove(path)
             if let old = checked[path] {

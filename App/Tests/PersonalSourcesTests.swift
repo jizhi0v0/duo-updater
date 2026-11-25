@@ -116,6 +116,35 @@ import Testing
         #expect(store.checked[app.path] == nil)
         #expect(FileManager.default.fileExists(atPath: candidate.path))
         #expect(PersonalSources(defaults: defaults).record(app.path)?.handoff?.asset == asset)
+        // The transport maps both 403 and 404 to repositoryAccess. Access
+        // failures hide stale release data while leaving the Finder file usable.
+        for status in [403, 404] {
+            await store.refresh(installed) { _ in
+                throw PersonalGitHubSource.Failure("HTTP \(status)", .repositoryAccess)
+            }
+            #expect(store.snapshots[app.path] == nil)
+            #expect(store.needsGitHubSettings.contains(app.path))
+            #expect(store.record(app.path)?.handoff?.asset == asset)
+            #expect(FileManager.default.fileExists(atPath: candidate.path))
+            await store.refresh(installed) { _ in snapshot([first]) }
+        }
+        let info = app.appendingPathComponent("Contents/Info.plist")
+        let parked = root.appendingPathComponent("parked.plist")
+        try FileManager.default.moveItem(at: info, to: parked)
+        await store.reconcileLocal(installed)
+        #expect(store.snapshots[app.path] == nil)
+        #expect(store.record(app.path)?.handoff?.asset == asset)
+        #expect(FileManager.default.fileExists(atPath: candidate.path))
+        try FileManager.default.moveItem(at: parked, to: info)
+
+        let wrongOwner = PersonalGitHubSource.Repository(id: repo.id, full_name: repo.full_name, owner: .init(id: 99))
+        await store.refresh(installed) { _ in
+            .init(repository: wrongOwner, releases: [latest], checked: .now, truncated: false)
+        }
+        #expect(store.record(app.path)?.repository == repo)
+        #expect(store.snapshots[app.path] == nil)
+        #expect(store.paused.contains(app.path))
+        #expect(!store.needsAction(row))
         store.remove(app.path)
         #expect(!FileManager.default.fileExists(atPath: staged.path))
     }

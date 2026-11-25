@@ -47,6 +47,9 @@ struct PersonalGitHubSourceTests {
         let app = input.appendingPathComponent("Wrapper/Demo.app/Contents")
         try fm.createDirectory(at: app, withIntermediateDirectories: true)
         try Data("fixture".utf8).write(to: app.appendingPathComponent("Info.plist"))
+        let executable = app.appendingPathComponent("Demo")
+        try Data("fixture".utf8).write(to: executable)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
         // AppleDouble v2 with one 32-byte empty FinderInfo entry. It belongs
         // to Info.plist and must never become an extra unsealed bundle file.
         var sidecar = Data([0, 5, 22, 7, 0, 2, 0, 0])
@@ -66,6 +69,11 @@ struct PersonalGitHubSourceTests {
             } else {
                 let extracted = try PersonalSourceZIP.unpack(archive, into: output)
                 #expect(extracted.lastPathComponent == "Demo.app")
+                for (name, mode) in [("Demo", 0o755), ("Info.plist", 0o644)] {
+                    let file = extracted.appendingPathComponent("Contents/" + name)
+                    let attributes = try fm.attributesOfItem(atPath: file.path)
+                    #expect(attributes[.posixPermissions] as? Int == mode)
+                }
                 #expect(!fm.fileExists(atPath: extracted.appendingPathComponent("Contents/._Info.plist").path))
             }
         }
@@ -100,13 +108,21 @@ private final class PersonalGitHubFixture: URLProtocol, @unchecked Sendable {
             case "/repos/demo/private" where auth == "Bearer fixture":
                 body = #"{"private":true,"visibility":"private","id":42,"full_name":"demo/private","owner":{"id":12}}"#
             case "/repos/demo/internal" where auth == "Bearer fixture":
-                body = #"{"private":false,"visibility":"internal","id":42,"full_name":"demo/internal","owner":{"id":12}}"#
-            case "/repositories/41/releases/assets/7" where auth == "Bearer fixture":
+                body = #"{"private":false,"visibility":"internal","id":43,"full_name":"demo/internal","owner":{"id":12}}"#
+            case "/repos/demo/no-contents" where auth == "Bearer fixture":
+                body = #"{"private":true,"visibility":"private","id":44,"full_name":"demo/no-contents","owner":{"id":12}}"#
+            case "/repositories/44/releases" where auth == "Bearer fixture":
+                status = 403
+                body = ""
+            case "/repositories/42/releases/assets/7" where auth == "Bearer fixture" && request.value(forHTTPHeaderField: "Accept") == "application/octet-stream":
                 status = 302
                 headers = ["Location":"https://release-assets.githubusercontent.com/example"]
                 body = ""
-            case "/repositories/40/releases" where auth == nil, "/repositories/41/releases" where auth == "Bearer fixture":
-                body = #"[{"id":5,"tag_name":"v2.1","prerelease":false,"draft":false,"body":"Plain <b>release notes</b>","assets":[{"id":7,"name":"App-Lite-arm64.zip","size":30,"digest":null,"updated_at":"2026-11-25"}]}]"#
+            case "/repositories/40/releases" where auth == nil,
+                 "/repositories/41/releases" where auth == "Bearer fixture",
+                 "/repositories/42/releases" where auth == "Bearer fixture",
+                 "/repositories/43/releases" where auth == "Bearer fixture":
+                body = ###"[{"id":5,"tag_name":"v2.1","prerelease":false,"draft":false,"published_at":"2026-11-25T01:02:03Z","body":"## Changes\n\n- Plain <b>release notes</b>","assets":[{"id":7,"name":"App-Lite-arm64.zip","size":30,"digest":null,"updated_at":"2026-11-25"}]}]"###
             default:
                 status = 404
                 body = ""
@@ -128,7 +144,12 @@ extension PersonalGitHubSourceTests {
         #expect(snapshot.repository.id == 40)
         #expect(snapshot.repository.owner.id == 12)
         #expect(snapshot.releases.first?.assets.first?.id == 7)
-        #expect(snapshot.releases.first?.body == "Plain <b>release notes</b>")
+        let entry = try #require(snapshot.changelog?.entries.first)
+        #expect(entry.version == "v2.1")
+        #expect(entry.date == "2026-11-25T01:02:03Z")
+        let markdown = try #require(entry.markdown)
+        #expect(markdown == "## Changes\n\n- Plain <b>release notes</b>")
+        #expect(ChangelogMarkdown.blocks(from: markdown).first?.kind == .heading(level: 2))
         #expect(!snapshot.truncated)
         await #expect(throws: (any Error).self) { try await client.fetch("demo/missing") }
     }
@@ -137,10 +158,11 @@ extension PersonalGitHubSourceTests {
 private actor SourceTestLogin {
     var token: String?
     func enable() { token = "fixture" }
+    func disable() { token = nil }
 }
 
 extension PersonalGitHubSourceTests {
-    @Test func accountCanContinueAfterAnonymousLimitAndOnlyReadPublicReleases() async throws {
+    @Test func accountCanContinueAfterAnonymousLimit() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [PersonalGitHubFixture.self]
         let login = SourceTestLogin()
@@ -154,14 +176,23 @@ extension PersonalGitHubSourceTests {
         await login.enable()
         let snapshot = try await client.fetch("demo/limited")
         #expect(snapshot.releases.first?.tag_name == "v2.1")
-        for slug in ["demo/private", "demo/internal"] {
-            do {
-                _ = try await client.fetch(slug)
-                Issue.record("Expected nonpublic repository to be rejected")
-            } catch let error as Source.Failure {
-                #expect(error.disposition == .reviewSource)
-            }
-        }
+    }
+
+    @Test func privateAndInternalSourcesUseTheCurrentGitHubLogin() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PersonalGitHubFixture.self]
+        let login = SourceTestLogin()
+        let client = PersonalGitHubClient(configuration: config, resolveToken: { await login.token })
+        await #expect(throws: Source.Failure.self) { try await client.fetch("demo/private") }
+        await login.enable()
+        let snapshot = try await client.fetch("demo/private")
+        #expect(snapshot.repository.id == 42)
+        #expect(snapshot.releases.first?.tag_name == "v2.1")
+        let internalSnapshot = try await client.fetch("demo/internal")
+        #expect(internalSnapshot.repository.id == 43)
+        #expect(internalSnapshot.releases.first?.tag_name == "v2.1")
+        await #expect(throws: Source.Failure.self) { try await client.fetch("demo/no-contents") }
+
         // Only an authenticated API request and an anonymous CDN request reach
         // the deliberately mismatched published digest in this fixture.
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -174,6 +205,8 @@ extension PersonalGitHubSourceTests {
         } catch let error as Source.Failure {
             #expect(error.disposition == .blocked)
         }
+        await login.disable()
+        await #expect(throws: Source.Failure.self) { try await client.fetch("demo/private") }
     }
 }
 

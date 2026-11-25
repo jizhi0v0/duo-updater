@@ -68,10 +68,14 @@ public enum PersonalSourceZIP {
                 links.append((dest, value))
                 continue
             }
-            let fd = open(dest.path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, archive_entry_perm(entry) & 0o111 == 0 ? 0o600 : 0o700)
+            let fd = open(dest.path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o600)
             guard fd >= 0 else { throw invalid }
             let output = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
             defer { try? output.close() }
+            // Finder preserves these modes when the user moves the app. The
+            // staging parent is private, but the installed app can be shared.
+            let installedMode: mode_t = archive_entry_perm(entry) & 0o111 == 0 ? 0o644 : 0o755
+            guard fchmod(fd, installedMode) == 0 else { throw invalid }
             while true {
                 let count = archive_read_data(reader, &buffer, buffer.count)
                 guard count >= 0, total + count <= 1_073_741_824 else { throw invalid }

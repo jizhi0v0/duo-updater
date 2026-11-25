@@ -5,7 +5,11 @@ import Foundation
 public enum PersonalGitHubSource {
     public struct Failure: LocalizedError, Sendable {
         public let errorDescription: String?
-        public enum Disposition: Sendable { case retry, anonymousLimit, releasePage, blocked, reviewSource }
+        public enum Disposition: Sendable {
+            case retry, anonymousLimit, repositoryAccess, releasePage, blocked, reviewSource
+
+            public var needsGitHubSettings: Bool { self == .anonymousLimit || self == .repositoryAccess }
+        }
         public let disposition: Disposition
         public init(_ message: String, _ disposition: Disposition = .retry) {
             errorDescription = message
@@ -56,6 +60,7 @@ public enum PersonalGitHubSource {
         public let draft: Bool
         public let body: String?
         public let assets: [Asset]
+        public var published_at: String? = nil
 
         public enum TagIssue { case unrecognized, previewFlagOnStableTag, stableFlagOnPreviewTag }
 
@@ -100,6 +105,17 @@ public enum PersonalGitHubSource {
         public let releases: [Release]
         public let checked: Date
         public let truncated: Bool
+
+        public var changelog: Changelog? {
+            guard !releases.isEmpty else { return nil }
+            return Changelog(entries: releases.map { release in
+                let body = release.body?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let markdown = body.flatMap { $0.isEmpty ? nil : $0 }
+                return Changelog.Entry(
+                    version: release.tag_name, date: release.published_at,
+                    items: markdown.map { [$0] } ?? [], markdown: markdown)
+            })
+        }
 
         public func matches(track: Track, installed: String?, includeStable: Bool) -> [Release] {
             let local = installed.flatMap(Version.init)
@@ -205,6 +221,7 @@ public actor PersonalGitHubClient {
         return try await withTaskCancellationHandler {
             let snapshot = try await task.value
             try Task.checkCancellation()
+            try checkCredentialGeneration(generation)
             return snapshot
         } onCancel: {
             Task { await self.finishLookup(key, caller: caller) }
@@ -219,11 +236,7 @@ public actor PersonalGitHubClient {
     private func load(_ slug: String, token: String?, generation: Int) async throws -> Source.Snapshot {
         let root = "https://api.github.com"
         let data = try await request(URL(string: root + "/repos/" + slug)!, metadataRedirect: true, token: token, generation: generation)
-        struct Visibility: Decodable { let `private`: Bool; let visibility: String }
-        guard let access = try? JSONDecoder().decode(Visibility.self, from: data),
-              !access.private, access.visibility == "public" else {
-            throw Source.Failure("Only public GitHub repositories are supported.", .reviewSource)
-        }
+        // GitHub authorizes the repository and its release list separately.
         let repo = try JSONDecoder().decode(Source.Repository.self, from: data)
         guard repo.id > 0, repo.owner.id > 0, Source.slug(repo.full_name) == repo.full_name else { throw Source.Failure("Invalid GitHub repository identity.") }
         var releases: [Source.Release] = []
@@ -237,9 +250,13 @@ public actor PersonalGitHubClient {
         return .init(repository: repo, releases: releases.filter { !$0.draft }, checked: Date(), truncated: releases.count == 60)
     }
 
-    private func responseBytes(_ request: URLRequest, token: String?, generation: Int) async throws -> (URLSession.AsyncBytes, URLResponse) {
-        guard let url = request.url, ChangelogService.isGitHubAPI(url) else { return try await session.bytes(for: request) }
+    private func checkCredentialGeneration(_ generation: Int) throws {
         guard generation == GitHubCredentials.current.generation else { throw Source.Failure("GitHub credentials changed. Try again.") }
+    }
+
+    private func responseBytes(_ request: URLRequest, token: String?, generation: Int) async throws -> (URLSession.AsyncBytes, URLResponse) {
+        try checkCredentialGeneration(generation)
+        guard let url = request.url, ChangelogService.isGitHubAPI(url) else { return try await session.bytes(for: request) }
         var outbound = request
         let access: Access
         if let token, !GitHubCredentials.current.isRejected(generation: generation) {
@@ -278,7 +295,10 @@ public actor PersonalGitHubClient {
            let target = URL(string: location) {
             return try await request(target, metadataRedirect: false, token: token, generation: generation)
         }
-        guard http.statusCode == 200 else { throw Source.Failure("GitHub returned HTTP \(http.statusCode). Check the public repository or retry later.") }
+        if [401, 403, 404].contains(http.statusCode) {
+            throw Source.Failure("GitHub couldn’t read the repository or its releases. Check the repository URL and your GitHub credentials.", .repositoryAccess)
+        }
+        guard http.statusCode == 200 else { throw Source.Failure("GitHub returned HTTP \(http.statusCode). Try again later.") }
         var data = Data()
         for try await byte in bytes {
             guard data.count < 4 * 1024 * 1024 else { throw Source.Failure("GitHub release metadata exceeded the size limit.") }
@@ -329,6 +349,7 @@ extension PersonalGitHubClient {
             hash.update(data: buffer)
             try file.write(contentsOf: buffer)
             guard count == asset.size, "sha256:" + hash.finalize().map({ String(format: "%02x", $0) }).joined() == digest else { throw Source.Failure("Blocked — the downloaded bytes do not match GitHub’s SHA-256 digest.", .blocked) }
+            try checkCredentialGeneration(generation)
             let root = directory.appendingPathComponent("package")
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
             let app = try await offCooperativePool { try PersonalSourceZIP.unpack(archive, into: root) }

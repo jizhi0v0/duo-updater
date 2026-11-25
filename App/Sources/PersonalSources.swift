@@ -8,17 +8,17 @@ final class PersonalSources {
     struct BindingRecord: Codable, Equatable {
         var schema = 1
         var repository: PersonalGitHubSource.Repository
-        let track: PersonalGitHubSource.Track
+        var track: PersonalGitHubSource.Track
         // Existing records store the active channel here. Other channels only
         // need entries after a user gives them a nonempty filter.
-        let filenameContains: String?
+        var filenameContains: String?
         var otherChannelFilters: [String: String]? = nil
         var channelFilters: [String: String] {
             var filters = otherChannelFilters ?? [:]
             filters[track.rawValue] = filenameContains
             return filters
         }
-        let includeStable: Bool
+        var includeStable: Bool
         var anchor: PersonalSourceZIP.Identity
         var lastSuccessfulCheck: Date?
         var confirmedVersion: String?
@@ -47,7 +47,7 @@ final class PersonalSources {
     private let defaults: UserDefaults
     private(set) var records: [String: Data]
     var snapshots: [String: PersonalGitHubSource.Snapshot] = [:]
-    var anonymousLimited = Set<String>()
+    private(set) var needsGitHubSettings = Set<String>()
     var messages: [String: String] = [:]
     var busy = Set<String>()
     var checked: [String: Checked] = [:]
@@ -62,6 +62,44 @@ final class PersonalSources {
     func record(_ path: String) -> BindingRecord? {
         guard let data = records[path], let record = try? JSONDecoder().decode(BindingRecord.self, from: data), record.schema == 1 else { return nil }
         return record
+    }
+
+    func record(_ path: String, matchingRepository input: String) -> BindingRecord? {
+        guard let record = record(path), let slug = PersonalGitHubSource.slug(input),
+              slug.lowercased() == record.repository.full_name.lowercased() else { return nil }
+        return record
+    }
+
+    func saveConfiguration(
+        for app: URL, repository input: String, track: PersonalGitHubSource.Track,
+        filters: [String: String], includeStable: Bool,
+        validation: (snapshot: PersonalGitHubSource.Snapshot, anchor: PersonalSourceZIP.Identity)? = nil
+    ) throws {
+        let path = app.path
+        var updated: BindingRecord
+        if let validation {
+            updated = BindingRecord(
+                repository: validation.snapshot.repository, track: track, filenameContains: nil,
+                includeStable: false, anchor: validation.anchor, lastSuccessfulCheck: validation.snapshot.checked)
+        } else {
+            guard let saved = record(path, matchingRepository: input) else {
+                throw PersonalGitHubSource.Failure("Validate the repository before saving.")
+            }
+            updated = saved
+        }
+        guard try PersonalSourceZIP.Identity(at: app) == updated.anchor else {
+            throw PersonalGitHubSource.Failure("Installation changed. Validate again.")
+        }
+        let nonemptyFilters = filters.filter { !$0.value.isEmpty }
+        updated.track = track
+        updated.filenameContains = nonemptyFilters[track.rawValue]
+        updated.otherChannelFilters = nonemptyFilters.filter { $0.key != track.rawValue }
+        updated.includeStable = track != .stable && includeStable
+        try save(updated, path: path)
+        if let validation {
+            clear(path)
+            snapshots[path] = validation.snapshot
+        }
     }
 
     func save(_ record: BindingRecord, path: String) throws {
@@ -81,16 +119,22 @@ final class PersonalSources {
         paused.remove(path)
         blocked[path] = nil
         manualOnly[path] = nil
-        anonymousLimited.remove(path)
+        needsGitHubSettings.remove(path)
         messages[path] = nil
     }
 
-    /// One result per repository in a scan, including failures. A second local
-    /// installation can choose another track without spending another request.
+    /// One result per repository and credential generation in a scan, including
+    /// failures. Another local installation can choose a track from the same result.
     func refreshRegistered(_ apps: [InstalledApp]) async {
         var round: [String: Result<PersonalGitHubSource.Snapshot, Error>] = [:]
+        var generation = GitHubCredentials.shared.generation
         for app in apps {
             await refresh(app) { slug in
+                let currentGeneration = GitHubCredentials.shared.generation
+                if generation != currentGeneration {
+                    round.removeAll()
+                    generation = currentGeneration
+                }
                 let key = slug.lowercased()
                 if let result = round[key] { return try result.get() }
                 do {
@@ -122,7 +166,7 @@ final class PersonalSources {
             updated.repository = snapshot.repository
             if let handoff = updated.handoff, !handoff.isPublished(in: snapshot) { updated.handoff = nil }
             try save(updated, path: path)
-            anonymousLimited.remove(path)
+            needsGitHubSettings.remove(path)
             paused.remove(path)
             if let old = checked[path] {
                 let latest = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable).first
@@ -139,9 +183,10 @@ final class PersonalSources {
         } catch {
             guard self.record(path) == record else { return }
             let last = record.lastSuccessfulCheck
-            if (error as? PersonalGitHubSource.Failure)?.disposition == .reviewSource { clear(path) }
-            anonymousLimited.remove(path)
-            if (error as? PersonalGitHubSource.Failure)?.disposition == .anonymousLimit { anonymousLimited.insert(path) }
+            let disposition = (error as? PersonalGitHubSource.Failure)?.disposition
+            if disposition == .reviewSource || disposition == .repositoryAccess { clear(path) }
+            needsGitHubSettings.remove(path)
+            if disposition?.needsGitHubSettings == true { needsGitHubSettings.insert(path) }
             paused.insert(path)
             messages[path] = error.localizedDescription + (last.map { " Last successful check: " + $0.formatted() } ?? "")
         }
@@ -199,7 +244,7 @@ final class PersonalSources {
         let path = result.app.path.path
         guard let record = record(path), eligible(), busy.insert(path).inserted else { return }
         defer { busy.remove(path) }
-        anonymousLimited.remove(path)
+        needsGitHubSettings.remove(path)
         var localInspection = false
         var scratch: URL?
         do {
@@ -246,7 +291,11 @@ final class PersonalSources {
                 return
             }
             switch (error as? PersonalGitHubSource.Failure)?.disposition {
-            case .anonymousLimit: anonymousLimited.insert(path)
+            case .anonymousLimit: needsGitHubSettings.insert(path)
+            case .repositoryAccess:
+                clear(path)
+                needsGitHubSettings.insert(path)
+                paused.insert(path)
             case .releasePage: manualOnly[path, default: []].append(asset)
             case .reviewSource: snapshots[path] = nil
             case .blocked: blocked[path, default: []].append(asset)
@@ -279,11 +328,24 @@ final class PersonalSources {
         return .verify(available)
     }
 
-    func candidate(_ result: UpdateResult) -> PersonalGitHubSource.Release? {
+    enum ReleaseState: Equatable {
+        case unavailable
+        case current
+        case update(PersonalGitHubSource.Release)
+    }
+
+    func releaseState(for result: UpdateResult) -> ReleaseState {
         let path = result.app.path.path
         guard !paused.contains(path), let snapshot = snapshots[path], let record = record(path), let local = PersonalGitHubSource.Version(record.anchor.version),
               let candidate = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable).first,
-              let offered = PersonalGitHubSource.Version(candidate.tag_name), offered > local else { return nil }
-        return candidate
+              let offered = PersonalGitHubSource.Version(candidate.tag_name) else { return .unavailable }
+        if offered > local { return .update(candidate) }
+        if offered == local, record.handoff == nil { return .current }
+        return .unavailable
+    }
+
+    func candidate(_ result: UpdateResult) -> PersonalGitHubSource.Release? {
+        guard case .update(let release) = releaseState(for: result) else { return nil }
+        return release
     }
 }

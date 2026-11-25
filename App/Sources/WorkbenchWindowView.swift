@@ -26,6 +26,7 @@ struct WorkbenchWindowView: View {
     /// for every intermediate row while the user holds ↑/↓ is what froze the window.
     /// Debouncing means we render the detail once, after the selection settles.
     @State private var detailSelection: String?
+    @State private var lastEligiblePersonalSourcePath: URL?
     /// When the sidebar selection last moved, so the settle below can tell a
     /// deliberate step from a held arrow key.
     @State private var lastSelectionChange = Date.distantPast
@@ -1770,11 +1771,15 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private func detail(for result: UpdateResult) -> some View {
         let hasBackup = model.backupVersion(result.id) != nil
+        let isRoundInFlight = model.listActivity.isRoundInFlight
+        // During the scan and check, keep the detail's source layout for the
+        // same installation using its last settled eligibility.
+        let eligiblePath = isRoundInFlight ? lastEligiblePersonalSourcePath
+            : (model.acceptsPersonalSource(result) ? result.app.path : nil)
+        let isPersonalSourceEligible = eligiblePath == result.app.path
         VStack(alignment: .leading, spacing: 0) {
-            DetailHeader(result: result, model: model)
-            if result.app.bundleID != nil && result.app.path.pathExtension.lowercased() == "app" {
-                PersonalSourcePanel(result: result, model: model).id(result.app.path)
-            }
+            DetailHeader(result: result, model: model, isPersonalSourceEligible: isPersonalSourceEligible,
+                         isRoundInFlight: isRoundInFlight)
             if let sunset = ProductSunsetCatalog.sunset(forBundleID: result.app.bundleID) {
                 ProductSunsetNotice(name: result.app.name, sunset: sunset)
                     .padding(.horizontal, 16)
@@ -1799,11 +1804,13 @@ struct WorkbenchWindowView: View {
                 .padding(.bottom, 10)
             }
             Divider()
-            if !(model.acceptsPersonalSource(result) && PersonalSources.shared.snapshots[result.app.path.path] != nil && (!hasBackup || detailMode == .releaseNotes)) {
-                DetailLenses(result: result, model: model, lens: hasBackup ? detailMode : .releaseNotes)
-            }
+            DetailLenses(result: result, model: model, lens: hasBackup ? detailMode : .releaseNotes,
+                         usesPersonalSource: isPersonalSourceEligible)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: eligiblePath, initial: true) { _, path in
+            lastEligiblePersonalSourcePath = path
+        }
     }
 }
 
@@ -1968,6 +1975,7 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
         WorkbenchSidebarRow(
             result: result,
             matchedBundleID: matchedBundleID,
+            displayedChannel: model.displayedReleaseChannel(for: result),
             checkAgain: { Task { await model.retry(result) } },
             isChecking: model.installing[result.id] != nil,
             isRunning: model.isRunning(result),
@@ -2065,6 +2073,7 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
 private struct WorkbenchSidebarRow: View {
     let result: UpdateResult
     let matchedBundleID: String?
+    let displayedChannel: ReleaseChannel
     /// Re-check just this app, and whether it is busy already. Passed in as a
     /// closure and a flag rather than the model itself: this row is deliberately
     /// value-typed — every one of ~145 of them re-renders on any model change if
@@ -2127,7 +2136,7 @@ private struct WorkbenchSidebarRow: View {
             attributes: [.font: NSFont.preferredFont(forTextStyle: .body)]
         ).size().width
         if isRunning { used += 5 + 6 }
-        let channel = ChannelTag.measuredWidth(for: result.effectiveReleaseChannel)
+        let channel = ChannelTag.measuredWidth(for: displayedChannel)
         if channel > 0 { used += channel + 6 }
         if !fullDiskAccessNeeds.isEmpty { used += FullDiskAccessMark.width() + 6 }
         if caskLifecycle != nil { used += BrewCaskLifecycleMark.width + 6 }
@@ -2149,7 +2158,7 @@ private struct WorkbenchSidebarRow: View {
                     if isRunning {
                         RunningIndicator(size: 5).offset(y: RunningIndicator.opticalNudge)
                     }
-                    ChannelTag(channel: result.effectiveReleaseChannel)
+                    ChannelTag(channel: displayedChannel)
                     FullDiskAccessMark(needs: fullDiskAccessNeeds, grant: grantFullDiskAccess)
                     if let sunsetPhase {
                         ProductSunsetMark(endDate: sunsetPhase.endDate, phase: sunsetPhase.phase)
@@ -2314,6 +2323,7 @@ private struct WorkbenchSidebarRow: View {
 extension WorkbenchSidebarRow: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.result == rhs.result && lhs.matchedBundleID == rhs.matchedBundleID
+            && lhs.displayedChannel == rhs.displayedChannel
             && lhs.isChecking == rhs.isChecking && lhs.isRunning == rhs.isRunning
             && lhs.versionLineState == rhs.versionLineState && lhs.runningSide == rhs.runningSide
             && lhs.showsRuntime == rhs.showsRuntime
@@ -3545,6 +3555,8 @@ private struct ProductSunsetNotice: View {
 private struct DetailHeader: View {
     let result: UpdateResult
     @Bindable var model: AppListModel
+    let isPersonalSourceEligible: Bool
+    let isRoundInFlight: Bool
     /// For the TestFlight tip's deep link into Settings — the same three lines the
     /// window's own gear button and the popover's rate-limit banner use.
     @Environment(\.openWindow) private var openWindow
@@ -3555,6 +3567,9 @@ private struct DetailHeader: View {
     }
 
     var body: some View {
+        let hasPersonalSource = PersonalSources.shared.records[result.app.path.path] != nil
+        let personalState = isPersonalSourceEligible && hasPersonalSource
+            ? PersonalSources.shared.releaseState(for: result) : nil
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(nsImage: AppIconCache.icon(for: result.app.path.path))
@@ -3563,7 +3578,7 @@ private struct DetailHeader: View {
                     HStack(spacing: 8) {
                         Text(result.app.name).font(.title2).bold()
                         if model.isRunning(result) { RunningIndicator(size: 7) }
-                        ChannelTag(channel: result.effectiveReleaseChannel)
+                        ChannelTag(channel: model.displayedReleaseChannel(for: result))
                         FullDiskAccessMark(
                             needs: model.fullDiskAccessNeedsAffecting(result),
                             grant: { model.presentFullDiskAccessPermissionFlow() },
@@ -3577,14 +3592,15 @@ private struct DetailHeader: View {
                                        buildSDK: result.app.buildSDK, size: 18)
                         }
                     }
-                    versionLine
+                    versionLine(personalState: personalState)
                 }
                 Spacer()
                 // The contextual primary action (Update / Relaunch / Get),
                 // so an update can be acted on right here while its notes are open —
                 // no trip back to the menu-bar popover.
-                if PersonalSources.shared.record(result.app.path.path) != nil, model.acceptsPersonalSource(result) {
-                    PersonalSourceAction(result: result, model: model)
+                if let personalState {
+                    PersonalSourceAction(result: result, model: model, releaseState: personalState)
+                        .disabled(isRoundInFlight)
                 } else {
                     WorkbenchRowAction(
                         state: model.rowState(for: result),
@@ -3631,6 +3647,14 @@ private struct DetailHeader: View {
                     }
                     .font(.callout)
                 }
+                if result.app.bundleID != nil && result.app.path.pathExtension.lowercased() == "app" {
+                    PersonalSourceControls(result: result, model: model, isEligible: isPersonalSourceEligible,
+                                           isRoundInFlight: isRoundInFlight)
+                        .id(result.app.path)
+                }
+            }
+            if hasPersonalSource {
+                PersonalSourceNotice(result: result, model: model, isCurrent: personalState == .current)
             }
             // Surface an install error inline, same as the popover row does.
             if let error = model.installErrorText(for: result) {
@@ -3715,7 +3739,7 @@ private struct DetailHeader: View {
     }
 
     @ViewBuilder
-    private var versionLine: some View {
+    private func versionLine(personalState: PersonalSources.ReleaseState?) -> some View {
         // Same fact, same priority order as the popover and the sidebar row
         // (`AppListModel.versionLineState(for:)` / `RowVersionLine`) — this pane
         // used to run its own two-branch ladder with no downgrade note and no
@@ -3752,9 +3776,13 @@ private struct DetailHeader: View {
                 .lineLimit(1).minimumScaleFactor(0.75)
         case .status:
             HStack(spacing: 0) {
-                statusVersionText
+                statusVersionText(personalState: personalState)
                 // Where updates come from, and in its help what Update will do.
-                if let source = UpdateSourceLabel(result, action: sourceAction) {
+                if personalState != nil {
+                    Text(verbatim: " · GitHub Releases")
+                        .help("Updates come from the project’s GitHub Releases.")
+                        .layoutPriority(-1)
+                } else if let source = UpdateSourceLabel(result, action: sourceAction) {
                     Text(verbatim: " · ")
                     Text(source.phrase)
                         .help(source.detail)
@@ -3783,7 +3811,23 @@ private struct DetailHeader: View {
     /// The version line's own words for a row with no relaunch, restart or
     /// downgrade to explain: the update on offer, or the installed version.
     @ViewBuilder
-    private var statusVersionText: some View {
+    private func statusVersionText(personalState: PersonalSources.ReleaseState?) -> some View {
+        switch personalState {
+        case .update(let release):
+            Text("\(result.installedDisplay ?? "?")  →  \(release.tag_name)")
+                .font(.callout).foregroundStyle(.tint)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        case .current:
+            Text("v\(result.installedDisplay ?? "?") · up to date")
+                .font(.callout).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        case .unavailable, nil:
+            standardStatusVersionText
+        }
+    }
+
+    @ViewBuilder
+    private var standardStatusVersionText: some View {
         switch result.status {
         case .updateAvailable(let latest):
             // Names the running version when an older process is still live.
@@ -3835,6 +3879,11 @@ private struct DetailHeader: View {
 private struct ReleaseNotesPane: View {
     let result: UpdateResult
     @Bindable var model: AppListModel
+    let usesPersonalSource: Bool
+
+    private var personalChangelog: Changelog? {
+        PersonalSources.shared.snapshots[result.app.path.path]?.changelog
+    }
 
     private var changelogURL: URL? {
         ChangelogURLPolicy.displayable(ChangelogRecipeSelection.fallbackPage(for: result).url)
@@ -3895,7 +3944,9 @@ private struct ReleaseNotesPane: View {
     }
 
     var body: some View {
-        if let feed = RexChangelog.feed(for: result), let history = result.remote?.structuredChangelog {
+        if usesPersonalSource, let notes = personalChangelog {
+            ChangelogEntriesView(changelog: notes)
+        } else if let feed = RexChangelog.feed(for: result), let history = result.remote?.structuredChangelog {
             RexReleaseNotesPane(appID: result.app.id, history: history)
                 .id(feed)
         } else {
@@ -3957,6 +4008,8 @@ private struct ReleaseNotesPane: View {
         } else if let url = changelogURL {
             CachedWebView(url: url)
                 .onAppear { logWebViewPane(url, via: "direct") }
+        } else if let notes = personalChangelog {
+            ChangelogEntriesView(changelog: notes)
         } else {
             emptyNotes
         }
@@ -3977,6 +4030,8 @@ private struct ReleaseNotesPane: View {
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+        } else if let notes = personalChangelog {
+            ChangelogEntriesView(changelog: notes)
         } else {
             emptyNotes
         }
@@ -4088,12 +4143,13 @@ private struct DetailLenses: View {
     let result: UpdateResult
     let model: AppListModel
     let lens: DetailMode
+    let usesPersonalSource: Bool
     @State private var built: Set<DetailMode> = []
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             if lens == .releaseNotes || built.contains(.releaseNotes) {
-                ReleaseNotesPane(result: result, model: model)
+                ReleaseNotesPane(result: result, model: model, usesPersonalSource: usesPersonalSource)
                     .keptLayer(isShown: lens == .releaseNotes)
             }
             if lens == .bundleDiff || built.contains(.bundleDiff) {

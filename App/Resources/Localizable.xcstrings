@@ -1025,66 +1025,66 @@
         }
       }
     },
-    "Use a public GitHub repository. Enter owner/repo or its https://github.com URL.": {
+    "Enter owner/repo or its https://github.com URL.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gib ein öffentliches GitHub-Repository als owner/repo oder als https://github.com-URL ein."
+            "value": "Gib ein GitHub-Repository als owner/repo oder als https://github.com-URL ein."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Introduce un repositorio público de GitHub como owner/repo o con su URL de https://github.com."
+            "value": "Introduce un repositorio de GitHub como owner/repo o con su URL de https://github.com."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saisissez un dépôt GitHub public sous la forme owner/repo ou son URL https://github.com."
+            "value": "Saisissez un dépôt GitHub sous la forme owner/repo ou son URL https://github.com."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inserisci un repository GitHub pubblico nel formato owner/repo o il suo URL https://github.com."
+            "value": "Inserisci un repository GitHub nel formato owner/repo o il suo URL https://github.com."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "公開 GitHub リポジトリを owner/repo または https://github.com の URL で入力してください。"
+            "value": "GitHub リポジトリを owner/repo または https://github.com の URL で入力してください。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Informe um repositório público do GitHub como owner/repo ou a URL https://github.com."
+            "value": "Informe um repositório do GitHub como owner/repo ou a URL https://github.com."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите публичный репозиторий GitHub в виде owner/repo или ссылки https://github.com."
+            "value": "Введите репозиторий GitHub в виде owner/repo или ссылки https://github.com."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Herkese açık GitHub deposunu owner/repo olarak veya https://github.com adresiyle girin."
+            "value": "GitHub deposunu owner/repo olarak veya https://github.com adresiyle girin."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请输入公开 GitHub 仓库，格式为 owner/repo 或以 https://github.com 开头的仓库地址。"
+            "value": "请输入 GitHub 仓库，格式为 owner/repo 或以 https://github.com 开头的仓库地址。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "請輸入公開 GitHub 儲存庫，格式為 owner/repo 或以 https://github.com 開頭的儲存庫網址。"
+            "value": "請輸入 GitHub 儲存庫，格式為 owner/repo 或以 https://github.com 開頭的儲存庫網址。"
           }
         }
       }

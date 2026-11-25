@@ -56,134 +56,110 @@ private struct SourceGitHubSettingsButton: View {
     }
 }
 
-struct PersonalSourcePanel: View {
+struct PersonalSourceControls: View {
     let result: UpdateResult
     let model: AppListModel
+    let isEligible: Bool
+    let isRoundInFlight: Bool
     @State private var editor = false
-    @State private var selected: Int64?
     private let store = PersonalSources.shared
     private var path: String { result.app.path.path }
+
     var body: some View {
-        let showsSource = store.records[path] != nil || model.acceptsPersonalSource(result)
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                if let record = store.record(path) {
-                    Label(record.repository.full_name, systemImage: "link")
-                    Text(record.track.title).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Refresh", systemImage: "arrow.clockwise") { Task { await store.refresh(result.app) } }
+        Group {
+            if let record = store.record(path) {
+                Menu {
                     Button("Edit Source…") { editor = true }
-                } else if store.records[path] != nil {
-                    Text("Unsupported source configuration. Subscription paused.")
-                } else if showsSource {
-                    Button("Add GitHub Source…", systemImage: "plus") { editor = true }
-                }
-            }
-            if let message = store.messages[path] { Text(verbatim: message).font(.callout).textSelection(.enabled) }
-            if store.anonymousLimited.contains(path) {
-                SourceGitHubSettingsButton(model: model) { Task { await store.refresh(result.app) } }
-                    .id(path)
-            }
-            if let snapshot = store.snapshots[path], let record = store.record(path) {
-                if !model.acceptsPersonalSource(result) {
-                    Text("Tracking releases. The app’s existing update route takes priority.").foregroundStyle(.secondary)
-                }
-                let matches = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable)
-                if let release = matches.first {
-                    if let candidate = store.candidate(result) {
-                        if model.acceptsPersonalSource(result), store.messages[path] == nil {
-                            switch store.action(for: candidate, path: path, record: record) {
-                            case .page(let reason): Text(reason).foregroundStyle(.secondary)
-                            case .verify: Text("Package not yet verified. Choose Update to download and check a package.").foregroundStyle(.secondary)
-                            case .blocked: Text("Blocked").foregroundStyle(.red)
-                            case .reveal: EmptyView()
-                            }
-                        }
-                        Text(verbatim: (result.app.shortVersion ?? "?") + " → " + release.tag_name)
-                            .font(.callout.bold())
-                    }
-                    let assets = release.assets.filter { $0.matchesMac && $0.matches(filename: record.filenameContains) }
-                    if assets.isEmpty {
-                        Text("No compatible package matched the filename filter. Use the release page.")
-                    } else {
-                        Text(verbatim: assets.map(\.name).joined(separator: ", ")).foregroundStyle(.secondary)
-                            .lineLimit(2).help("Platform and architecture are estimated from the filename.")
-                    }
-                }
-                if matches.isEmpty { Text(snapshot.truncated ? "No matching release in the latest 60 releases." : "No comparable release on this track.") }
-                if !snapshot.releases.isEmpty {
-                    let selectedRelease = snapshot.releases.first { $0.id == selected } ?? matches.first ?? snapshot.releases[0]
+                    Button("Check Again") { Task { await store.refresh(result.app) } }
+                        .disabled(isRoundInFlight || store.busy.contains(path))
                     Divider()
-                    HStack(alignment: .top, spacing: 12) {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 3) {
-                                ForEach(snapshot.releases) { release in
-                                    Button {
-                                        selected = release.id
-                                    } label: {
-                                        Text(verbatim: release.tag_name)
-                                            .lineLimit(1).truncationMode(.middle)
-                                            .frame(maxWidth: .infinity, alignment: .leading).padding(5)
-                                            .background(selectedRelease.id == release.id ? Color.accentColor.opacity(0.16) : .clear,
-                                                        in: RoundedRectangle(cornerRadius: 5))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityAddTraits(selectedRelease.id == release.id ? .isSelected : [])
-                                }
-                            }
-                        }.frame(width: 110).accessibilityLabel("Release history")
-                        Divider()
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(verbatim: selectedRelease.tag_name).bold()
-                                Spacer()
-                                if let url = GitSource.page(repository: snapshot.repository, release: selectedRelease) {
-                                    Link("Open release page", destination: url)
-                                }
-                            }
-                            if let issue = selectedRelease.tagIssue {
-                                Label(issue.explanation, systemImage: "info.circle").foregroundStyle(.secondary)
-                            }
-                            ScrollView {
-                                Text(verbatim: selectedRelease.body.flatMap { $0.isEmpty ? nil : $0 } ?? String(localized: "No release notes."))
-                                    .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
-                            }
-                        }
+                    if let page = GitSource.page(repository: record.repository, release: nil) {
+                        Link("Open release page", destination: page)
                     }
-                    .frame(minHeight: 100, maxHeight: model.acceptsPersonalSource(result) ? .infinity : 160)
+                    Button("Show in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .accessibilityLabel(Text(verbatim: "GitHub Releases"))
+                .help(record.repository.full_name)
+            } else if store.records[path] == nil && isEligible {
+                Button("Add GitHub Source…", systemImage: "plus") { editor = true }
+                    .disabled(isRoundInFlight)
             }
         }
         .controlSize(.small)
-        .padding(.horizontal, 16).padding(.vertical, showsSource ? 8 : 0)
         .sheet(isPresented: $editor) { PersonalSourceEditor(result: result, model: model) }
         .task(id: path) { if store.snapshots[path] == nil { await store.refresh(result.app) } }
+    }
+}
+
+struct PersonalSourceNotice: View {
+    let result: UpdateResult
+    let model: AppListModel
+    let isCurrent: Bool
+    private let store = PersonalSources.shared
+    private var path: String { result.app.path.path }
+
+    var body: some View {
+        if store.records[path] != nil && store.record(path) == nil {
+            Text("Unsupported source configuration. Subscription paused.")
+                .font(.caption).foregroundStyle(.secondary)
+        } else if let message = store.messages[path], !isCurrent {
+            Text(verbatim: message)
+                .font(.caption).foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if store.needsGitHubSettings.contains(path) {
+            SourceGitHubSettingsButton(model: model) { Task { await store.refresh(result.app) } }
+                .font(.caption).buttonStyle(.link)
+        }
     }
 }
 
 struct PersonalSourceAction: View {
     let result: UpdateResult
     let model: AppListModel
+    var compact = false
+    var releaseState: PersonalSources.ReleaseState?
     private let store = PersonalSources.shared
     private var path: String { result.app.path.path }
     var body: some View {
-        if let release = store.candidate(result) {
+        let state = releaseState ?? store.releaseState(for: result)
+        if case .update(let release) = state {
             releaseAction(release)
         } else if store.busy.contains(path) {
             ProgressView().controlSize(.small).accessibilityLabel("Checking GitHub source")
-        } else if store.record(path)?.handoff != nil {
-            Button("Show current installation") { NSWorkspace.shared.activateFileViewerSelecting([result.app.path]) }
-                .help(store.messages[path] ?? "")
-        } else if let record = store.record(path), let snapshot = store.snapshots[path], !store.paused.contains(path) {
-            let matches = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable)
-            if let latest = matches.first, let version = GitSource.Version(latest.tag_name), version == GitSource.Version(record.anchor.version) {
-                Button("Show current installation") { NSWorkspace.shared.activateFileViewerSelecting([result.app.path]) }
-            } else if let page = GitSource.page(repository: snapshot.repository, release: matches.first) {
-                Link("Open", destination: page)
+        } else if compact && store.record(path)?.handoff != nil {
+            currentInstallationButton
+        } else if compact {
+            if state == .current {
+                PopoverRowAction(state: .upToDate(channel: .none), result: result)
+            } else if let record = store.record(path), let snapshot = store.snapshots[path], !store.paused.contains(path) {
+                let matches = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable)
+                if let page = GitSource.page(repository: snapshot.repository, release: matches.first) {
+                    Link("Open", destination: page)
+                }
+            } else {
+                Button("Refresh") { Task { await store.refresh(result.app) } }
             }
-        } else {
-            Button("Refresh") { Task { await store.refresh(result.app) } }
         }
+    }
+
+    private var currentInstallationButton: some View {
+        Button("Show current installation", systemImage: "folder", action: revealCurrentInstallation)
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .help(store.messages[path] ?? String(localized: "Show current installation"))
+    }
+
+    private func revealCurrentInstallation() {
+        NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
     }
 
     @ViewBuilder private func releaseAction(_ release: GitSource.Release) -> some View {
@@ -206,7 +182,7 @@ struct PersonalSourceAction: View {
                         }
                     }
                     Link("Open release page", destination: page)
-                    Button("Show current installation") { NSWorkspace.shared.activateFileViewerSelecting([result.app.path]) }
+                    Button("Show current installation", action: revealCurrentInstallation)
                 }
                 .fixedSize().help("Manual update options for \(release.tag_name)")
                 .accessibilityLabel("Manual update options for \(release.tag_name)")
@@ -226,7 +202,7 @@ struct PersonalSourceAction: View {
 
 private struct PersonalSourceEditor: View {
     let model: AppListModel
-    @State private var anonymousLimited = false
+    @State private var needsGitHubSettings = false
     let result: UpdateResult
     @Environment(\.dismiss) private var dismiss
     @State private var repository: String
@@ -238,9 +214,13 @@ private struct PersonalSourceEditor: View {
     @State private var anchor: PersonalSourceZIP.Identity?
     @State private var message: String?
     @State private var validationTask: Task<Void, Never>?
-    @State private var hoveringValidation = false
     private var validating: Bool { validationTask != nil }
     private let store = PersonalSources.shared
+    private var canSave: Bool {
+        let path = result.app.path.path
+        guard !validating, store.records[path] != nil || !model.listActivity.isRoundInFlight else { return false }
+        return (preview != nil && anchor != nil) || store.record(path, matchingRepository: repository) != nil
+    }
 
     init(result: UpdateResult, model: AppListModel) {
         self.model = model
@@ -277,7 +257,7 @@ private struct PersonalSourceEditor: View {
                 Spacer()
                 Button(validating ? "Close" : "Cancel") { dismiss() }
                     .keyboardShortcut(validating ? nil : .cancelAction)
-                Button("Save") { save() }.keyboardShortcut(.defaultAction).disabled(preview == nil || anchor == nil || validating)
+                Button("Save") { save() }.keyboardShortcut(.defaultAction).disabled(!canSave)
             }
         }
         .padding(20).frame(width: 490)
@@ -296,28 +276,9 @@ private struct PersonalSourceEditor: View {
                             preview = nil
                             anchor = nil
                             message = nil
-                            anonymousLimited = false
+                            needsGitHubSettings = false
                         }
-                    Button(action: performValidationAction) {
-                        HStack(spacing: 5) {
-                            if validating && !hoveringValidation {
-                                ProgressView().controlSize(.small).accessibilityHidden(true)
-                                Text("Checking…")
-                            } else if validating {
-                                Image(systemName: "xmark")
-                                Text("Cancel")
-                            } else {
-                                Text("Validate")
-                            }
-                        }.frame(minWidth: 84)
-                    }
-                    .disabled(repository.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .onHover { hoveringValidation = $0 }
-                    .keyboardShortcut(validating ? .cancelAction : nil)
-                    .accessibilityRepresentation {
-                        Button(validating ? "Cancel validation" : "Validate", action: performValidationAction)
-                            .disabled(repository.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
+                    validationControl
                 }
                 Text(verbatim: "owner/repo  ·  https://github.com/owner/repo")
                     .font(.caption).foregroundStyle(.secondary)
@@ -328,7 +289,7 @@ private struct PersonalSourceEditor: View {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                     }.font(.callout).fixedSize(horizontal: false, vertical: true)
                 }
-                if anonymousLimited { SourceGitHubSettingsButton(model: model, retryQuery: validate) }
+                if needsGitHubSettings { SourceGitHubSettingsButton(model: model, retryQuery: validate) }
             }
             Picker("Release channel", selection: $track) {
                 ForEach(GitSource.Track.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -345,6 +306,36 @@ private struct PersonalSourceEditor: View {
                 .font(.caption).foregroundStyle(.secondary)
             if let preview { validationResult(preview) }
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var validationControl: some View {
+        ZStack {
+            Button(action: validate) {
+                Text("Validate").frame(minWidth: 84)
+            }
+            .disabled(validating || repository.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .opacity(validating ? 0 : 1)
+            .accessibilityHidden(validating)
+
+            // Size both states together so validation never resizes the input.
+            HStack(spacing: 5) {
+                Color.clear.frame(width: 12, height: 12)
+                    .overlay {
+                        if validating { ProgressView().controlSize(.mini) }
+                    }
+                    .accessibilityHidden(true)
+                Text("Checking…").font(.callout).foregroundStyle(.secondary)
+                Button("Cancel validation", systemImage: "xmark.circle.fill", action: cancelValidation)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Cancel validation")
+                    .keyboardShortcut(validating ? .cancelAction : nil)
+            }
+            .fixedSize()
+            .disabled(!validating)
+            .opacity(validating ? 1 : 0)
+            .accessibilityHidden(!validating)
+        }
     }
 
     private func validationResult(_ snapshot: GitSource.Snapshot) -> some View {
@@ -387,10 +378,6 @@ private struct PersonalSourceEditor: View {
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private func performValidationAction() {
-        if validating { cancelValidation() } else { validate() }
-    }
-
     private func cancelValidation() {
         validationTask?.cancel()
         validationTask = nil
@@ -398,7 +385,7 @@ private struct PersonalSourceEditor: View {
 
     private func validate() {
         let input = repository
-        anonymousLimited = false
+        needsGitHubSettings = false
         cancelValidation()
         preview = nil
         anchor = nil
@@ -407,7 +394,7 @@ private struct PersonalSourceEditor: View {
             defer { if !Task.isCancelled { validationTask = nil } }
             do {
                 guard GitSource.slug(input) != nil else {
-                    throw GitSource.Failure(String(localized: "Use a public GitHub repository. Enter owner/repo or its https://github.com URL."))
+                    throw GitSource.Failure(String(localized: "Enter owner/repo or its https://github.com URL."))
                 }
                 let current = try await offCooperativePool { try PersonalSourceZIP.Identity(at: result.app.path) }
                 try Task.checkCancellation()
@@ -422,14 +409,14 @@ private struct PersonalSourceEditor: View {
             } catch {
                 if !Task.isCancelled, repository == input {
                     message = error.localizedDescription
-                    anonymousLimited = (error as? GitSource.Failure)?.disposition == .anonymousLimit
+                    needsGitHubSettings = (error as? GitSource.Failure)?.disposition.needsGitHubSettings == true
                 }
             }
         }
     }
 
     private func save() {
-        guard let preview, let anchor else { return }
+        guard canSave else { return }
         let path = result.app.path.path
         do {
             if store.records[path] == nil {
@@ -437,10 +424,9 @@ private struct PersonalSourceEditor: View {
                     throw GitSource.Failure(String(localized: "This app is no longer eligible for a custom source."))
                 }
             }
-            guard try PersonalSourceZIP.Identity(at: result.app.path) == anchor else { throw GitSource.Failure("Installation changed. Validate again.") }
-            try store.save(.init(repository: preview.repository, track: track, filenameContains: filenameContains.isEmpty ? nil : filenameContains, otherChannelFilters: filters.filter { $0.key != track.rawValue && !$0.value.isEmpty }, includeStable: track != .stable && includeStable, anchor: anchor, lastSuccessfulCheck: preview.checked), path: path)
-            store.clear(path)
-            store.snapshots[path] = preview
+            let validation = preview.flatMap { snapshot in anchor.map { (snapshot: snapshot, anchor: $0) } }
+            try store.saveConfiguration(for: result.app.path, repository: repository, track: track,
+                                        filters: filters, includeStable: includeStable, validation: validation)
             dismiss()
         } catch { message = error.localizedDescription }
     }
@@ -453,11 +439,31 @@ extension AppListModel {
     )
 
     func acceptsPersonalSource(_ result: UpdateResult) -> Bool {
-        guard !isChecking, !isScanning, result.app.electronUpdate == nil, result.app.sparkleFeedURL == nil,
+        guard !isChecking, !isScanning, lacksBuiltInSource(result),
+              case .noSourceCovers(.none) = rowState(for: result) else { return false }
+        return true
+    }
+
+    /// The chosen subscription track is a display label. Keep it through
+    /// refreshes and other transient row actions while the source still applies.
+    func displayedReleaseChannel(for result: UpdateResult) -> ReleaseChannel {
+        guard let record = PersonalSources.shared.record(result.app.path.path),
+              case .unknown = result.status, lacksBuiltInSource(result) else {
+            return result.effectiveReleaseChannel
+        }
+        switch record.track {
+        case .stable: return .stable
+        case .preview: return .preview
+        case .nightly: return .nightly
+        }
+    }
+
+    private func lacksBuiltInSource(_ result: UpdateResult) -> Bool {
+        guard result.app.electronUpdate == nil, result.app.sparkleFeedURL == nil,
               UpdateSourceGroup(result) == .other, !SetappCatalogSource.owns(result.app),
               !result.homebrewSelfUpdating,
-              !Self.registeredPersonalSourceConflicts.contains(result.app.recipeBundleID?.lowercased() ?? ""),
-              case .noSourceCovers(.none) = rowState(for: result) else { return false }
+              !Self.registeredPersonalSourceConflicts.contains(result.app.recipeBundleID?.lowercased() ?? "")
+        else { return false }
         return result.remote == nil && result.homebrewSourceIdentifier == nil && !result.app.isMASApp
             && OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil
             && !result.app.isTestFlightApp && !result.app.isToolboxManaged && !result.app.isiOSAppOnMac

@@ -28,17 +28,26 @@ private struct SourceGitHubSettingsButton: View {
     let model: AppListModel
     let retryQuery: @MainActor () -> Void
     @Environment(\.openWindow) private var openWindow
+    // When the sheet is clicked from another window (or via accessibility),
+    // NSApp.keyWindow can still refer to Settings. Use the button's own window.
+    private struct WindowAnchor: NSViewRepresentable {
+        let view: NSView
+        func makeNSView(context: Context) -> NSView { view }
+        func updateNSView(_ nsView: NSView, context: Context) {}
+    }
+    @State private var anchor = NSView()
     @State private var request = UUID()
 
     var body: some View {
         Button("Open Settings") {
             request = UUID()
-            model.personalSourceSettingsRequest = .init(id: request, origin: NSApp.keyWindow, retryQuery: retryQuery)
+            model.personalSourceSettingsRequest = .init(id: request, origin: anchor.window, retryQuery: retryQuery)
             model.requestedSettingsSection = .github
             model.requestedSettingsAnchor = .githubCLI
             openWindow(id: SettingsView.windowID)
             model.surfaceWindow(sceneID: SettingsView.windowID)
         }
+        .background(WindowAnchor(view: anchor).frame(width: 0, height: 0))
         .onDisappear {
             if model.personalSourceSettingsRequest?.id == request {
                 model.personalSourceSettingsRequest = nil

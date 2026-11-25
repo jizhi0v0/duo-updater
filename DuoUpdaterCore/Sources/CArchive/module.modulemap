@@ -1,0 +1,5 @@
+module CArchive [system] {
+    header "archive_reader.h"
+    link "archive"
+    export *
+}

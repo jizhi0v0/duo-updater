@@ -105,6 +105,21 @@ import Foundation
                 "a rotated token must not be masked by the cache")
     }
 
+    @Test func credentialGenerationChangeInvalidatesTheResolvedToken() async {
+        let credentials = GitHubCredentials()
+        defer {
+            ChangelogService.setExplicitGitHubToken(nil)
+            ChangelogService.resetGitHubTokenCache()
+        }
+        ChangelogService.setExplicitGitHubToken("fixture")
+        await GitHubCredentials.$current.withValue(credentials) {
+            #expect(await ChangelogService.gitHubToken() == "fixture")
+            #expect(ChangelogService.rememberedToken(now: Date()).hit != nil)
+            credentials.changed()
+            #expect(ChangelogService.rememberedToken(now: Date()).hit == nil)
+        }
+    }
+
     /// Turning the GitHub CLI's sign-in off must reach the next request: a token
     /// remembered while it was on is not served once it is off. Checked on the
     /// cache itself, so no `gh` runs. Mutation: drop `cached.usesCLI == usesCLI`.

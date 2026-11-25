@@ -1891,6 +1891,10 @@ private struct AppRow: View {
         model.installNote(for: result)
     }
 
+    private var displayedChannel: ReleaseChannel {
+        model.displayedReleaseChannel(for: result)
+    }
+
     /// How wide the name line wants to be — the name plus whatever shares its
     /// row (the running dot, a channel chip). Measured with AppKit rather than
     /// left to `ViewThatFits`: the progress control is inflexible, so an HStack
@@ -1909,7 +1913,7 @@ private struct AppRow: View {
             attributes: [.font: NSFont.preferredFont(forTextStyle: .body)]
         ).size().width
         if model.isRunning(result) { width += 6 + 6 }   // dot + HStack spacing
-        let tag = ChannelTag.measuredWidth(for: result.effectiveReleaseChannel)
+        let tag = ChannelTag.measuredWidth(for: displayedChannel)
         if tag > 0 { width += tag + 6 }
         if !model.fullDiskAccessNeedsAffecting(result).isEmpty {
             width += FullDiskAccessMark.width() + 6
@@ -1950,7 +1954,7 @@ private struct AppRow: View {
             if model.isRunning(result) {
                 RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
             }
-            ChannelTag(channel: result.effectiveReleaseChannel)
+            ChannelTag(channel: displayedChannel)
             FullDiskAccessMark(
                 needs: model.fullDiskAccessNeedsAffecting(result),
                 grant: { model.presentFullDiskAccessPermissionFlow() })
@@ -2095,49 +2099,55 @@ private struct AppRow: View {
                 // the ring saves, and the name would wrap anyway. 24pt still keeps
                 // the name off the control, and trailing alignment means the ring
                 // ends on the same edge every other control does.
-                PopoverRowAction(
-                    state: model.rowState(for: result),
-                    result: result,
-                    actions: RowActions.live(
-                        install: { Task { await model.install(result) } },
-                        installBackingUpOnce: { Task { await model.install(result, backUpOnce: true) } },
-                        openStagedPackage: { Task { await model.openStagedPackage(result) } },
-                        retry: { Task { await model.retry(result) } },
-                        restart: { Task { await model.restart(result) } },
-                        relaunchStaged: { Task { await model.relaunchStagedUpdate(result) } },
-                        confirmQuit: { model.confirmQuit(result.id, proceed: true) },
-                        openSelfUpdater: { model.openSelfUpdater(result) },
-                        openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight(for: result) },
-                        openHomebrewSuite: { cask in
-                            model.requestedWorkbenchHomebrewCask = cask
-                            openWindow(id: WorkbenchWindowView.windowID)
-                            model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
-                        },
-                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                        openTestFlightSetting: {
-                            model.requestedSettingsSection = .general
-                            model.requestedSettingsAnchor = .testFlightDetection
-                            openWindow(id: SettingsView.windowID)
-                            model.surfaceWindow(sceneID: SettingsView.windowID)
-                        },
-                        openBackupSetting: {
-                            model.requestedSettingsAnchor = .keepBackups
-                            openWindow(id: SettingsView.windowID)
-                            model.surfaceWindow(sceneID: SettingsView.windowID)
-                        },
-                        signInToAppleDeveloper: { model.signInToAppleDeveloper() },
-                        cancelInstall: { model.cancelInstall(result) },
-                        restoreInterrupted: { Task { await model.restoreInterrupted(result) } },
-                        retryPausedUntil: model.gitHubPausedUntil),
-                    runningVersion: model.restartFromVersion(result.id),
-                    helperEnabled: model.helperEnabled,
-                    keepBackups: model.prefs.keepBackups,
-                    downloadReadout: { downloadReadout },
-                    showsStageLabel: showsStageLabel,
-                    testFlightUnboundedReason: model.testFlightUnboundedReason,
-                    installCancel: model.installRows.cancels[result.id],
-                    installCancelPending: model.installRows.cancelPending.contains(result.id))
+                Group {
+                    if PersonalSources.shared.record(result.app.path.path) != nil, model.acceptsPersonalSource(result) {
+                        PersonalSourceAction(result: result, model: model, compact: true)
+                    } else {
+                        PopoverRowAction(
+                            state: model.rowState(for: result),
+                            result: result,
+                            actions: RowActions.live(
+                                install: { Task { await model.install(result) } },
+                                installBackingUpOnce: { Task { await model.install(result, backUpOnce: true) } },
+                                openStagedPackage: { Task { await model.openStagedPackage(result) } },
+                                retry: { Task { await model.retry(result) } },
+                                restart: { Task { await model.restart(result) } },
+                                relaunchStaged: { Task { await model.relaunchStagedUpdate(result) } },
+                                confirmQuit: { model.confirmQuit(result.id, proceed: true) },
+                                openSelfUpdater: { model.openSelfUpdater(result) },
+                                openToolbox: { model.openToolbox() },
+                                openTestFlight: { model.openTestFlight(for: result) },
+                                openHomebrewSuite: { cask in
+                                    model.requestedWorkbenchHomebrewCask = cask
+                                    openWindow(id: WorkbenchWindowView.windowID)
+                                    model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                                },
+                                grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+                                openTestFlightSetting: {
+                                    model.requestedSettingsSection = .general
+                                    model.requestedSettingsAnchor = .testFlightDetection
+                                    openWindow(id: SettingsView.windowID)
+                                    model.surfaceWindow(sceneID: SettingsView.windowID)
+                                },
+                                openBackupSetting: {
+                                    model.requestedSettingsAnchor = .keepBackups
+                                    openWindow(id: SettingsView.windowID)
+                                    model.surfaceWindow(sceneID: SettingsView.windowID)
+                                },
+                                signInToAppleDeveloper: { model.signInToAppleDeveloper() },
+                                cancelInstall: { model.cancelInstall(result) },
+                                restoreInterrupted: { Task { await model.restoreInterrupted(result) } },
+                                retryPausedUntil: model.gitHubPausedUntil),
+                            runningVersion: model.restartFromVersion(result.id),
+                            helperEnabled: model.helperEnabled,
+                            keepBackups: model.prefs.keepBackups,
+                            downloadReadout: { downloadReadout },
+                            showsStageLabel: showsStageLabel,
+                            testFlightUnboundedReason: model.testFlightUnboundedReason,
+                            installCancel: model.installRows.cancels[result.id],
+                            installCancelPending: model.installRows.cancelPending.contains(result.id))
+                    }
+                }
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {
@@ -2258,6 +2268,9 @@ private struct AppRow: View {
         // the main thread until the app has finished launching.
         Button("Open") { Task { await AppRestarter.launchApp(result.app.path) } }
         Button("Changelog") { openChangelog() }
+        if PersonalSources.shared.records[result.app.path.path] != nil {
+            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([result.app.path]) }
+        }
         // Ask about this one app. Same entry point as the retry on a failed row —
         // one question, one answer — and the cheap way to correct a row whose
         // running dot has gone stale (issue #247). Disabled while the row is busy,

@@ -340,6 +340,9 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
     ]
     let deduped = AppScanner.dedupeIdenticalInstalls(apps)
     #expect(deduped.count == 4)
+    let boundCopy = "/Users/me/Applications/Firefox.app"
+    let withSubscription = AppScanner.dedupeIdenticalInstalls(apps, preservingPaths: [boundCopy])
+    #expect(withSubscription == apps)
     #expect(deduped.map(\.path.path).contains("/Applications/Firefox.app"))
     #expect(!deduped.map(\.path.path).contains("/Users/me/Applications/Firefox.app"))
 }

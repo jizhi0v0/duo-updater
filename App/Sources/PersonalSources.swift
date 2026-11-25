@@ -68,9 +68,11 @@ final class PersonalSources {
         let manifest: BackupManifest
     }
     private let key = "personalGitHubSources"
+    private let credentials: GitHubCredentials
     private let defaults: UserDefaults
     private(set) var records: [String: Data]
-    var snapshots: [String: PersonalGitHubSource.Snapshot] = [:]
+    private var snapshots: [String: PersonalGitHubSource.Snapshot] = [:]
+    private(set) var credentialRevision = 0
     private(set) var needsGitHubSettings = Set<String>()
     var messages: [String: String] = [:]
     var busy = Set<String>()
@@ -81,9 +83,35 @@ final class PersonalSources {
     var blocked: [String: [PersonalGitHubSource.Asset]] = [:]
     var manualOnly: [String: [PersonalGitHubSource.Asset]] = [:]
     var paused = Set<String>()
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, credentials: GitHubCredentials = .shared) {
+        self.credentials = credentials
         self.defaults = defaults
         records = defaults.dictionary(forKey: key) as? [String: Data] ?? [:]
+    }
+
+    // SwiftUI observes this revision because the Core credential state is lock-backed.
+    func accessible(_ snapshot: PersonalGitHubSource.Snapshot?) -> PersonalGitHubSource.Snapshot? {
+        _ = credentialRevision
+        guard let snapshot, snapshot.isAccessibleWithCurrentCredentials else { return nil }
+        return snapshot
+    }
+
+    func snapshot(for path: String) -> PersonalGitHubSource.Snapshot? {
+        accessible(snapshots[path])
+    }
+
+    func credentialsDidChange(rejected: Bool = false) {
+        credentialRevision &+= 1
+        // A rejected token can still yield a public result or an access error
+        // through the in-flight query’s anonymous retry.
+        if !rejected { busy.removeAll() }
+        for path in records.keys where snapshots[path]?.isAccessibleWithCurrentCredentials != true {
+            // An open Settings request belongs to the error's button. Keep that
+            // button mounted while its credential resolution and retry complete.
+            let requestedSettings = needsGitHubSettings.contains(path)
+            clear(path)
+            if requestedSettings { needsGitHubSettings.insert(path) }
+        }
     }
 
     func record(_ path: String) -> BindingRecord? {
@@ -106,6 +134,9 @@ final class PersonalSources {
         let previous = record(path)
         var updated: BindingRecord
         if let validation {
+            guard accessible(validation.snapshot) != nil else {
+                throw PersonalGitHubSource.Failure("GitHub credentials changed. Try again.")
+            }
             if let previous, previous.anchor == validation.anchor,
                previous.repository.id == validation.snapshot.repository.id,
                previous.repository.owner.id == validation.snapshot.repository.owner.id {
@@ -185,10 +216,10 @@ final class PersonalSources {
     /// failures. Another local installation can choose a track from the same result.
     func refreshRegistered(_ apps: [InstalledApp]) async {
         var round: [String: Result<PersonalGitHubSource.Snapshot, Error>] = [:]
-        var generation = GitHubCredentials.shared.generation
+        var generation = credentialRevision
         for app in apps {
             await refresh(app) { slug in
-                let currentGeneration = GitHubCredentials.shared.generation
+                let currentGeneration = credentialRevision
                 if generation != currentGeneration {
                     round.removeAll()
                     generation = currentGeneration
@@ -212,12 +243,14 @@ final class PersonalSources {
     }) async {
         let path = app.path.path
         guard var record = record(path), busy.insert(path).inserted else { return }
-        defer { busy.remove(path) }
+        let generation = credentials.generation
+        defer { if credentials.generation == generation { busy.remove(path) } }
         do {
             guard let continued = try await reconcileInstallation(app.path, record: record) else { return }
             record = continued
+            guard credentials.generation == generation else { return }
             let snapshot = try await fetch(record.repository.full_name)
-            guard self.record(path) == record else { return }
+            guard credentials.generation == generation, accessible(snapshot) != nil, self.record(path) == record else { return }
             try validateRepository(snapshot, record: record)
             var updated = record
             updated.lastSuccessfulCheck = snapshot.checked
@@ -239,7 +272,7 @@ final class PersonalSources {
                 messages[path] = updated.confirmedVersion.map { String(localized: "Confirmed installation of \($0).") }
             }
         } catch {
-            guard self.record(path) == record else { return }
+            guard credentials.generation == generation, self.record(path) == record else { return }
             let last = record.lastSuccessfulCheck
             let disposition = (error as? PersonalGitHubSource.Failure)?.disposition
             if disposition == .reviewSource || disposition == .repositoryAccess { clear(path) }
@@ -301,12 +334,14 @@ final class PersonalSources {
                reveal: Bool, eligible: @escaping @MainActor () -> Bool) async {
         let path = result.app.path.path
         guard let record = record(path), eligible(), busy.insert(path).inserted else { return }
-        defer { busy.remove(path) }
+        let generation = credentials.generation
+        defer { if credentials.generation == generation { busy.remove(path) } }
         needsGitHubSettings.remove(path)
         var localInspection = false
         var scratch: URL?
         do {
             let fresh = try await PersonalGitHubClient.shared.fetch(record.repository.full_name)
+            guard credentials.generation == generation, accessible(fresh) != nil else { return }
             try validateRepository(fresh, record: record)
             guard let latest = fresh.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable).first,
                   latest.id == release.id, latest.tag_name == release.tag_name, latest.assets.contains(asset) else {
@@ -329,7 +364,7 @@ final class PersonalSources {
             guard let manifest = await offCooperativePool({ BackupManifest.compute(for: candidate) }) else {
                 throw PersonalGitHubSource.Failure("Cannot read all verified package contents.", .blocked)
             }
-            guard self.record(path) == record, eligible() else { throw PersonalGitHubSource.Failure("The source or update route changed.") }
+            guard credentials.generation == generation, accessible(fresh) != nil, self.record(path) == record, eligible() else { throw PersonalGitHubSource.Failure("The source or update route changed.") }
             if reveal {
                 guard let previousCheck = checked[path], identity == previousCheck.identity, manifest == previousCheck.manifest else { throw PersonalGitHubSource.Failure("The staged package changed.") }
                 try recordHandoff(record, checked: previousCheck, path: path)
@@ -342,7 +377,7 @@ final class PersonalSources {
                 messages[path] = "Verified \(identity.version) · \(identity.team ?? "") · SHA-256 matched."
             }
         } catch {
-            guard self.record(path) == record else {
+            guard credentials.generation == generation, self.record(path) == record else {
                 if let scratch { try? FileManager.default.removeItem(at: scratch) }
                 return
             }
@@ -406,7 +441,7 @@ final class PersonalSources {
 
     func releaseState(for result: UpdateResult) -> ReleaseState {
         let path = result.app.path.path
-        guard !paused.contains(path), let snapshot = snapshots[path], let record = record(path), let local = PersonalGitHubSource.Version(record.anchor.version),
+        guard !paused.contains(path), let snapshot = snapshot(for: path), let record = record(path), let local = PersonalGitHubSource.Version(record.anchor.version),
               let candidate = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable).first,
               let offered = PersonalGitHubSource.Version(candidate.tag_name) else { return .unavailable }
         if offered > local { return .update(candidate) }

@@ -3884,7 +3884,7 @@ private struct ReleaseNotesPane: View {
     private var personalChangelog: Changelog? {
         let path = result.app.path.path
         guard let binding = PersonalSources.shared.record(path) else { return nil }
-        return PersonalSources.shared.snapshots[path]?.changelog(
+        return PersonalSources.shared.snapshot(for: path)?.changelog(
             track: binding.track, installed: binding.anchor.version, includeStable: binding.includeStable)
     }
 
@@ -3894,7 +3894,7 @@ private struct ReleaseNotesPane: View {
             ContentUnavailableView {
                 Label("No release notes", systemImage: "doc.text.magnifyingglass")
             } description: {
-                Text(PersonalSources.shared.snapshots[result.app.path.path]?.truncated == true
+                Text(PersonalSources.shared.snapshot(for: result.app.path.path)?.truncated == true
                      ? "No match in the latest 60 releases." : "No matching releases.")
             }
         } else {

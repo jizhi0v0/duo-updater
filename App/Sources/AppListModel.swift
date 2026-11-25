@@ -1694,6 +1694,7 @@ final class AppListModel {
     /// `usesCLI` is compared the same way: turning the GitHub CLI's sign-in off in
     /// Settings must not leave a recheck sending the `gh` token resolved before.
     private struct ResolvedGitHubToken {
+        let generation: Int
         let explicit: String?
         let usesCLI: Bool
         let token: String?
@@ -2482,6 +2483,7 @@ final class AppListModel {
         GitHubCredentials.shared.onRejected { [weak self] generation in
             Task { @MainActor in
                 guard GitHubCredentials.shared.generation == generation else { return }
+                PersonalSources.shared.credentialsDidChange(rejected: true)
                 self?.gitHubTokenRejected = true
             }
         }
@@ -2551,7 +2553,8 @@ final class AppListModel {
         let explicit = explicitGitHubToken()
         let usesCLI = prefs.useGitHubCLIToken
         let generation = GitHubCredentials.shared.generation
-        if let cached = resolvedGitHubToken, cached.explicit == explicit, cached.usesCLI == usesCLI {
+        if let cached = resolvedGitHubToken, cached.generation == generation,
+           cached.explicit == explicit, cached.usesCLI == usesCLI {
             return GitHubTokenForRecheck(token: cached.token, generation: generation)
         }
         let token = await Self.resolveGitHubToken(explicit: explicit)
@@ -2559,7 +2562,7 @@ final class AppListModel {
         // change's own resolve owns `resolvedGitHubToken`, and `hasGitHubToken`
         // with it.
         if GitHubCredentials.shared.generation == generation {
-            resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
+            resolvedGitHubToken = ResolvedGitHubToken(generation: generation, explicit: explicit, usesCLI: usesCLI, token: token)
         }
         return GitHubTokenForRecheck(token: token, generation: generation)
     }
@@ -2575,6 +2578,7 @@ final class AppListModel {
     /// one (it checks the generation first).
     func gitHubCredentialsChanged() {
         GitHubCredentials.shared.changed()
+        PersonalSources.shared.credentialsDidChange()
         gitHubCredentialChanges += 1
         gitHubTokenRejected = false
         let generation = GitHubCredentials.shared.generation
@@ -2586,7 +2590,7 @@ final class AppListModel {
             let token = await Self.resolveGitHubToken(explicit: explicit)
             // A later change started its own resolve, which owns the answer.
             guard let self, GitHubCredentials.shared.generation == generation else { return }
-            self.resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
+            self.resolvedGitHubToken = ResolvedGitHubToken(generation: generation, explicit: explicit, usesCLI: usesCLI, token: token)
             guard let sourceRequestID, self.personalSourceSettingsRequest?.id == sourceRequestID else { return }
             self.personalSourceSettingsRequest?.resolvingCredentials = false
             if token != nil {
@@ -3785,7 +3789,7 @@ final class AppListModel {
         // local scan instead of freezing the UI or delaying the whole refresh later.
         let explicitToken = explicitGitHubToken()
         let usesCLI = prefs.useGitHubCLIToken
-        let credentialGeneration = GitHubCredentials.shared.generation
+        var credentialGeneration = GitHubCredentials.shared.generation
         async let githubToken = Self.resolveGitHubToken(explicit: explicitToken)
         // The rows' filesystem facts are observed in the same hop, for the list
         // the scan just found — see `pathFacts` for why not on the main actor.
@@ -3862,7 +3866,16 @@ final class AppListModel {
         // ones, and this round only goes on checking with the old.
         let token = await githubToken
         if GitHubCredentials.shared.generation == credentialGeneration {
-            resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, usesCLI: usesCLI, token: token)
+            // A full check resolves gh again, so it can observe an account
+            // switch or logout that happened outside Settings.
+            if let previous = resolvedGitHubToken, previous.generation == credentialGeneration,
+               previous.token != token {
+                GitHubCredentials.shared.changed()
+                credentialGeneration = GitHubCredentials.shared.generation
+                PersonalSources.shared.credentialsDidChange()
+                gitHubCredentialChanges += 1
+            }
+            resolvedGitHubToken = ResolvedGitHubToken(generation: credentialGeneration, explicit: explicitToken, usesCLI: usesCLI, token: token)
         }
         // Second witness for TestFlight rows, read off-main and bounded. It lives in
         // Notification Center's container — a different store behind a different

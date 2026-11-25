@@ -94,7 +94,7 @@ struct PersonalSourceControls: View {
         }
         .controlSize(.small)
         .sheet(isPresented: $editor) { PersonalSourceEditor(result: result, model: model) }
-        .task(id: path) { if store.snapshots[path] == nil { await store.refresh(result.app) } }
+        .task(id: path) { if store.snapshot(for: path) == nil { await store.refresh(result.app) } }
     }
 }
 
@@ -140,7 +140,7 @@ struct PersonalSourceAction: View {
         } else if compact {
             if state == .current {
                 PopoverRowAction(state: .upToDate(channel: .none), result: result)
-            } else if let record = store.record(path), let snapshot = store.snapshots[path], !store.paused.contains(path) {
+            } else if let record = store.record(path), let snapshot = store.snapshot(for: path), !store.paused.contains(path) {
                 let matches = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable)
                 if let page = GitSource.page(repository: snapshot.repository, release: matches.first) {
                     Link("Open", destination: page)
@@ -210,7 +210,8 @@ private struct PersonalSourceEditor: View {
     @State private var filters: [String: String]
     private var filenameContains: String { filters[track.rawValue] ?? "" }
     @State private var includeStable: Bool
-    @State private var preview: GitSource.Snapshot?
+    @State private var fetchedPreview: GitSource.Snapshot?
+    private var preview: GitSource.Snapshot? { store.accessible(fetchedPreview) }
     @State private var anchor: PersonalSourceZIP.Identity?
     @State private var message: String?
     @State private var validationTask: Task<Void, Never>?
@@ -262,6 +263,13 @@ private struct PersonalSourceEditor: View {
         }
         .padding(20).frame(width: 490)
         .onDisappear { cancelValidation() }
+        .onChange(of: store.credentialRevision) {
+            if fetchedPreview != nil, preview == nil {
+                fetchedPreview = nil
+                anchor = nil
+                message = nil
+            }
+        }
     }
 
     private var editorFields: some View {
@@ -273,7 +281,7 @@ private struct PersonalSourceEditor: View {
                         .labelsHidden()
                         .onChange(of: repository) {
                             cancelValidation()
-                            preview = nil
+                            fetchedPreview = nil
                             anchor = nil
                             message = nil
                             needsGitHubSettings = false
@@ -387,9 +395,10 @@ private struct PersonalSourceEditor: View {
         let input = repository
         needsGitHubSettings = false
         cancelValidation()
-        preview = nil
+        fetchedPreview = nil
         anchor = nil
         message = nil
+        let generation = GitHubCredentials.shared.generation
         validationTask = Task {
             defer { if !Task.isCancelled { validationTask = nil } }
             do {
@@ -399,15 +408,15 @@ private struct PersonalSourceEditor: View {
                 let current = try await offCooperativePool { try PersonalSourceZIP.Identity(at: result.app.path) }
                 try Task.checkCancellation()
                 let snapshot = try await PersonalGitHubClient.shared.fetch(input)
-                guard !Task.isCancelled, repository == input else { return }
+                guard !Task.isCancelled, repository == input, generation == GitHubCredentials.shared.generation, store.accessible(snapshot) != nil else { return }
                 anchor = current
-                preview = snapshot
+                fetchedPreview = snapshot
                 if let previous = store.record(result.app.path.path),
                    previous.repository.id != snapshot.repository.id || previous.repository.owner.id != snapshot.repository.owner.id || previous.anchor != current {
                     message = String(localized: "Identity changed. Saving will bind this installation to the repository shown below.")
                 }
             } catch {
-                if !Task.isCancelled, repository == input {
+                if !Task.isCancelled, repository == input, generation == GitHubCredentials.shared.generation {
                     message = error.localizedDescription
                     needsGitHubSettings = (error as? GitSource.Failure)?.disposition.needsGitHubSettings == true
                 }

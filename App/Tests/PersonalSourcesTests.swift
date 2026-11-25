@@ -52,6 +52,75 @@ import Testing
         #expect(PersonalSources(defaults: defaults).records == [futurePath: future])
     }
 
+    @Test func credentialChangesInvalidatePrivateHistoryAndEditorEvidence() async throws {
+        let credentials = GitHubCredentials()
+        try await GitHubCredentials.$current.withValue(credentials) {
+            let suite = UUID().uuidString
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            let app = FileManager.default.temporaryDirectory.appendingPathComponent(suite + ".app")
+            defer {
+                defaults.removePersistentDomain(forName: suite)
+                try? FileManager.default.removeItem(at: app)
+            }
+            let contents = app.appendingPathComponent("Contents")
+            try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+            let info = ["CFBundleIdentifier": "test.personal-source", "CFBundleShortVersionString": "1.0"]
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                .write(to: contents.appendingPathComponent("Info.plist"))
+            let anchor = try PersonalSourceZIP.Identity(at: app)
+            let store = PersonalSources(defaults: defaults, credentials: credentials)
+            let repo = PersonalGitHubSource.Repository(id: 3, full_name: "org/repo", owner: .init(id: 4))
+            let asset = PersonalGitHubSource.Asset(id: 5, name: "Private.zip", size: 80, digest: nil, updated_at: "1")
+            let release = PersonalGitHubSource.Release(id: 6, tag_name: "1.1", prerelease: false, draft: false,
+                                                       body: "Private release body", assets: [asset])
+            let installed = InstalledApp(name: "Test", bundleID: anchor.bundle, shortVersion: anchor.version,
+                                         buildVersion: nil, path: app, isMASApp: false, sparkleFeedURL: nil)
+            let preview = PersonalGitHubSource.Snapshot(repository: repo, releases: [release], checked: .now,
+                                                       truncated: false, restrictedCredentialGeneration: credentials.generation)
+            try store.saveConfiguration(for: app, repository: repo.full_name, track: .stable, filters: ["Stable": "arm"],
+                                        includeStable: false, validation: (preview, anchor))
+            let staged = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+            defer { try? FileManager.default.removeItem(at: staged) }
+            try FileManager.default.createDirectory(at: staged, withIntermediateDirectories: true)
+            let delivered = staged.appendingPathComponent("Test.app")
+            try FileManager.default.copyItem(at: app, to: delivered)
+            let checked = PersonalSources.Checked(release: release, asset: asset, directory: staged, application: delivered,
+                                                  identity: try .init(at: delivered), manifest: try #require(BackupManifest.compute(for: delivered)))
+            store.checked[app.path] = checked
+            try store.recordHandoff(try #require(store.record(app.path)), checked: checked, path: app.path)
+            let original = try #require(store.record(app.path))
+            #expect(store.snapshot(for: app.path)?.releases.first?.body == "Private release body")
+            await store.refresh(installed) { _ in
+                credentials.changed()
+                store.credentialsDidChange()
+                return preview
+            }
+            #expect(store.accessible(preview) == nil)
+            #expect(store.snapshot(for: app.path) == nil)
+            #expect(throws: PersonalGitHubSource.Failure.self) {
+                try store.saveConfiguration(for: app, repository: repo.full_name, track: .nightly, filters: [:],
+                                            includeStable: false, validation: (preview, anchor))
+            }
+            #expect(store.record(app.path) == original)
+            #expect(store.checked[app.path] == nil)
+            #expect(FileManager.default.fileExists(atPath: delivered.path))
+            let newPreview = PersonalGitHubSource.Snapshot(repository: repo, releases: [release], checked: .now,
+                                                          truncated: false, restrictedCredentialGeneration: credentials.generation)
+            await store.refresh(installed) { _ in newPreview }
+            #expect(store.snapshot(for: app.path)?.releases.first?.body == "Private release body")
+            credentials.recordRejection(generation: credentials.generation)
+            store.credentialsDidChange(rejected: true)
+            credentials.beginRound()
+            #expect(store.accessible(newPreview) == nil)
+            #expect(store.snapshot(for: app.path) == nil)
+            let publicPreview = PersonalGitHubSource.Snapshot(repository: repo, releases: [release], checked: .now, truncated: false)
+            await store.refresh(installed) { _ in publicPreview }
+            credentials.changed()
+            store.credentialsDidChange()
+            #expect(store.snapshot(for: app.path)?.releases.count == 1)
+        }
+    }
+
     @Test func newlyScannedBuiltInFeedsHavePriority() {
         func unchecked(_ id: String, feed: MyGoUpdateConfig? = nil) -> UpdateResult {
             let app = InstalledApp(name: "Test", bundleID: id, shortVersion: "1.0", buildVersion: nil,
@@ -137,7 +206,7 @@ import Testing
             await store.refresh(installed) { _ in
                 throw PersonalGitHubSource.Failure("HTTP \(status)", .repositoryAccess)
             }
-            #expect(store.snapshots[app.path] == nil)
+            #expect(store.snapshot(for: app.path) == nil)
             #expect(store.needsGitHubSettings.contains(app.path))
             #expect(store.record(app.path)?.handoff?.asset == asset)
             #expect(FileManager.default.fileExists(atPath: candidate.path))
@@ -147,7 +216,7 @@ import Testing
         let parked = root.appendingPathComponent("parked.plist")
         try FileManager.default.moveItem(at: info, to: parked)
         await store.reconcileLocal(installed)
-        #expect(store.snapshots[app.path] == nil)
+        #expect(store.snapshot(for: app.path) == nil)
         #expect(store.record(app.path)?.handoff?.asset == asset)
         #expect(FileManager.default.fileExists(atPath: candidate.path))
         try FileManager.default.moveItem(at: parked, to: info)
@@ -157,7 +226,7 @@ import Testing
             .init(repository: wrongOwner, releases: [latest], checked: .now, truncated: false)
         }
         #expect(store.record(app.path)?.repository == repo)
-        #expect(store.snapshots[app.path] == nil)
+        #expect(store.snapshot(for: app.path) == nil)
         #expect(store.paused.contains(app.path))
         #expect(!store.needsAction(row))
         store.remove(app.path)

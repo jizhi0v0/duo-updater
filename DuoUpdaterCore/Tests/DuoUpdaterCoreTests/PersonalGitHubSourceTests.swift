@@ -146,6 +146,9 @@ private final class PersonalGitHubFixture: URLProtocol, @unchecked Sendable {
                 body = #"{"private":true,"visibility":"private","id":42,"full_name":"demo/private","owner":{"id":12}}"#
             case "/repos/demo/internal" where auth == "Bearer fixture":
                 body = #"{"private":false,"visibility":"internal","id":43,"full_name":"demo/internal","owner":{"id":12}}"#
+            case "/repos/demo/unauthorized":
+                status = 401
+                body = ""
             case "/repos/demo/unknown":
                 body = #"{"id":45,"full_name":"demo/unknown","owner":{"id":12}}"#
             case "/repos/demo/no-contents" where auth == "Bearer fixture":
@@ -229,6 +232,25 @@ extension PersonalGitHubSourceTests {
         await login.enable()
         let snapshot = try await client.fetch("demo/limited")
         #expect(snapshot.releases.first?.tag_name == "v2.1")
+    }
+
+    @Test func onlyRepositoryAndReleaseListDenialsInvalidatePriorAccess() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PersonalGitHubFixture.self]
+        let authenticated = PersonalGitHubClient(configuration: config, resolveToken: { "fixture" })
+        let anonymous = PersonalGitHubClient(configuration: config)
+        for (client, slug, confirmsDenial) in [
+            (authenticated, "demo/no-contents", true), (anonymous, "demo/missing", true),
+            (anonymous, "demo/unauthorized", false), (anonymous, "demo/unknown", false),
+            (authenticated, "demo/secondary", false),
+        ] {
+            do {
+                _ = try await client.fetch(slug)
+                Issue.record("Expected lookup to fail")
+            } catch let error as Source.Failure {
+                #expect(error.confirmsRepositoryDenial == confirmsDenial)
+            }
+        }
     }
 
     @Test func restrictedReleaseDataExpiresAcrossCredentialChangesAndRejectedRounds() async throws {

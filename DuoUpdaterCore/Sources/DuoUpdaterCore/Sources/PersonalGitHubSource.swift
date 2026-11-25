@@ -11,7 +11,10 @@ public enum PersonalGitHubSource {
             public var needsGitHubSettings: Bool { self == .anonymousLimit || self == .repositoryAccess }
         }
         public let disposition: Disposition
-        public init(_ message: String, _ disposition: Disposition = .retry) {
+        /// The repository or release-list request received a non-rate-limit 403 or 404.
+        public let confirmsRepositoryDenial: Bool
+        public init(_ message: String, _ disposition: Disposition = .retry, confirmsRepositoryDenial: Bool = false) {
+            self.confirmsRepositoryDenial = confirmsRepositoryDenial
             errorDescription = message
             self.disposition = disposition
         }
@@ -322,7 +325,8 @@ public actor PersonalGitHubClient {
             return try await request(target, metadataRedirect: false, token: token, generation: generation)
         }
         if [401, 403, 404].contains(http.statusCode) {
-            throw Source.Failure("GitHub couldn’t read the repository or its releases. Check the repository URL and your GitHub credentials.", .repositoryAccess)
+            throw Source.Failure("GitHub couldn’t read the repository or its releases. Check the repository URL and your GitHub credentials.",
+                                 .repositoryAccess, confirmsRepositoryDenial: http.statusCode == 403 || http.statusCode == 404)
         }
         guard http.statusCode == 200 else { throw Source.Failure("GitHub returned HTTP \(http.statusCode). Try again later.") }
         var data = Data()

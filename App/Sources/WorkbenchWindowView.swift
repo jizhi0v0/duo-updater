@@ -400,6 +400,18 @@ struct WorkbenchWindowView: View {
                     description: Text("Pick an app to read its changelog."))
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            ForEach(PersonalSources.shared.recovering.sorted(), id: \.self) { path in
+                HStack {
+                    Label("Update recovery needs attention", systemImage: "exclamationmark.triangle")
+                    Text(verbatim: path).lineLimit(1).truncationMode(.middle).help(path)
+                    Spacer()
+                    Button("Show Recovery Files") {
+                        NSWorkspace.shared.activateFileViewerSelecting([PersonalSourceReplacement.directory(for: URL(fileURLWithPath: path))])
+                    }
+                }.padding(8).background(.bar)
+            }
+        }
         .navigationTitle("DuoUpdater")
         .toolbar {
             // One item holding both controls, not two. Left as two, macOS 26/27
@@ -3818,7 +3830,8 @@ private struct DetailHeader: View {
                 .font(.callout).foregroundStyle(.tint)
                 .lineLimit(1).minimumScaleFactor(0.75)
         case .current:
-            Text("v\(result.installedDisplay ?? "?") · up to date")
+            let version = PersonalSources.shared.record(result.app.path.path)?.anchor.version ?? result.installedDisplay ?? "?"
+            Text("v\(version) · up to date")
                 .font(.callout).foregroundStyle(.secondary)
                 .lineLimit(1).minimumScaleFactor(0.75)
         case .unavailable, nil:

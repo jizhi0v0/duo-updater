@@ -24,6 +24,9 @@ import Testing
         let lastCheck = Date(timeIntervalSince1970: 42)
         try store.save(.init(repository: repo, track: .preview, filenameContains: "Lite", includeStable: true,
                              anchor: anchor, lastSuccessfulCheck: lastCheck, confirmedVersion: "1.0"), path: app.path)
+        var granted = try #require(store.record(app.path))
+        granted.grant = .init(id: UUID(), path: app.path, requirement: "old publisher")
+        try store.save(granted, path: app.path)
         let reopened = PersonalSources(defaults: defaults)
         #expect(reopened.record(app.path)?.filenameContains == "Lite")
         #expect(reopened.record(app.path)?.anchor == anchor)
@@ -32,6 +35,8 @@ import Testing
                                        track: .stable, filters: ["Stable": "Pro", "Preview": "Lite"], includeStable: true)
         let switched = try #require(PersonalSources(defaults: defaults).record(app.path))
         #expect(switched.track == .stable)
+        #expect(switched.grant == nil)
+        #expect(switched.isKnownRollback("0.9"))
         #expect(switched.repository == repo)
         #expect(switched.anchor == anchor)
         #expect(switched.lastSuccessfulCheck == lastCheck)
@@ -50,6 +55,32 @@ import Testing
         #expect(reopened.record(secondPath) == nil)
         reopened.remove(app.path)
         #expect(PersonalSources(defaults: defaults).records == [futurePath: future])
+    }
+
+    @Test func revokingWhileFinishingPreservesTheRecoveryPointer() throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PersonalSources(defaults: defaults)
+        let path = "/Applications/Demo.app"
+        let anchor = try JSONDecoder().decode(PersonalSourceZIP.Identity.self, from: Data(
+            #"{"bundle":"test.demo","version":"1","build":"1","team":"publisher","device":1,"inode":2}"#.utf8))
+        let repo = PersonalGitHubSource.Repository(id: 1, full_name: "example/demo", owner: .init(id: 2))
+        let pending = UUID()
+        var binding = PersonalSources.BindingRecord(repository: repo, track: .stable, includeStable: false, anchor: anchor)
+        binding.schema = 2
+        binding.replacementID = pending
+        binding.grant = .init(id: UUID(), path: path, requirement: "publisher")
+        try store.save(binding, path: path)
+        try store.setReplacement(false, path: path)
+        store.remove(path)
+        let reopened = try #require(PersonalSources(defaults: defaults).record(path))
+        #expect(reopened.grant == nil)
+        #expect(reopened.replacementID == pending)
+        #expect(reopened.schema == 2)
+        #expect(throws: PersonalGitHubSource.Failure.self) {
+            try store.setReplacement(true, path: path, expected: binding)
+        }
     }
 
     @Test func credentialChangesInvalidatePrivateHistoryAndEditorEvidence() async throws {

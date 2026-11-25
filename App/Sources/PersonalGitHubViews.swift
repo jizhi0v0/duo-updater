@@ -62,6 +62,8 @@ struct PersonalSourceControls: View {
     let isEligible: Bool
     let isRoundInFlight: Bool
     @State private var editor = false
+    @State private var confirmReplacement = false
+    @State private var proposedBinding: PersonalSources.BindingRecord?
     private let store = PersonalSources.shared
     private var path: String { result.app.path.path }
 
@@ -70,6 +72,17 @@ struct PersonalSourceControls: View {
             if let record = store.record(path) {
                 Menu {
                     Button("Edit Source…") { editor = true }
+                        .disabled(record.replacementID != nil)
+                    if record.grant != nil {
+                        Button("Revoke One-Click Updates") { changeReplacement(false) }
+                    } else if isEligible, store.checked[path]?.replacementRequirement != nil {
+                        Button("Enable One-Click Updates…") { proposedBinding = record; confirmReplacement = true }
+                    }
+                    if store.recovering.contains(path) {
+                        Button("Show Recovery Files") {
+                            NSWorkspace.shared.activateFileViewerSelecting([PersonalSourceReplacement.directory(for: result.app.path)])
+                        }
+                    }
                     Button("Check Again") { Task { await store.refresh(result.app) } }
                         .disabled(isRoundInFlight || store.busy.contains(path))
                     Divider()
@@ -93,9 +106,23 @@ struct PersonalSourceControls: View {
             }
         }
         .controlSize(.small)
+        .alert("Allow one-click updates for this copy?", isPresented: $confirmReplacement) {
+            Button("Cancel", role: .cancel) {}
+            Button("I Checked the Instructions") { changeReplacement(true) }
+        } message: {
+            if let record = proposedBinding {
+                Text("Confirm that the publisher instructs you to replace this app directly. Each update requires your click.\n\n\(record.repository.full_name) · \(record.track.rawValue)\n\(path)")
+            }
+        }
         .sheet(isPresented: $editor) { PersonalSourceEditor(result: result, model: model) }
         .task(id: path) { if store.snapshot(for: path) == nil { await store.refresh(result.app) } }
     }
+
+    private func changeReplacement(_ enabled: Bool) {
+        do { try store.setReplacement(enabled, path: path, expected: proposedBinding) }
+        catch { store.messages[path] = error.localizedDescription }
+    }
+
 }
 
 struct PersonalSourceNotice: View {
@@ -114,6 +141,9 @@ struct PersonalSourceNotice: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+        if let issue = store.checked[path]?.replacementIssue, !isCurrent {
+            Text("Manual update only: \(issue)").font(.caption).foregroundStyle(.secondary)
         }
         if store.needsGitHubSettings.contains(path) {
             SourceGitHubSettingsButton(model: model) { Task { await store.refresh(result.app) } }
@@ -163,7 +193,11 @@ struct PersonalSourceAction: View {
     }
 
     @ViewBuilder private func releaseAction(_ release: GitSource.Release) -> some View {
-        if store.busy.contains(path) {
+        if store.replacing(path) {
+            if store.record(path)?.replacementID != nil {
+                ProgressView().controlSize(.small).accessibilityLabel("Installing update")
+            } else { Button("Cancel Update") { store.cancelReplacement(path) } }
+        } else if store.busy.contains(path) {
             ProgressView().controlSize(.small).accessibilityLabel("Checking GitHub source")
         } else if let record = store.record(path), let page = GitSource.page(repository: record.repository, release: release) {
             let action = store.action(for: release, path: path, record: record)
@@ -173,7 +207,15 @@ struct PersonalSourceAction: View {
             case .page(let reason):
                 Link("Open", destination: page).help(reason)
             case .verify, .reveal:
-                Menu("Update") {
+                if case .reveal(let package) = action, record.grant?.path == path, package.replacementRequirement != nil,
+                   release.tagIssue == nil, !record.isKnownRollback(package.identity.version), !store.recovering.contains(path) {
+                    Button("Update \(package.identity.version)") {
+                        store.startReplacement(result, package: package, installed: { await model.appsLane.handle(.diskChanged) }) {
+                            model.results.first(where: { $0.app.path == result.app.path }).map(model.acceptsPersonalSource) == true
+                        }
+                    }.buttonStyle(.borderedProminent)
+                }
+                Menu {
                     if case .reveal(let checked) = action {
                         Button("Show verified app in Finder") { perform(checked.asset, release: release, reveal: true) }
                     } else if case .verify(let available) = action {
@@ -183,6 +225,10 @@ struct PersonalSourceAction: View {
                     }
                     Link("Open release page", destination: page)
                     Button("Show current installation", action: revealCurrentInstallation)
+                } label: {
+                    if case .reveal = action, record.grant != nil {
+                        Image(systemName: "ellipsis.circle")
+                    } else { Text("Update") }
                 }
                 .fixedSize().help("Manual update options for \(release.tag_name)")
                 .accessibilityLabel("Manual update options for \(release.tag_name)")

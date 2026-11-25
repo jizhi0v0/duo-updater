@@ -698,16 +698,23 @@ final class PersonalSources {
         }
     }
 
-    func keepCurrentApp(_ target: URL) throws -> URL? {
+    func keepCurrentApp(
+        _ target: URL,
+        archiveRecovery: (URL) throws -> URL? = PersonalSourceReplacement.archiveRecovery(for:)
+    ) throws -> URL? {
         let path = target.path
         guard recovering.contains(path), !busy.contains(path), !installing.contains(path),
               var binding = record(path), binding.replacementID != nil else { return nil }
         let lock = try InstallLock.acquire()
         defer { lock.release() }
         let actual = try PersonalSourceZIP.Identity(at: target)
-        let archive = try PersonalSourceReplacement.archiveRecovery(for: target)
-        binding.replacementID = nil
+        // The archive can land even if synchronizing its parent fails. Persist
+        // revocation first, with the recovery pointer intact for retries.
         binding.grant = nil
+        try save(binding, path: path)
+        guard defaults.synchronize() else { throw PersonalGitHubSource.Failure("Cannot save the installation result.") }
+        let archive = try archiveRecovery(target)
+        binding.replacementID = nil
         binding.handoff = nil
         try save(binding, path: path)
         recovering.remove(path)

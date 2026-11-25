@@ -172,7 +172,19 @@ import Testing
         try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
             .write(to: contents.appendingPathComponent("Info.plist"))
         let foreign = try PersonalSourceZIP.Identity(at: target)
-        let archive = try #require(try store.keepCurrentApp(target))
+        var preservedArchive: URL?
+        #expect(throws: CocoaError.self) {
+            try store.keepCurrentApp(target) { url in
+                #expect(PersonalSources(defaults: defaults).record(path)?.grant == nil)
+                #expect(PersonalSources(defaults: defaults).record(path)?.replacementID == pending)
+                preservedArchive = try PersonalSourceReplacement.archiveRecovery(for: url)
+                throw CocoaError(.fileWriteUnknown)
+            }
+        }
+        #expect(await store.reconcileReplacement(target) == .needsReview)
+        #expect(PersonalSources(defaults: defaults).record(path)?.grant == nil)
+        #expect(try store.keepCurrentApp(target) == nil)
+        let archive = try #require(preservedArchive)
         #expect(try PersonalSourceZIP.Identity(at: target) == foreign)
         #expect(!FileManager.default.fileExists(atPath: directory.path))
         #expect(try Data(contentsOf: archive.appendingPathComponent("transaction.json")) == corrupt)

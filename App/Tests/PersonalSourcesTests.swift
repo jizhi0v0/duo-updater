@@ -1,4 +1,4 @@
-import DuoUpdaterCore
+@testable import DuoUpdaterCore
 import Foundation
 import Testing
 
@@ -50,5 +50,73 @@ import Testing
         #expect(reopened.record(secondPath) == nil)
         reopened.remove(app.path)
         #expect(PersonalSources(defaults: defaults).records == [futurePath: future])
+    }
+
+    @Test func newlyScannedBuiltInFeedsHavePriority() {
+        func unchecked(_ id: String, feed: MyGoUpdateConfig? = nil) -> UpdateResult {
+            let app = InstalledApp(name: "Test", bundleID: id, shortVersion: "1.0", buildVersion: nil,
+                                   path: URL(fileURLWithPath: "/Applications/Test.app"), isMASApp: false,
+                                   sparkleFeedURL: nil, myGoUpdate: feed)
+            return ScanRowAssembly.unchecked(app, proofs: ResolvedChannelStore.Snapshot())
+        }
+        #expect(PersonalSources.lacksBuiltInSource(unchecked("test.personal-source")))
+        #expect(!PersonalSources.lacksBuiltInSource(unchecked("test.personal-source",
+                    feed: MyGoUpdateConfig(feed: "https://example.com/feed.json", publicKey: "test"))))
+        #expect(!PersonalSources.lacksBuiltInSource(unchecked(XcodeReleasesSource.bundleID)))
+    }
+
+    @Test func finderHandoffSurvivesEditorRevalidationAndNewRelease() async throws {
+        let suite = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let app = root.appendingPathComponent("Test.app")
+        let staged = root.appendingPathComponent("checked")
+        let candidate = staged.appendingPathComponent("Test.app")
+        func makeBundle(at url: URL, version: String) throws {
+            let contents = url.appendingPathComponent("Contents")
+            try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+            let info = ["CFBundleIdentifier": "test.personal-source", "CFBundleShortVersionString": version]
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                .write(to: contents.appendingPathComponent("Info.plist"))
+        }
+        try makeBundle(at: app, version: "1.0")
+        try makeBundle(at: candidate, version: "1.1")
+        let anchor = try PersonalSourceZIP.Identity(at: app)
+        let repo = PersonalGitHubSource.Repository(id: 3, full_name: "org/repo", owner: .init(id: 4))
+        let asset = PersonalGitHubSource.Asset(id: 5, name: "Test.zip", size: 80, digest: nil, updated_at: "1")
+        let first = PersonalGitHubSource.Release(id: 6, tag_name: "1.1", prerelease: false, draft: false,
+                                                 body: nil, assets: [asset])
+        let latest = PersonalGitHubSource.Release(id: 7, tag_name: "1.2", prerelease: false, draft: false,
+                                                  body: nil, assets: [])
+        func snapshot(_ releases: [PersonalGitHubSource.Release]) -> PersonalGitHubSource.Snapshot {
+            .init(repository: repo, releases: releases, checked: .now, truncated: false)
+        }
+        let installed = InstalledApp(name: "Test", bundleID: anchor.bundle, shortVersion: anchor.version,
+                                     buildVersion: nil, path: app, isMASApp: false, sparkleFeedURL: nil)
+        let row = UpdateResult(app: installed, remote: nil, status: .unknown)
+        let store = PersonalSources(defaults: defaults)
+        let checked = PersonalSources.Checked(release: first, asset: asset, directory: staged, application: candidate,
+                                              identity: try .init(at: candidate), manifest: try #require(BackupManifest.compute(for: candidate)))
+        try store.saveConfiguration(for: app, repository: repo.full_name, track: .stable, filters: [:],
+                                    includeStable: false, validation: (snapshot([first]), anchor))
+        store.checked[app.path] = checked
+        try store.recordHandoff(try #require(store.record(app.path)), checked: checked, path: app.path)
+        #expect(!store.needsAction(row))
+        try store.saveConfiguration(for: app, repository: repo.full_name, track: .stable, filters: ["Nightly": "arm"],
+                                    includeStable: false, validation: (snapshot([first]), anchor))
+        #expect(PersonalSources(defaults: defaults).record(app.path)?.handoff?.asset == asset)
+        #expect(FileManager.default.fileExists(atPath: candidate.path))
+        await store.refresh(installed) { _ in snapshot([latest, first]) }
+        #expect(store.candidate(row) == latest)
+        #expect(store.needsAction(row))
+        #expect(store.checked[app.path] == nil)
+        #expect(FileManager.default.fileExists(atPath: candidate.path))
+        #expect(PersonalSources(defaults: defaults).record(app.path)?.handoff?.asset == asset)
+        store.remove(app.path)
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
     }
 }

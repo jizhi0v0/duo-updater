@@ -433,13 +433,8 @@ private struct PersonalSourceEditor: View {
 }
 
 extension AppListModel {
-    private static let registeredPersonalSourceConflicts = Set(
-        GitHubReleaseRegistry.rules.map { $0.bundleID.lowercased() } +
-        VendorProbeRegistry.recipes.map { $0.bundleID.lowercased() }
-    )
-
     func acceptsPersonalSource(_ result: UpdateResult) -> Bool {
-        guard !isChecking, !isScanning, lacksBuiltInSource(result),
+        guard !isChecking, !isScanning, PersonalSources.lacksBuiltInSource(result),
               case .noSourceCovers(.none) = rowState(for: result) else { return false }
         return true
     }
@@ -448,7 +443,7 @@ extension AppListModel {
     /// refreshes and other transient row actions while the source still applies.
     func displayedReleaseChannel(for result: UpdateResult) -> ReleaseChannel {
         guard let record = PersonalSources.shared.record(result.app.path.path),
-              case .unknown = result.status, lacksBuiltInSource(result) else {
+              case .unknown = result.status, PersonalSources.lacksBuiltInSource(result) else {
             return result.effectiveReleaseChannel
         }
         switch record.track {
@@ -456,16 +451,5 @@ extension AppListModel {
         case .preview: return .preview
         case .nightly: return .nightly
         }
-    }
-
-    private func lacksBuiltInSource(_ result: UpdateResult) -> Bool {
-        guard result.app.electronUpdate == nil, result.app.sparkleFeedURL == nil,
-              UpdateSourceGroup(result) == .other, !SetappCatalogSource.owns(result.app),
-              !result.homebrewSelfUpdating,
-              !Self.registeredPersonalSourceConflicts.contains(result.app.recipeBundleID?.lowercased() ?? "")
-        else { return false }
-        return result.remote == nil && result.homebrewSourceIdentifier == nil && !result.app.isMASApp
-            && OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil
-            && !result.app.isTestFlightApp && !result.app.isToolboxManaged && !result.app.isiOSAppOnMac
     }
 }

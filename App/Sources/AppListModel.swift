@@ -1111,8 +1111,7 @@ final class AppListModel {
     /// blind pass indefinitely: the count filters `results`, and a deleted app has
     /// no row there.
     func needsAction(_ result: UpdateResult) -> Bool {
-        if PersonalSources.shared.candidate(result) != nil,
-           PersonalSources.shared.record(result.app.path.path)?.handoff == nil,
+        if PersonalSources.shared.needsAction(result),
            acceptsPersonalSource(result) { return true }
         return UpdatePolicy.needsAction(
             result,

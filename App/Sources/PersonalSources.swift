@@ -5,6 +5,22 @@ import Observation
 @Observable @MainActor
 final class PersonalSources {
     static let shared = PersonalSources()
+    private static let registeredPersonalSourceConflicts = Set(
+        GitHubReleaseRegistry.rules.map { $0.bundleID.lowercased() } +
+        VendorProbeRegistry.recipes.map { $0.bundleID.lowercased() }
+    )
+
+    static func lacksBuiltInSource(_ result: UpdateResult) -> Bool {
+        guard result.app.myGoUpdate == nil, result.app.electronUpdate == nil, result.app.sparkleFeedURL == nil,
+              UpdateSourceGroup(result) == .other, !SetappCatalogSource.owns(result.app),
+              !result.homebrewSelfUpdating, result.app.bundleID != XcodeReleasesSource.bundleID,
+              !Self.registeredPersonalSourceConflicts.contains(result.app.recipeBundleID?.lowercased() ?? "")
+        else { return false }
+        return result.remote == nil && result.homebrewSourceIdentifier == nil && !result.app.isMASApp
+            && OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil
+            && !result.app.isTestFlightApp && !result.app.isToolboxManaged && !result.app.isiOSAppOnMac
+    }
+
     struct BindingRecord: Codable, Equatable {
         var schema = 1
         var repository: PersonalGitHubSource.Repository
@@ -31,8 +47,12 @@ final class PersonalSources {
         let identity: PersonalSourceZIP.Identity
         let manifest: BackupManifest
 
+        func matches(_ release: PersonalGitHubSource.Release) -> Bool {
+            release.id == releaseID && release.tag_name == tag && release.assets.contains(asset)
+        }
+
         func isPublished(in snapshot: PersonalGitHubSource.Snapshot) -> Bool {
-            snapshot.releases.contains { $0.id == releaseID && $0.tag_name == tag && $0.assets.contains(asset) }
+            snapshot.releases.contains(where: matches)
         }
     }
     struct Checked {
@@ -51,6 +71,9 @@ final class PersonalSources {
     var messages: [String: String] = [:]
     var busy = Set<String>()
     var checked: [String: Checked] = [:]
+    // A revealed directory belongs to the pending Finder handoff, even when a
+    // newer release replaces checked[path]. Only delete paths created in this process.
+    private var revealedDirectories: [String: URL] = [:]
     var blocked: [String: [PersonalGitHubSource.Asset]] = [:]
     var manualOnly: [String: [PersonalGitHubSource.Asset]] = [:]
     var paused = Set<String>()
@@ -76,11 +99,21 @@ final class PersonalSources {
         validation: (snapshot: PersonalGitHubSource.Snapshot, anchor: PersonalSourceZIP.Identity)? = nil
     ) throws {
         let path = app.path
+        let previous = record(path)
         var updated: BindingRecord
         if let validation {
-            updated = BindingRecord(
-                repository: validation.snapshot.repository, track: track, filenameContains: nil,
-                includeStable: false, anchor: validation.anchor, lastSuccessfulCheck: validation.snapshot.checked)
+            if let previous, previous.anchor == validation.anchor,
+               previous.repository.id == validation.snapshot.repository.id,
+               previous.repository.owner.id == validation.snapshot.repository.owner.id {
+                updated = previous
+            } else {
+                updated = BindingRecord(
+                    repository: validation.snapshot.repository, track: track, filenameContains: nil,
+                    includeStable: false, anchor: validation.anchor)
+            }
+            updated.repository = validation.snapshot.repository
+            updated.lastSuccessfulCheck = validation.snapshot.checked
+            if let pending = updated.handoff, !pending.isPublished(in: validation.snapshot) { updated.handoff = nil }
         } else {
             guard let saved = record(path, matchingRepository: input) else {
                 throw PersonalGitHubSource.Failure("Validate the repository before saving.")
@@ -97,7 +130,12 @@ final class PersonalSources {
         updated.includeStable = track != .stable && includeStable
         try save(updated, path: path)
         if let validation {
-            clear(path)
+            if updated.handoff == nil {
+                clear(path)
+            } else {
+                paused.remove(path)
+                needsGitHubSettings.remove(path)
+            }
             snapshots[path] = validation.snapshot
         }
     }
@@ -113,8 +151,21 @@ final class PersonalSources {
         clear(path)
     }
 
+    private func discardChecked(_ path: String) {
+        if let old = checked.removeValue(forKey: path), old.directory != revealedDirectories[path] {
+            try? FileManager.default.removeItem(at: old.directory)
+        }
+    }
+
+    private func releaseFinderDirectory(_ path: String) {
+        if let directory = revealedDirectories.removeValue(forKey: path), directory != checked[path]?.directory {
+            try? FileManager.default.removeItem(at: directory)
+        }
+    }
+
     func clear(_ path: String, preservingReleaseHistory: Bool = false) {
-        if let old = checked.removeValue(forKey: path) { try? FileManager.default.removeItem(at: old.directory) }
+        discardChecked(path)
+        releaseFinderDirectory(path)
         if !preservingReleaseHistory { snapshots[path] = nil }
         paused.remove(path)
         blocked[path] = nil
@@ -166,12 +217,13 @@ final class PersonalSources {
             updated.repository = snapshot.repository
             if let handoff = updated.handoff, !handoff.isPublished(in: snapshot) { updated.handoff = nil }
             try save(updated, path: path)
+            if updated.handoff == nil { releaseFinderDirectory(path) }
             needsGitHubSettings.remove(path)
             paused.remove(path)
             if let old = checked[path] {
                 let latest = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable).first
                 if latest?.id != old.release.id || latest?.tag_name != old.release.tag_name || latest?.assets.contains(old.asset) != true {
-                    clear(path)
+                    discardChecked(path)
                 }
             }
             snapshots[path] = snapshot
@@ -273,14 +325,12 @@ final class PersonalSources {
             }
             guard self.record(path) == record, eligible() else { throw PersonalGitHubSource.Failure("The source or update route changed.") }
             if reveal {
-                guard identity == checked[path]?.identity, manifest == checked[path]?.manifest else { throw PersonalGitHubSource.Failure("The staged package changed.") }
-                var pending = record
-                pending.handoff = Handoff(releaseID: release.id, tag: release.tag_name, asset: asset, identity: identity, manifest: manifest)
-                try save(pending, path: path)
+                guard let previousCheck = checked[path], identity == previousCheck.identity, manifest == previousCheck.manifest else { throw PersonalGitHubSource.Failure("The staged package changed.") }
+                try recordHandoff(record, checked: previousCheck, path: path)
                 NSWorkspace.shared.activateFileViewerSelecting([candidate])
                 messages[path] = "Waiting for manual installation at \(path)."
             } else {
-                if let previous = checked[path] { try? FileManager.default.removeItem(at: previous.directory) }
+                discardChecked(path)
                 checked[path] = Checked(release: release, asset: asset, directory: directory, application: candidate, identity: identity, manifest: manifest)
                 scratch = nil
                 messages[path] = "Verified \(identity.version) · \(identity.team ?? "") · SHA-256 matched."
@@ -302,10 +352,24 @@ final class PersonalSources {
             default:
                 if localInspection { blocked[path, default: []].append(asset) }
             }
-            if let previous = checked.removeValue(forKey: path) { try? FileManager.default.removeItem(at: previous.directory) }
+            discardChecked(path)
             messages[path] = error.localizedDescription
         }
         if let scratch { try? FileManager.default.removeItem(at: scratch) }
+    }
+
+    func recordHandoff(_ record: BindingRecord, checked: Checked, path: String) throws {
+        var pending = record
+        pending.handoff = Handoff(releaseID: checked.release.id, tag: checked.release.tag_name, asset: checked.asset,
+                                  identity: checked.identity, manifest: checked.manifest)
+        try save(pending, path: path)
+        releaseFinderDirectory(path)
+        revealedDirectories[path] = checked.directory
+    }
+
+    func needsAction(_ result: UpdateResult) -> Bool {
+        guard let release = candidate(result) else { return false }
+        return record(result.app.path.path)?.handoff?.matches(release) != true
     }
 
     enum ManualAction {

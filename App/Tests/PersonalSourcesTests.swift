@@ -92,8 +92,8 @@ import Testing
                                                  body: nil, assets: [asset])
         let latest = PersonalGitHubSource.Release(id: 7, tag_name: "1.2", prerelease: false, draft: false,
                                                   body: nil, assets: [])
-        func snapshot(_ releases: [PersonalGitHubSource.Release]) -> PersonalGitHubSource.Snapshot {
-            .init(repository: repo, releases: releases, checked: .now, truncated: false)
+        func snapshot(_ releases: [PersonalGitHubSource.Release], truncated: Bool = false) -> PersonalGitHubSource.Snapshot {
+            .init(repository: repo, releases: releases, checked: .now, truncated: truncated)
         }
         let installed = InstalledApp(name: "Test", bundleID: anchor.bundle, shortVersion: anchor.version,
                                      buildVersion: nil, path: app, isMASApp: false, sparkleFeedURL: nil)
@@ -116,6 +116,21 @@ import Testing
         #expect(store.checked[app.path] == nil)
         #expect(FileManager.default.fileExists(atPath: candidate.path))
         #expect(PersonalSources(defaults: defaults).record(app.path)?.handoff?.asset == asset)
+        // The old release can fall outside both the editor preview and the
+        // background refresh window while Finder still shows its checked app.
+        let window = snapshot([latest], truncated: true)
+        try store.saveConfiguration(for: app, repository: repo.full_name, track: .stable, filters: [:],
+                                    includeStable: false, validation: (window, anchor))
+        await store.refresh(installed) { _ in window }
+        let handoff = try #require(PersonalSources(defaults: defaults).record(app.path)?.handoff)
+        #expect(FileManager.default.fileExists(atPath: candidate.path))
+        #expect(store.needsAction(row))
+        #expect(handoff.isInvalidated(by: snapshot([latest])))
+        let replacedAsset = PersonalGitHubSource.Asset(id: asset.id, name: asset.name, size: asset.size,
+                                                       digest: asset.digest, updated_at: "2")
+        let changedRelease = PersonalGitHubSource.Release(id: first.id, tag_name: first.tag_name, prerelease: false,
+                                                          draft: false, body: nil, assets: [replacedAsset])
+        #expect(handoff.isInvalidated(by: snapshot([changedRelease], truncated: true)))
         // The transport maps both 403 and 404 to repositoryAccess. Access
         // failures hide stale release data while leaving the Finder file usable.
         for status in [403, 404] {

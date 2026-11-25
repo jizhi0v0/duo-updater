@@ -51,8 +51,12 @@ final class PersonalSources {
             release.id == releaseID && release.tag_name == tag && release.assets.contains(asset)
         }
 
-        func isPublished(in snapshot: PersonalGitHubSource.Snapshot) -> Bool {
-            snapshot.releases.contains(where: matches)
+        func isInvalidated(by snapshot: PersonalGitHubSource.Snapshot) -> Bool {
+            if let release = snapshot.releases.first(where: { $0.id == releaseID }) {
+                return !matches(release)
+            }
+            // Releases outside the fetched pages can still be published.
+            return !snapshot.truncated
         }
     }
     struct Checked {
@@ -113,7 +117,7 @@ final class PersonalSources {
             }
             updated.repository = validation.snapshot.repository
             updated.lastSuccessfulCheck = validation.snapshot.checked
-            if let pending = updated.handoff, !pending.isPublished(in: validation.snapshot) { updated.handoff = nil }
+            if let pending = updated.handoff, pending.isInvalidated(by: validation.snapshot) { updated.handoff = nil }
         } else {
             guard let saved = record(path, matchingRepository: input) else {
                 throw PersonalGitHubSource.Failure("Validate the repository before saving.")
@@ -218,7 +222,7 @@ final class PersonalSources {
             var updated = record
             updated.lastSuccessfulCheck = snapshot.checked
             updated.repository = snapshot.repository
-            if let handoff = updated.handoff, !handoff.isPublished(in: snapshot) { updated.handoff = nil }
+            if let handoff = updated.handoff, handoff.isInvalidated(by: snapshot) { updated.handoff = nil }
             try save(updated, path: path)
             needsGitHubSettings.remove(path)
             paused.remove(path)

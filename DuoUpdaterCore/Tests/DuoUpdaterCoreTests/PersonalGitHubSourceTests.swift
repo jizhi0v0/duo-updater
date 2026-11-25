@@ -39,6 +39,18 @@ struct PersonalGitHubSourceTests {
         }
     }
 
+    @Test func entitlementComparisonPreservesTypesAndStructure() {
+        let equal = PersonalSourceZIP.equalEntitlements
+        #expect(equal(["a": [true, false], "b": "x"], ["b": "x", "a": [true, false]]))
+        #expect(equal(nil, [:]))
+        #expect(!equal(nil, []))
+        #expect(!equal(["groups": ["a, b"]], ["groups": ["a", "b"]]))
+        #expect(!equal(["a.b": true], ["a": ["b": true]]))
+        #expect(!equal(["flag": true], ["flag": 1]))
+        #expect(!equal(["count": 1], ["count": 1.0]))
+        #expect(!equal(["groups": [1]], ["groups": ["1"]]))
+    }
+
     @Test func oversizedOrNonregularInfoPlistIsRejected() throws {
         let fm = FileManager.default
         let app = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".app")

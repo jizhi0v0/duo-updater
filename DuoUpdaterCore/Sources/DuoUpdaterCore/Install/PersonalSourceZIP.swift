@@ -184,6 +184,33 @@ public enum PersonalSourceZIP {
         return candidate
     }
 
+    static func equalEntitlements(_ lhs: Any?, _ rhs: Any?) -> Bool {
+        // Absence is an empty entitlement dictionary. A malformed top-level
+        // value must never compare equal to an empty one.
+        guard let left = (lhs ?? [:]) as? [String: Any],
+              let right = (rhs ?? [:]) as? [String: Any] else { return false }
+        return equalPlist(left, right)
+    }
+
+    private static func equalPlist(_ left: Any, _ right: Any) -> Bool {
+        let type = CFGetTypeID(left as CFTypeRef)
+        guard type == CFGetTypeID(right as CFTypeRef) else { return false }
+        switch type {
+        case CFDictionaryGetTypeID():
+            guard let a = left as? [String: Any], let b = right as? [String: Any], a.keys == b.keys else { return false }
+            return a.allSatisfy { key, value in b[key].map { equalPlist(value, $0) } == true }
+        case CFArrayGetTypeID():
+            guard let a = left as? [Any], let b = right as? [Any], a.count == b.count else { return false }
+            return zip(a, b).allSatisfy(equalPlist)
+        case CFNumberGetTypeID():
+            let a = left as! NSNumber
+            let b = right as! NSNumber
+            return CFNumberIsFloatType(a) == CFNumberIsFloatType(b) && a == b
+        default:
+            return CFEqual(left as CFTypeRef, right as CFTypeRef)
+        }
+    }
+
     private static func inspectBundle(app: URL, installed: URL, anchor: Identity, tag: String) throws -> Identity {
         guard try Identity(at: installed) == anchor else { throw Failure("The installed copy changed. Review the source again.", .reviewSource) }
         let candidate = try Identity(at: app)
@@ -208,12 +235,15 @@ public enum PersonalSourceZIP {
         guard ["CFBundleExecutable", "CFBundleName", "CFBundleDisplayName"].allSatisfy({ key in
             (oldInfo[key] as? String) == (newInfo[key] as? String)
         }) else { throw Failure("The package edition does not match this installation.", .blocked) }
-        guard let oldSignature = SignatureVerifier.signingSummary(at: installed),
-              let newSignature = SignatureVerifier.signingSummary(at: app),
-              newSignature.authorities.first?.hasPrefix("Developer ID Application: ") == true else {
+        let oldSignature = try SignatureVerifier.signingInfo(at: installed)
+        let newSignature = try SignatureVerifier.signingInfo(at: app)
+        guard let certificates = newSignature[kSecCodeInfoCertificates as String] as? [SecCertificate],
+              let leaf = certificates.first, let authority = SecCertificateCopySubjectSummary(leaf) as String?,
+              authority.hasPrefix("Developer ID Application: ") else {
             throw Failure("No verified Developer ID identity. Use the release page.", .releasePage)
         }
-        guard newSignature.entitlements == oldSignature.entitlements else {
+        let key = kSecCodeInfoEntitlementsDict as String
+        guard equalEntitlements(oldSignature[key], newSignature[key]) else {
             throw Failure("The app’s requested permissions changed. Use the vendor’s instructions.", .releasePage)
         }
         for copy in [app, installed] {

@@ -3618,6 +3618,7 @@ final class AppListModel {
     }
 
     private func performRefresh(intent: RefreshIntent) async {
+        await PersonalSources.shared.recoverReplacements()
         defer {
             let subscriptions = results.filter { PersonalSources.shared.records[$0.app.path.path] != nil }
             if !subscriptions.isEmpty {

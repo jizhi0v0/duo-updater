@@ -168,7 +168,11 @@ public actor PersonalGitHubClient {
     private enum Access: Hashable { case anonymous, authenticated(Int) }
     private struct Lookup: Hashable { let slug: String; let access: Access }
     private var rateLimitReset: [Access: Date] = [:]
-    private var pending: [Lookup: Task<PersonalGitHubSource.Snapshot, Error>] = [:]
+    private struct LookupInProgress {
+        let task: Task<PersonalGitHubSource.Snapshot, Error>
+        var callers: Set<UUID>
+    }
+    private var pending: [Lookup: LookupInProgress] = [:]
 
     init(configuration config: URLSessionConfiguration = .ephemeral, resolveToken: @escaping @Sendable () async -> String? = { nil }) {
         self.resolveToken = resolveToken
@@ -186,12 +190,30 @@ public actor PersonalGitHubClient {
         let token = await resolveToken()
         guard GitHubCredentials.current.generation == generation else { return try await fetch(input) }
         let key = Lookup(slug: slug, access: token != nil && !GitHubCredentials.current.isRejected ? .authenticated(generation) : .anonymous)
-        if let task = pending[key] { return try await task.value }
-        guard pending.count < 2 else { throw Source.Failure("Other GitHub sources are being checked. Try again shortly.") }
-        let task = Task(priority: .utility) { try await load(slug, token: token, generation: generation) }
-        pending[key] = task
-        defer { pending[key] = nil }
-        return try await task.value
+        try Task.checkCancellation()
+        let caller = UUID()
+        let task: Task<PersonalGitHubSource.Snapshot, Error>
+        if let existing = pending[key] {
+            task = existing.task
+            pending[key]?.callers.insert(caller)
+        } else {
+            guard pending.count < 2 else { throw Source.Failure("Other GitHub sources are being checked. Try again shortly.") }
+            task = Task(priority: .utility) { try await load(slug, token: token, generation: generation) }
+            pending[key] = LookupInProgress(task: task, callers: [caller])
+        }
+        defer { finishLookup(key, caller: caller) }
+        return try await withTaskCancellationHandler {
+            let snapshot = try await task.value
+            try Task.checkCancellation()
+            return snapshot
+        } onCancel: {
+            Task { await self.finishLookup(key, caller: caller) }
+        }
+    }
+
+    private func finishLookup(_ key: Lookup, caller: UUID) {
+        guard pending[key]?.callers.remove(caller) != nil, pending[key]?.callers.isEmpty == true else { return }
+        pending.removeValue(forKey: key)?.task.cancel()
     }
 
     private func load(_ slug: String, token: String?, generation: Int) async throws -> Source.Snapshot {

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Duo Updater · GitHub 来源 · 交互设计稿</title>
+<style>
+:root{--bg:#141416;--win:#1f1f21;--sheet:#2b2b2e;--ctl:#434346;--line:rgba(255,255,255,.09);--t1:#f5f5f7;--t2:rgba(235,235,245,.62);--t3:rgba(235,235,245,.36);--acc:#0a84ff;--grn:#30d158;--org:#ff9f0a;--red:#ff453a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t1);font:13px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;display:flex;height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
+#rail{width:272px;flex:none;border-right:1px solid var(--line);padding:16px 14px;overflow:auto;background:#18181a}
+#rail h1{font-size:15px;margin:0}#rail h2{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 6px}
+.jumps{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.jumps button,.rseg button{background:#2a2a2d;border:1px solid var(--line);color:var(--t1);font:12px inherit;font-family:inherit;padding:5px 6px;border-radius:6px;cursor:pointer;text-align:left}
+.jumps button:hover{background:#333337}
+.rseg{display:flex;gap:4px;margin:4px 0 8px}.rseg button{flex:1;text-align:center}.rseg button.on{background:var(--acc);border-color:var(--acc)}
+#rail select{width:100%;background:#2a2a2d;color:var(--t1);border:1px solid var(--line);border-radius:6px;padding:4px;font:12px inherit;font-family:inherit;margin:2px 0 6px}
+#rail label.s{font-size:12px;color:var(--t2);display:block}
+#note{font-size:12px;color:var(--t2);background:#222225;border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-height:90px}
+#note b{color:var(--t1)}
+#stage{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:auto;min-width:780px}
+.win{width:740px;height:600px;background:var(--win);border-radius:12px;border:1px solid rgba(255,255,255,.13);box-shadow:0 30px 80px rgba(0,0,0,.55);position:relative;overflow:hidden;display:flex;flex-direction:column}
+.tb{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line);background:#252527}
+.lights{display:flex;gap:8px;margin-right:6px}.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.list{flex:1;overflow:auto;padding:4px 16px 18px}
+.gh{display:flex;align-items:baseline;gap:8px;margin:14px 4px 6px}.gh b{font-size:12px;color:var(--t2)}.gh span{font-size:11px;color:var(--t3)}
+.card{background:rgba(255,255,255,.035);border-radius:9px;border:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-top:1px solid var(--line)}.row:first-child{border-top:0}
+.row .mid{flex:1;min-width:0}.row .nm{font-weight:500}.row .sub{font-size:11.5px;color:var(--t2)}.acts{display:flex;gap:6px;align-items:center}
+.flash{animation:fl 1.8s}@keyframes fl{0%{background:rgba(10,132,255,.28)}100%{background:transparent}}
+.icon{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;font-weight:700;color:#fff;flex:none;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.3)}
+.icon.lg{width:48px;height:48px;border-radius:11px;font-size:20px}
+.btn{height:24px;padding:0 11px;border-radius:6px;background:var(--ctl);color:var(--t1);border:0;font:13px inherit;font-family:inherit;cursor:pointer;white-space:nowrap;box-shadow:inset 0 .5px 0 rgba(255,255,255,.12)}
+.btn:hover{filter:brightness(1.12)}.btn.pri{background:var(--acc)}.btn.dan{background:none;color:var(--red);padding:0 4px;box-shadow:none}.btn.danf{background:var(--red)}
+.btn:disabled{opacity:.38;cursor:default;filter:none}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11.5px}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t1{color:var(--t1)}.t2{color:var(--t2)}.t3{color:var(--t3)}.sm{font-size:11.5px}.red{color:#ff7b72}.sp{flex:1}
+.pill{font-size:11px;padding:1px 7px;border-radius:10px;background:rgba(255,255,255,.08);color:var(--t2);font-weight:400;white-space:nowrap}
+.pill.b{background:rgba(10,132,255,.18);color:#6cb6ff}.pill.o{background:rgba(255,159,10,.15);color:#ffb340}.pill.g{background:rgba(48,209,88,.14);color:#5fe08a}
+.sw{width:30px;height:18px;border-radius:9px;background:#545458;position:relative;cursor:pointer;flex:none;transition:.15s}.sw.on{background:var(--grn)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}.sw.on::after{left:14px}
+.scrim{position:absolute;inset:52px 0 0;background:rgba(0,0,0,.28)}
+.sheet{position:absolute;top:52px;left:50%;transform:translateX(-50%);width:490px;background:var(--sheet);border-radius:0 0 12px 12px;border:1px solid rgba(255,255,255,.13);border-top:0;box-shadow:0 22px 60px rgba(0,0,0,.55);padding:16px 20px 16px;animation:drop .22s ease-out;z-index:3}
+@keyframes drop{from{transform:translate(-50%,-14px);opacity:.4}}
+.hd{display:flex;gap:12px;align-items:center;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.hdm{min-width:0;flex:1}.hdn{font-size:15px;font-weight:600;display:flex;gap:7px;align-items:center;margin-bottom:2px}
+.hdm .mono{user-select:text}
+.lab{font-size:12px;color:var(--t2);margin:10px 0 5px;font-weight:500}
+.hs{display:flex;gap:8px}
+input.tf{width:100%;height:28px;background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:var(--t1);padding:0 8px;font:12.5px ui-monospace,"SF Mono",Menlo,monospace;outline:none;caret-color:var(--acc)}
+input.tf::placeholder{color:var(--t3);font-family:-apple-system,"PingFang SC",sans-serif;opacity:1}
+input.tf:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(10,132,255,.38);background:#1c1c1e;color:var(--t1)}
+input.tf:disabled{color:var(--t2);background:#252527;-webkit-text-fill-color:var(--t2)}
+.hint{font-size:11.5px;color:var(--t3);margin-top:5px;min-height:17px}
+.tagp{font-size:10px;padding:0 5px;border-radius:4px;background:rgba(255,159,10,.18);color:#ffb340;margin-right:4px}
+.g2{display:grid;grid-template-columns:auto 1fr;gap:14px}
+.seg{display:inline-flex;background:#1c1c1e;border-radius:6px;padding:2px;border:1px solid rgba(255,255,255,.12)}
+.seg button{border:0;background:none;color:var(--t2);font:12.5px inherit;font-family:inherit;padding:0 11px;border-radius:4px;cursor:pointer;height:22px}
+.seg button.on{background:#5a5a5e;color:#fff}.seg.dis{opacity:.5;pointer-events:none}
+.vbtn{width:84px;height:28px;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.vbtn .c{display:none}.vbtn .l{display:inline-flex;align-items:center;gap:6px}
+.vbtn.ld:hover{background:#5a2b2a}.vbtn.ld:hover .l{display:none}.vbtn.ld:hover .c{display:inline}
+.spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.22);border-top-color:#fff;border-radius:50%;animation:r .8s linear infinite;display:inline-block}
+.spin.lg{width:22px;height:22px;border-width:2.5px}@keyframes r{to{transform:rotate(360deg)}}
+.res,.mb{height:176px;overflow:auto;margin-top:8px;border-radius:8px;background:rgba(0,0,0,.2);border:1px solid var(--line);padding:11px 12px}
+.mb{height:206px}
+.ph{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--t3);font-size:12px;text-align:center}
+.skel{height:10px;border-radius:4px;background:linear-gradient(90deg,#333 0,#454548 50%,#333 100%);background-size:200% 100%;animation:sh 1.2s infinite;margin:10px 0}@keyframes sh{to{background-position:-200% 0}}
+.okh{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.chk{width:18px;height:18px;border-radius:50%;background:var(--grn);color:#062;display:grid;place-items:center;font-size:11px;font-weight:800;flex:none}
+.chk.o{background:var(--org);color:#3a2000}.chk.r{background:var(--red);color:#fff}.chk.n{background:#636366;color:#fff}.chk.b{background:var(--acc);color:#fff}
+.kv{display:grid;grid-template-columns:52px 1fr;gap:7px 10px;font-size:12.5px;align-items:start}.k{color:var(--t3);font-size:12px}
+.asset{display:flex;gap:7px;align-items:center}
+.fx{font:600 9px/1 -apple-system,sans-serif;padding:3px 4px;border-radius:3px;background:#4a4a4d;color:#e5e5ea;letter-spacing:.3px}
+.tg{font-size:11.5px;color:var(--grn)}
+.radio{display:flex;gap:7px;align-items:center;padding:3px 6px;border-radius:5px;cursor:pointer;margin-top:2px}.radio:hover{background:rgba(255,255,255,.05)}
+.radio i{width:13px;height:13px;border-radius:50%;border:1.5px solid #8e8e93;flex:none}.radio.on i{border:4px solid var(--acc);background:#fff}
+.warn{color:#ffb340;font-size:12.5px}
+.fine{margin-top:10px;font-size:11px;color:var(--t3);border-top:1px solid var(--line);padding-top:7px}
+.ft{display:flex;align-items:center;gap:8px;margin-top:14px;min-height:28px}
+.kb{opacity:.6;font-size:11px;margin-left:3px}
+.banner{background:rgba(10,132,255,.14);color:#8cc4ff;border-radius:6px;padding:5px 10px;font-size:12px;margin-top:8px}
+.confirm{display:flex;gap:8px;align-items:center;width:100%;background:rgba(255,69,58,.1);border:1px solid rgba(255,69,58,.32);border-radius:8px;padding:8px 10px}.confirm>div{flex:1}
+.stp{display:flex;align-items:center;gap:6px;margin:10px 0 2px;font-size:12px;color:var(--t3)}
+.st{display:flex;align-items:center;gap:5px;white-space:nowrap}.st i{width:17px;height:17px;border-radius:50%;border:1px solid #555;display:grid;place-items:center;font-style:normal;font-size:10px}
+.st.cur{color:var(--t1)}.st.cur i{background:var(--acc);border-color:var(--acc);color:#fff}
+.st.done{color:var(--t2)}.st.done i{background:#3a3a3c;color:var(--grn);border-color:#3a3a3c}
+.st.bad{color:#ff8a80}.st.bad i{background:var(--red);border-color:var(--red);color:#fff}
+.stl{flex:1;height:1px;background:var(--line)}
+.bar{height:6px;border-radius:3px;background:#3a3a3c;overflow:hidden;margin:12px 0 6px}.bar i{display:block;height:100%;background:var(--acc);width:0;transition:width .12s}
+ol.ol{margin:4px 0;padding-left:20px;font-size:12.5px}ol.ol li{margin:3px 0}
+.rorow{display:flex;gap:12px;align-items:center;margin-top:12px;background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}.rorow>div{flex:1}
+.toast{position:absolute;bottom:14px;left:50%;transform:translate(-50%,20px);opacity:0;background:rgba(52,52,55,.97);border:1px solid rgba(255,255,255,.13);padding:7px 14px;border-radius:8px;font-size:12px;transition:.25s;pointer-events:none;max-width:92%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:8}.toast.show{opacity:1;transform:translate(-50%,0)}
+.finder{position:absolute;left:calc(50% + 170px);top:calc(50% + 70px);width:300px;background:#262628;border:1px solid rgba(255,255,255,.15);border-radius:10px;box-shadow:0 24px 50px rgba(0,0,0,.65);display:none;overflow:hidden;z-index:6}
+.finder.show{display:block;animation:pop .22s}@keyframes pop{from{transform:scale(.94);opacity:0}}
+.fbar{height:30px;display:flex;align-items:center;gap:8px;padding:0 10px;background:#2f2f31;font-size:12px;color:var(--t2)}.fbar .lights i{width:10px;height:10px}
+.fbody{display:flex;height:120px}.fside{width:96px;padding:8px;font-size:12px;background:#232325;display:flex;flex-direction:column;gap:3px}.fside .hl{color:#6cb6ff}
+.fmain{flex:1;display:flex;align-items:center;justify-content:center}.fitem{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px}.fitem span{background:var(--acc);border-radius:4px;padding:0 5px}
+.menu{position:absolute;display:none;min-width:210px;background:rgba(44,44,46,.98);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.55);z-index:9;font-size:13px}
+.menu div{padding:3px 10px;border-radius:4px;cursor:default}.menu div:hover{background:var(--acc)}.menu .sep{height:1px;background:var(--line);margin:4px 0;padding:0}.menu .sep:hover{background:var(--line)}.menu .dan{color:#ff7b72}.menu .hdr{color:var(--t3);font-size:11px}.menu .hdr:hover{background:none}
+@media(max-width:1040px){#rail{width:205px}#stage{min-width:0}.win{width:100%;height:min(600px,100vh)}.sheet{max-width:96%;max-height:96%;overflow:auto}}
+</style></head><body>
+<aside id="rail">
+<h1>Duo Updater · GitHub 来源</h1>
+<div class="t2 sm">交互设计稿 · 暗色 · 490pt sheet · 全部可点按</div>
+<h2>场景跳转</h2>
+<div class="jumps">
+<button data-act="jump" data-id="list">分组入口</button><button data-act="jump" data-id="add">添加来源</button>
+<button data-act="jump" data-id="focus">聚焦可读</button><button data-act="jump" data-id="loading">原位验证中</button>
+<button data-act="jump" data-id="ok">✓ 已验证</button><button data-act="jump" data-id="none">无资产</button>
+<button data-act="jump" data-id="multi">多资产 + 过滤</button><button data-act="jump" data-id="rl">限流 → 设置</button>
+<button data-act="jump" data-id="nf">仓库不存在</button><button data-act="jump" data-id="edit">编辑来源</button>
+<button data-act="jump" data-id="remove">移除确认</button><button data-act="jump" data-id="ro">只读关注</button>
+<button data-act="jump" data-id="man">手动检查 ZIP</button><button data-act="jump" data-id="mandmg">DMG 发布页</button>
+</div>
+<h2>模拟结果</h2>
+<label class="s">验证返回</label><select id="simV"><option value="ok">成功 · 单一资产</option><option value="multi">成功 · 多个资产</option><option value="none">成功 · 正式版无资产</option><option value="ratelimit">API 限流</option><option value="notfound">仓库不存在</option></select>
+<label class="s"><input type="checkbox" id="simRL"> 自动重试时仍然限流</label>
+<label class="s" style="margin-top:6px">交接前的阻止</label><select id="simB"><option value="clear">通过检查</option><option value="noapp">安装包身份或结构不符</option></select>
+<label class="s">回读结果</label><select id="simR"><option value="match">版本一致</option><option value="mismatch">仍是旧版本</option></select>
+<h2>已确认的规则</h2><p class="t2 sm">仅未找到更新来源的 App 可新增。已有订阅可管理。每个安装副本关注一条发布线，三条发布线各自记住文件名条件。</p><h2>设计注解</h2><div id="note"></div>
+<h2>键盘</h2><div class="t2 sm">↩ 验证 · esc 取消进行中的操作 / 关闭 · ⌘↩ 保存</div>
+</aside>
+<main id="stage">
+<div class="win" id="win">
+ <div class="tb"><div class="lights"><i></i><i></i><i></i></div><b>Duo Updater</b><span class="t3 sm" id="cnt"></span><span class="sp"></span><span id="tbx"></span></div>
+ <div class="list" id="list"></div>
+ <div id="layer"></div>
+ <div id="toast" class="toast"></div>
+</div>
+<div id="finder" class="finder"></div>
+<div id="menu" class="menu"></div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const apps=[
+{id:'aircard',name:'AirCard',ver:'1.2.4',path:'/Applications/AirCard.app',bid:'com.mak5er.AirCard',g:['#64d2ff','#0a84ff'],grp:'none',src:{repo:'Mak5er/AirCard',ch:'stable',filter:'',asset:'AirCard.dmg',size:'8.4 MB',latest:'v1.2.6'}},
+{id:'hidden',name:'Hidden Bar',ver:'2.0.3',path:'/Applications/Hidden Bar.app',bid:'com.dwarvesv.minimalbar',g:['#bf5af2','#5e5ce6'],grp:'none',src:{repo:'dwarvesf/hidden',ch:'stable',filter:'.zip',asset:'HiddenBar.zip',size:'4.2 MB',latest:'v2.1.0'}},
+{id:'rect',name:'Rectangle',ver:'0.84',path:'/Applications/Rectangle.app',bid:'com.knollsoft.Rectangle',g:['#ff9f0a','#ff453a'],grp:'none',src:null},
+{id:'stats',name:'Stats',ver:'2.11.5',path:'/Applications/Stats.app',bid:'eu.exelban.Stats',g:['#30d158','#0a84ff'],grp:'none',src:null},
+{id:'raycast',name:'Raycast',ver:'1.84.2',path:'/Applications/Raycast.app',bid:'com.raycast.macos',g:['#ff6363','#ff2d55'],grp:'mgr',mgr:'Sparkle',watch:true,src:{repo:'demo/legacy',ch:'stable',filter:'',asset:'Demo.zip',latest:'v1.0'}},
+{id:'xcode',name:'Xcode',ver:'16.1',path:'/Applications/Xcode.app',bid:'com.apple.dt.Xcode',g:['#5ac8fa','#0060df'],grp:'mgr',mgr:'App Store',watch:false}];
+const A=id=>apps.find(a=>a.id===id);
+const sim={v:'ok',rl:false,block:'clear',read:'match'};
+const pol={entry:'row',persist:'save'};
+let sheet=null,D=null,M=null,tm=null,iv=null;
+const chName=c=>({pre:'Preview',stable:'Stable',nightly:'Nightly'})[c];
+const icon=(a,lg)=>`<div class="icon${lg?' lg':''}" style="background:linear-gradient(160deg,${a.g[0]},${a.g[1]})">${a.name[0]}</div>`;
+const fx=n=>`<span class="fx">${esc((n.split('.').pop()||'').toUpperCase())}</span>`;
+function clearT(){clearTimeout(tm);clearInterval(iv);}
+function parseRepo(v){v=(v||'').trim();let m=v.match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:[\/?#].*)?$/i)||v.match(/^([\w.-]+)\/([\w.-]+)$/);return m?m[1]+'/'+m[2]:null;}
+function glob(p,n){return n.toLowerCase().includes(p.toLowerCase());}
+function bump(v,minor){const p=v.split('.').map(Number);if(minor){p[1]=(p[1]||0)+1;if(p.length>2)p[2]=0;}else p[p.length-1]+=2;return p.join('.');}
+function mkRel(a,repo,ch,m){
+ const nm=repo.split('/')[1].replace(/[^A-Za-z0-9]/g,'')||'App',ext=a.id==='hidden'?'zip':'dmg';
+ const base=a.src&&a.src.repo.toLowerCase()===repo.toLowerCase()?a.src.latest.replace(/^v/,''):bump(a.ver);
+ const tag=ch==='nightly'?'v'+bump(base,1)+'-nightly.1':ch==='pre'?'v'+bump(base,1)+'-beta.2':'v'+base,date=ch==='pre'?'2026-11-23':'2026-11-18';
+ const src=[{n:'Source code (zip)',src:1},{n:'Source code (tar.gz)',src:1}];let as;
+ if(m==='multi')as=[{n:nm+'-arm64.dmg',s:'7.9 MB'},{n:nm+'-x86_64.dmg',s:'8.6 MB'},{n:nm+'-universal.zip',s:'15.2 MB'},{n:'checksums.txt',s:'1 KB'}];
+ else if(m==='none'&&ch==='stable')as=[];
+ else if(m==='none')as=[{n:nm+'-beta.'+ext,s:'8.7 MB'}];
+ else as=[{n:nm+'.'+ext,s:ext==='zip'?'4.2 MB':'8.4 MB'}];
+ return{tag,date,assets:as.concat(src)};
+}
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2800);}
+const NOTES={
+list:'按<b>谁负责更新</b>分组：无管理者 · 已配置 / 未配置来源，以及由其他更新器管理的只读组。只有无来源行会显示添加入口。',
+idle:'头部展示头像、名称、已安装版本、路径、Bundle ID；路径和 ID 用等宽字体，可以选中。仓库框按<b>纯文本</b>处理，粘贴 URL 不会变成蓝色链接，识别结果写在下方提示里。结果区<b>固定高度</b>，之后的每个状态都在原处替换。',
+focus:'聚焦时底色仍是深色、文字仍是浅色；占位符用三级文字色（约 36% 白），<b>不会变黑</b>。焦点环用系统强调色。等宽字体便于看清 owner/repo。',
+loading:'Loading 就在按钮原位：宽度不变，显示转圈和「验证中」。<b>悬停按钮会变成「取消」</b>，esc 效果相同。编辑仓库地址会取消进行中的校验；结果区用同高骨架占位，不会另起一行把内容往下推。',
+done:'<b>绿色勾只表示仓库存在且读到了发布信息。</b>渠道、版本、资产分行列出，并说明这一步没有下载、也没有检查签名。',
+multi:'候选只来自<b>当前渠道的最新发布</b>。文件名过滤在本地筛选这些资产，不跨渠道、不重新请求；筛到只剩 1 个时会自动选中。',
+none:'仓库已验证，但这个渠道没有可安装的包，所以用橙色说明原因和替代办法，仍可保存该发布线并继续关注。',
+rl:'限流卡片给出去设置的入口，草稿留在内存里。从设置返回后<b>只自动重试 1 次</b>；仍然限流就停止，把重试交回给用户手动操作。',
+nf:'找不到仓库或仓库为私有时，在同一位置报错；草稿保留，可以直接修改。',
+cancelled:'取消后草稿不变，结果区写明「已取消」，按钮立即恢复。',
+saved:'编辑时先显示当前保存的来源（中性图标，不用绿勾）。修改任何字段都要重新验证才能保存。',
+remove:'移除在原地确认，并写明 App 本身不会被删除，以及它会被移到哪个分组。',
+set:'设置 › GitHub 是独立页面，顶部的标签提示草稿已保留。保存令牌后回到原草稿并自动重试一次。',
+ro:'由其他更新器管理的 App 只读：不能添加来源、不能检查或安装，已有订阅仍可编辑或移除。',
+};
+function note(k){$('#note').innerHTML=NOTES[k]||'';}
+/* ---------- 列表 ---------- */
+function rowHTML(a){
+ let sub,acts='';const R=pol.entry==='row',more=`<button class="btn" data-act="more" data-id="${a.id}">⋯</button>`;
+ if(a.grp==='mgr'&&!a.watch){return '<div class="row">'+icon(a)+'<div class="mid"><b>'+esc(a.name)+'</b><div class="sub">由 '+esc(a.mgr)+' 管理</div></div></div>';}
+ if(a.grp==='mgr'){sub='由 '+a.mgr+' 更新 · 已有关联仅关注发布';acts='<button class="btn" data-act="edit" data-id="'+a.id+'">编辑已有来源…</button>';}
+ else if(a.src){const up=a.ver!==a.src.latest.replace(/^v/,'');sub=`<span class="mono">${esc(a.src.repo)}</span> · ${chName(a.src.ch)} · ${esc(a.src.asset)}${a.src.filter?` · 过滤 <span class="mono">${esc(a.src.filter)}</span>`:''}`;
+  acts=`<span class="t3 sm">${a.ver}</span>${up?`<span class="pill b">上次检查发现 ${a.src.latest}</span>`:'<span class="pill g">已是最新</span>'}`+(R?`<button class="btn" data-act="check" data-id="${a.id}">检查…</button><button class="btn" data-act="edit" data-id="${a.id}">编辑…</button>`:more);}
+ else{sub='没有内置更新器，也没有配置来源';acts=`<span class="t3 sm">${a.ver}</span>`+(R?`<button class="btn" data-act="edit" data-id="${a.id}">添加 GitHub 来源…</button>`:more);}
+ return `<div class="row" id="r-${a.id}">${icon(a)}<div class="mid"><div class="nm">${a.name}</div><div class="sub ell">${sub}</div></div><div class="acts">${acts}</div></div>`;
+}
+function renderList(flash){
+ const G=[['无管理者 · 已配置 GitHub 来源','Duo Updater 负责检查，替换由你在 Finder 中完成',a=>a.grp==='none'&&a.src],['无管理者 · 未配置来源','添加仓库后可以手动检查',a=>a.grp==='none'&&!a.src],['由其他更新器管理 · 只读关注','不添加来源，不执行安装',a=>a.grp==='mgr']];
+ $('#list').innerHTML=G.map(([t,s,f])=>{const l=apps.filter(f);return `<div class="gh"><b>${t} (${l.length})</b><span>${s}</span></div><div class="card">${l.length?l.map(rowHTML).join(''):'<div class="row t3 sm">暂无</div>'}</div>`}).join('');
+ $('#cnt').textContent=apps.length+' 个 App';
+ $('#tbx').innerHTML=pol.entry==='menu'?'<button class="btn" data-act="plus">＋ 添加来源</button>':'';
+ if(flash){const r=$('#r-'+flash);r&&(r.classList.add('flash'),r.scrollIntoView({block:'nearest'}));}
+}
+function showMenu(items,e){const m=$('#menu'),r=$('#stage').getBoundingClientRect();m.innerHTML=items.map(i=>i==='-'?'<div class="sep"></div>':i.hdr?`<div class="hdr">${i.hdr}</div>`:`<div class="${i.dan?'dan':''}" data-act="${i.act}" data-id="${i.id}">${i.t}</div>`).join('');m.style.display='block';m.style.left=Math.min(e.clientX-r.left,r.width-230)+'px';m.style.top=(e.clientY-r.top+8)+'px';}
+const hideMenu=()=>$('#menu').style.display='none';
+function L(h){$('#layer').innerHTML='<div class="scrim"></div>'+h;}
+function hdr(a,badge=''){return `<div class="hd">${icon(a,1)}<div class="hdm"><div class="hdn">${a.name}<span class="pill">已安装 ${a.ver}</span>${badge}</div><div class="mono t2 ell" title="${esc(a.path)}">${esc(a.path)}</div><div class="mono t3 ell">${esc(a.bid)}</div></div></div>`;}
+function close(){clearT();sheet=null;D=null;M=null;$('#layer').innerHTML='';$('#finder').classList.remove('show');note('list');}
+/* ---------- 添加 / 编辑 ---------- */
+function openEdit(id,o={}){
+ clearT();$('#finder').classList.remove('show');const a=A(id);sheet={type:'edit',id};
+ D={filters:{...(a.src?.filters||{}),[a.src?.ch||'stable']:a.src?.filter||''},id,mode:a.src?'edit':'add',repo:a.src?a.src.repo:'',ch:a.src?a.src.ch:'stable',filter:a.src&&pol.persist==='save'?a.src.filter:'',phase:a.src?'saved':'idle',data:null,pick:null,stale:false,retried:false,auto:false,banner:'',confirm:false,repoErr:''};
+ buildEdit();if(o.focus!==false)setTimeout(()=>{const r=$('#repo');r&&r.focus();noteFor()},40);
+}
+function buildEdit(){
+ const a=A(D.id);
+ L(`<div class="sheet">${hdr(a,D.mode==='edit'?'<span class="pill b">编辑来源</span>':'<span class="pill">添加来源</span>')}<div id="bn"></div>
+ <div class="lab">GitHub 仓库</div>
+ <div class="hs"><input id="repo" class="tf" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="owner/repo，或粘贴 github.com 链接" value="${esc(D.repo)}"><button id="vb" class="btn vbtn" data-act="validate"></button></div>
+ <div class="hint" id="rh"></div>
+ <div class="g2"><div><div class="lab">渠道</div><div class="seg" id="seg"><button data-act="ch" data-id="stable">Stable</button><button data-act="ch" data-id="pre">Preview</button><button data-act="ch" data-id="nightly">Nightly</button></div></div>
+ <div><div class="lab">文件名过滤 <span class="t3">· 可选</span></div><input id="flt" class="tf" spellcheck="false" autocomplete="off" placeholder="如 Lite 或 arm64" value="${esc(D.filter)}"></div></div>
+ <div class="hint" id="fh"></div><div class="res" id="res"></div><div class="ft" id="ft"></div></div>`);
+ const r=$('#repo'),f=$('#flt');
+ r.oninput=e=>{if(D.phase==='loading')clearT();D.repo=e.target.value;D.repoErr='';if(D.phase!=='idle'){D.phase='idle';D.data=null;D.stale=true;}upd();};
+ f.oninput=e=>{D.filter=e.target.value;D.pick=null;if(D.phase==='saved'){D.phase='idle';D.stale=true;}upd();};
+ [r,f].forEach(x=>{x.onfocus=noteFor;x.onblur=()=>setTimeout(noteFor,0);x.onkeydown=e=>{if(e.key==='Enter'&&!e.metaKey){e.preventDefault();if(D.phase!=='loading'&&D.repo.trim())validate();}};});
+ upd();
+}
+function match(){const rel=D.data[D.ch],c=rel.assets.filter(x=>!x.src&&!x.n.includes('x86_64')&&/\.(dmg|zip|pkg)$/i.test(x.n)),f=D.filter.trim()?c.filter(x=>glob(D.filter,x.n)):c;return{rel,c,filtered:f,res:f.length===1?f[0]:(f.find(x=>x.n===D.pick)||null)};}
+function resHTML(){
+ const a=A(D.id),p=parseRepo(D.repo);
+ switch(D.phase){
+ case 'idle':return `<div class="ph">${D.stale?'<b class="t2">内容已修改，需要重新验证</b>':''}<div>验证后在这里显示：仓库状态 · 渠道最新版本 · 匹配的资产</div><div>只读取发布信息，不下载任何文件</div></div>`;
+ case 'loading':return `<div class="okh"><i class="spin"></i><span class="t2">正在读取 <span class="mono t1">${esc(p)}</span> 的发布信息…</span><span class="sp"></span><span class="t3 sm">悬停按钮或按 esc 取消</span></div><div class="skel" style="width:70%"></div><div class="skel" style="width:88%"></div><div class="skel" style="width:52%"></div>`;
+ case 'cancelled':return `<div class="okh"><span class="chk n">–</span><b>已取消验证</b></div><div class="t2 sm">草稿没有改动。可以修改后再次验证。</div>`;
+ case 'nf':return `<div class="okh"><span class="chk r">!</span><b>找不到仓库</b><span class="mono t2">${esc(p)}</span></div><div class="t2 sm">仓库可能不存在、已改名或为私有仓库。请检查拼写；草稿已保留。</div>`;
+ case 'rl':return `<div class="okh"><span class="chk o">!</span><b>GitHub API 已达请求上限</b></div><div class="t2 sm">未认证时每小时 60 次，13:32 重置。${D.retried?'<br><span class="warn">已自动重试 1 次，仍然受限，不会再自动重试。</span>':'添加个人访问令牌后可以继续，草稿会保留。'}</div><div class="ft" style="margin-top:12px"><button class="btn pri" data-act="openSettings">打开 GitHub 设置…</button><button class="btn" data-act="validate">重试</button></div>`;
+ case 'saved':{const s=a.src;return `<div class="okh"><span class="chk n">i</span><b>当前保存的来源</b><span class="sp"></span><span class="t3 sm">上次检查 今天 09:12</span></div><div class="kv"><span class="k">仓库</span><span class="mono">${esc(s.repo)}</span><span class="k">渠道</span><span>${chName(s.ch)} · 上次发现 <b>${s.latest}</b></span><span class="k">资产</span><span class="asset">${fx(s.asset)}<span class="mono">${esc(s.asset)}</span></span><span class="k">过滤</span><span class="t2">${s.filter?`<span class="mono">${esc(s.filter)}</span>`:(pol.persist==='save'?'无':'无')}</span></div><div class="fine">修改任何字段后需要重新验证才能保存；也可以直接点「验证」刷新。</div>`;}
+ case 'done':{const m=match(),r=m.rel,F=D.filter.trim();let as;
+  if(m.filtered.length===1)as=`<div class="asset">${fx(m.res.n)}<span class="mono">${esc(m.res.n)}</span><span class="t3 sm">${m.res.s}</span><span class="tg">✓ ${F?'过滤后唯一匹配':'唯一匹配'}</span></div>`;
+  else if(m.filtered.length>1)as=`<div class="t2 sm">${m.filtered.length} 个候选${F?'（已过滤）':''}：下载时逐次选择，也可用文件名缩小范围</div>`+m.filtered.map(x=>`<label class="radio ${D.pick===x.n?'on':''}" data-act="pick" data-id="${esc(x.n)}"><i></i>${fx(x.n)}<span class="mono">${esc(x.n)}</span><span class="t3 sm">${x.s}</span></label>`).join('');
+  else if(!m.c.length)as=`<div class="warn">此版本没有 macOS 安装包（.dmg / .zip / .pkg），只有 ${r.assets.length} 个源代码压缩包。</div><div class="t3 sm">${D.ch==='stable'?'可以切换到「含预发布」看看，或者等作者上传。':'可以切回「正式版」，或者等作者上传。'}</div>`;
+  else as=`<div class="warn">过滤「<span class="mono">${esc(F)}</span>」在此渠道的 ${m.c.length} 个安装包中没有匹配项：</div><div class="t3 sm mono">${m.c.map(x=>esc(x.n)).join('　')}</div>`;
+  return `<div class="okh"><span class="chk">✓</span><b>仓库已验证</b><span class="mono t2">${esc(p)}</span><span class="sp"></span><span class="t3 sm">${D.retried?'自动重试成功 · ':''}刚刚</span></div><div class="kv"><span class="k">渠道</span><span>${chName(D.ch)} · 最新 <b>${r.tag}</b> <span class="t3 sm">${r.date}</span> <span class="pill">已安装 ${a.ver}</span></span><span class="k">资产</span><div>${as}</div></div><div class="fine">只读取了发布信息：没有下载任何文件，也没有检查签名。</div>`;}
+ }
+}
+function ftHTML(){
+ const a=A(D.id);
+ if(D.confirm)return `<div class="confirm"><div><b>移除 ${a.name} 的 GitHub 来源？</b><div class="t2 sm">App 本身不会被删除，它会移到「未配置来源」；已保存的过滤条件一并清除。</div></div><button class="btn" data-act="noRemove">取消</button><button class="btn danf" data-act="doRemove">移除</button></div>`;
+ const m=D.phase==='done'?match():null,ok=!!m;
+ const why=D.phase==='loading'?'验证中…':m?(ok?'':m.filtered.length>1?'请选择一个资产':'没有可用的安装包'):D.phase==='saved'?'没有修改':'验证通过后可保存';
+ return `${D.mode==='edit'?'<button class="btn dan" data-act="askRemove">移除来源…</button>':''}<span class="sp"></span><span class="t3 sm">${why}</span><button class="btn" data-act="close">取消</button><button class="btn pri" data-act="save" ${ok?'':'disabled'}>保存<span class="kb">⌘↩</span></button>`;
+}
+function upd(){
+ if(!D||sheet.type!=='edit')return;const ld=D.phase==='loading';
+ $('#repo').disabled=false;$('#flt').disabled=ld;$('#seg').classList.toggle('dis',ld);
+ [...$('#seg').children].forEach(b=>b.classList.toggle('on',b.dataset.id===D.ch));
+ const vb=$('#vb');vb.className='btn vbtn'+(ld?' ld':'');vb.innerHTML=ld?'<span class="l"><i class="spin"></i>验证中</span><span class="c">取消</span>':'验证';vb.disabled=!ld&&!D.repo.trim();vb.title=ld?'取消（esc）':'';
+ const p=parseRepo(D.repo);
+ $('#rh').innerHTML=D.repoErr?`<span class="red">${D.repoErr}</span>`:p&&/github\.com/i.test(D.repo)?`已从链接识别为 <span class="mono t1">${esc(p)}</span>，按纯文本处理`:p?`将查询 <span class="mono t1">${esc(p)}</span> 的最新发布`:'支持 owner/repo 或完整链接 · 例：https://github.com/owner/repo';
+ $('#fh').textContent='可留空。只筛选此发布线下的文件，各发布线分别保存。';
+ $('#bn').innerHTML=D.banner?`<div class="banner">${D.banner}</div>`:'';
+ $('#res').innerHTML=resHTML();$('#ft').innerHTML=ftHTML();noteFor();
+}
+function noteFor(){
+ if(!D||!sheet||sheet.type!=='edit')return;const ae=document.activeElement&&document.activeElement.id;
+ if(D.confirm)return note('remove');
+ if(D.phase==='done'){const m=match();return note(m.filtered.length===1?'done':m.filtered.length>1?'multi':'none');}
+ if(D.phase==='idle')return note(ae==='repo'||ae==='flt'?'focus':'idle');
+ note({loading:'loading',rl:'rl',nf:'nf',cancelled:'cancelled',saved:'saved'}[D.phase]);
+}
+function validate(ms){
+ const p=parseRepo(D.repo);if(!p){D.repoErr='无法识别：请输入 owner/repo 或 github.com/owner/repo';upd();return;}
+ if(!D.auto){D.banner='';D.retried=false;}
+ D.phase='loading';D.pick=null;D.stale=false;D.confirm=false;upd();clearT();tm=setTimeout(finishV,ms||1600);
+}
+function finishV(){
+ let m=sim.v;if(D.auto){D.auto=false;D.retried=true;m=sim.rl?'ratelimit':(m==='ratelimit'?'ok':m);}
+ if(m==='ratelimit')D.phase='rl';else if(m==='notfound')D.phase='nf';
+ else{const a=A(D.id),p=parseRepo(D.repo);D.phase='done';D.data={stable:mkRel(a,p,'stable',m),pre:mkRel(a,p,'pre',m),nightly:mkRel(a,p,'nightly',m)};}
+ if(D.retried)D.banner=D.phase==='rl'?'已回到草稿 · 自动重试 1 次：仍然受限，不再自动重试':'已回到草稿 · 自动重试 1 次：成功';
+ upd();
+}
+function cancelV(){clearT();D.phase='cancelled';D.auto=false;upd();}
+/* ---------- 设置 ---------- */
+function openSettings(){
+ clearT();sheet={type:'set',id:D.id};
+ L('<div class="sheet"><div class="hdn">设置 › GitHub</div><p>原草稿已保留。此设计稿模拟本机 gh 登录，不读取凭据。</p><div class="ft"><button class="btn" data-act="setBack">关闭设置</button><button class="btn pri" data-act="setSave">启用已登录的 gh</button></div></div>');note('set');
+}
+function openManual(id){clearT();sheet={type:'man',id};M={id,step:'found'};renderMan();}
+function renderMan(){
+ const a=A(M.id),s=a.src,zip=/\.zip$/i.test(s.asset);
+ let body='',actions='';
+ const btn=(name,text)=>'<button class="btn pri" data-act="'+name+'">'+text+'</button>';
+ switch(M.step){
+ case 'found': body='<b>'+esc(s.latest)+'</b> · '+esc(s.asset||'多个或无匹配文件'); actions=zip?btn('verifyZIP','下载并检查 ZIP'):btn('close','前往发布页（演示）');break;
+ case 'checking':body='<i class="spin"></i> 正在检查下载摘要、签名、架构和版本…';break;
+ case 'blocked':body='<span class="red">已阻止交接</span> · 安装包不符合当前副本的身份要求。';break;
+ case 'verified':body='<span class="chk">✓</span> ZIP 已检查 · SHA-256 和签名匹配';actions=btn('showZIP','在 Finder 中显示');break;
+ case 'waiting':body='等待手动替换 '+esc(a.path)+'。';actions=btn('readZIP','模拟 Finder 替换后回读');break;
+ case 'confirmed':body='<span class="chk">✓</span> 已确认安装 '+esc(s.latest)+'，继续关注原发布线。';break;
+ case 'mismatch':body='原路径上的副本尚未与已检查的 App 一致，继续等待。';actions=btn('readZIP','再次回读');break;
+ }
+ L('<div class="sheet">'+hdr(a)+'<div class="res">'+body+'</div><div class="ft"><button class="btn" data-act="close">关闭</button><span class="sp"></span>'+actions+'</div></div>');
+ note('manualFinal');
+}
+const ACT={
+ jump:id=>J[id](),
+ edit:id=>openEdit(id),check:id=>openManual(id),view:id=>openRO(id),
+ watch:id=>{const a=A(id);a.watch=!a.watch;renderList();const s=$('#rosw');s&&s.classList.toggle('on',a.watch);toast(a.watch?`正在关注 ${a.name}（只读）`:`不再关注 ${a.name}`);},
+ more:(id,b,e)=>{const a=A(id);showMenu(a.grp==='mgr'?[{t:'查看…',act:'view',id}]:a.src?[{t:'检查更新…',act:'check',id},{t:'编辑来源…',act:'edit',id},'-',{t:'移除来源…',act:'menuRemove',id,dan:1}]:[{t:'添加 GitHub 来源…',act:'edit',id}],e);},
+ plus:(id,b,e)=>{const l=apps.filter(a=>a.grp==='none'&&!a.src);showMenu([{hdr:'为无管理者的 App 添加来源'}].concat(l.length?l.map(a=>({t:a.name+'…',act:'edit',id:a.id})):[{hdr:'没有未配置的 App'}],['-',{hdr:'其他更新器管理的 App 不在此列'}]),e);},
+ menuRemove:id=>{openEdit(id,{focus:false});D.confirm=true;upd();},
+ validate:()=>D.phase==='loading'?cancelV():validate(),
+ ch:v=>{if(D.phase==='loading')return;D.filters[D.ch]=D.filter;D.ch=v;D.filter=D.filters[v]||'';$('#flt').value=D.filter;D.pick=null;if(D.phase==='saved'){D.phase='idle';D.stale=true;}upd();},
+ pick:v=>{D.pick=v;upd();},
+ save:()=>{if(!D||D.phase!=='done')return;const m=match();const a=A(D.id);a.src={repo:parseRepo(D.repo),ch:D.ch,filter:pol.persist==='save'?D.filter.trim():'',filters:{...D.filters,[D.ch]:D.filter},asset:m.res?.n||'',size:m.res?.s||'',latest:m.rel.tag};close();renderList(a.id);toast(`已保存 ${a.name} 的来源 · ${a.src.repo} · ${chName(a.src.ch)} · ${a.src.asset}`);},
+ close:()=>close(),
+ askRemove:()=>{D.confirm=true;upd();},noRemove:()=>{D.confirm=false;upd();},
+ doRemove:()=>{const a=A(D.id);a.src=null;a.watch=false;close();renderList(a.id);toast(`已移除 ${a.name} 的来源 · App 没有被删除`);},
+ openSettings:()=>openSettings(),
+ fillTok:()=>{$('#tok').value='github_pat_11ABCDEFG0example';$('#tokSave').disabled=false;},
+ setSave:()=>{sheet={type:'edit',id:D.id};D.auto=true;D.banner='已回到草稿 · gh 登录已启用 · 正在自动重试 1 次…';buildEdit();validate();},
+ setBack:()=>{sheet={type:'edit',id:D.id};D.banner='已回到草稿（没有添加令牌，不会自动重试）';buildEdit();},
+
+};
+function pre(v){sim.v=v;$('#simV').value=v;openEdit('rect',{focus:false});D.repo='https://github.com/rxhanson/Rectangle';$('#repo').value=D.repo;validate(10);}
+const J={
+ list:()=>close(),add:()=>openEdit(A('rect').src?'stats':'rect'),edit:()=>openEdit('aircard'),
+ focus:()=>openEdit('stats'),
+ loading:()=>{openEdit('rect',{focus:false});D.repo='https://github.com/rxhanson/Rectangle';$('#repo').value=D.repo;validate(60000);},
+ ok:()=>pre('ok'),none:()=>pre('none'),multi:()=>pre('multi'),rl:()=>pre('ratelimit'),nf:()=>pre('notfound'),
+ remove:()=>{openEdit('aircard',{focus:false});D.confirm=true;upd();},
+ ro:()=>openEdit('raycast'),
+ man:()=>{A('hidden').ver='2.0.3';openManual('hidden');},
+ mandmg:()=>{const a=A('aircard');if(!a.src)a.src={repo:'Mak5er/AirCard',ch:'stable',filter:'',asset:'AirCard.dmg',size:'8.4 MB',latest:'v1.2.6'};a.ver='1.2.4';renderList();openManual('aircard');}
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b){hideMenu();return;}const inMenu=b.closest('#menu');e.stopPropagation();ACT[b.dataset.act]&&ACT[b.dataset.act](b.dataset.id,b,e);if(inMenu||!['more','plus'].includes(b.dataset.act))hideMenu();});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'){hideMenu();if(!sheet)return;e.preventDefault();
+  if(sheet.type==='edit'){if(D.phase==='loading')return cancelV();if(D.confirm){D.confirm=false;return upd();}return close();}
+  if(sheet.type==='set')return ACT.setBack();
+  if(sheet.type==='man'){if(M.step==='downloading')return ACT.mCancelDl();if(M.step==='reading'){clearT();M.step='handoff';return renderMan();}}
+  return close();}
+ if(e.key==='Enter'&&e.metaKey&&sheet&&sheet.type==='edit'){e.preventDefault();ACT.save();}
+});
+$('#simV').onchange=e=>sim.v=e.target.value;$('#simRL').onchange=e=>sim.rl=e.target.checked;$('#simB').onchange=e=>sim.block=e.target.value;$('#simR').onchange=e=>sim.read=e.target.value;
+function seg(id,key){const el=$(id);const set=()=>[...el.children].forEach(b=>b.classList.toggle('on',b.dataset.v===pol[key]));el.onclick=e=>{const b=e.target.closest('button');if(!b)return;pol[key]=b.dataset.v;set();renderList();if(D&&sheet&&sheet.type==='edit')upd();};set();}
+
+Object.assign(ACT,{
+ verifyZIP(){M.step='checking';renderMan();tm=setTimeout(()=>{M.step=sim.block==='clear'?'verified':'blocked';renderMan()},800)},
+ showZIP(){M.step='waiting';renderMan()},readZIP(){M.step=sim.read==='match'?'confirmed':'mismatch';renderMan()}
+});
+NOTES.manualFinal='演示数据。仅符合条件的 ZIP 可在本机检查并交给 Finder。其他格式前往发布页。';
+renderList();note('list');
+</script>
+</body></html>

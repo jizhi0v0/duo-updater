@@ -176,3 +176,25 @@ extension PersonalGitHubSourceTests {
         }
     }
 }
+
+private final class WaitingPersonalSourceFixture: URLProtocol, @unchecked Sendable {
+    static let events = AsyncStream<String>.makeStream()
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() { Self.events.continuation.yield("started") }
+    override func stopLoading() { Self.events.continuation.yield("stopped") }
+}
+
+extension PersonalGitHubSourceTests {
+    @Test func cancellingTheOnlyValidationStopsTheRequest() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [WaitingPersonalSourceFixture.self]
+        let client = PersonalGitHubClient(configuration: config)
+        var events = WaitingPersonalSourceFixture.events.stream.makeAsyncIterator()
+        let lookup = Task { try await client.fetch("demo/waiting") }
+        #expect(await events.next() == "started")
+        lookup.cancel()
+        await #expect(throws: (any Error).self) { try await lookup.value }
+        #expect(await events.next() == "stopped")
+    }
+}

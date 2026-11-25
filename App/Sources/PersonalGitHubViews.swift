@@ -64,6 +64,7 @@ struct PersonalSourcePanel: View {
     private let store = PersonalSources.shared
     private var path: String { result.app.path.path }
     var body: some View {
+        let showsSource = store.records[path] != nil || model.acceptsPersonalSource(result)
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 if let record = store.record(path) {
@@ -74,7 +75,7 @@ struct PersonalSourcePanel: View {
                     Button("Edit Source…") { editor = true }
                 } else if store.records[path] != nil {
                     Text("Unsupported source configuration. Subscription paused.")
-                } else {
+                } else if showsSource {
                     Button("Add GitHub Source…", systemImage: "plus") { editor = true }
                 }
             }
@@ -154,7 +155,7 @@ struct PersonalSourcePanel: View {
             }
         }
         .controlSize(.small)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        .padding(.horizontal, 16).padding(.vertical, showsSource ? 8 : 0)
         .sheet(isPresented: $editor) { PersonalSourceEditor(result: result, model: model) }
         .task(id: path) { if store.snapshots[path] == nil { await store.refresh(result.app) } }
     }
@@ -230,12 +231,15 @@ private struct PersonalSourceEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var repository: String
     @State private var track: GitSource.Track
-    @State private var filenameContains: String
+    @State private var filters: [String: String]
+    private var filenameContains: String { filters[track.rawValue] ?? "" }
     @State private var includeStable: Bool
     @State private var preview: GitSource.Snapshot?
     @State private var anchor: PersonalSourceZIP.Identity?
     @State private var message: String?
-    @State private var validating = false
+    @State private var validationTask: Task<Void, Never>?
+    @State private var hoveringValidation = false
+    private var validating: Bool { validationTask != nil }
     private let store = PersonalSources.shared
 
     init(result: UpdateResult, model: AppListModel) {
@@ -244,7 +248,7 @@ private struct PersonalSourceEditor: View {
         let record = PersonalSources.shared.record(result.app.path.path)
         _repository = State(initialValue: record?.repository.full_name ?? "")
         _track = State(initialValue: record?.track ?? .stable)
-        _filenameContains = State(initialValue: record?.filenameContains ?? "")
+        _filters = State(initialValue: record?.channelFilters ?? [:])
         _includeStable = State(initialValue: record?.includeStable ?? false)
     }
 
@@ -260,83 +264,148 @@ private struct PersonalSourceEditor: View {
                 }
             }
             Divider()
-            VStack(alignment: .leading) {
-                Text("GitHub repository")
-                HStack {
-                    TextField("owner/repo or https://github.com/owner/repo", text: $repository)
-                        .onChange(of: repository) { preview = nil; anchor = nil; message = nil; anonymousLimited = false }
-                    Button("Validate") { validate() }.disabled(validating || repository.isEmpty)
-                }
-                if validating {
-                    ProgressView("Checking public GitHub releases…").controlSize(.small)
-                }
-                if let message {
-                    Label {
-                        Text(verbatim: message)
-                            .textSelection(.enabled)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                    }
-                    .font(.callout)
-                    .accessibilityElement(children: .combine)
-                }
+            ViewThatFits(in: .vertical) {
+                editorFields.fixedSize(horizontal: false, vertical: true)
+                ScrollView { editorFields.padding(3) }
             }
-            if anonymousLimited { SourceGitHubSettingsButton(model: model, retryQuery: validate) }
-            Picker("Release channel", selection: $track) { ForEach(GitSource.Track.allCases, id: \.self) { Text($0.title).tag($0) } }
-            LabeledContent("Filename contains") {
-                TextField("Optional, e.g. Lite", text: $filenameContains)
-            }
-            Toggle("Include the stable release for the same version", isOn: $includeStable).disabled(track == .stable)
-            if let preview {
-                let releases = preview.matches(track: track, installed: anchor?.version, includeStable: includeStable)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(verbatim: preview.repository.full_name).bold()
-                    if let release = releases.first {
-                        Text(verbatim: release.tag_name)
-                        if let issue = release.tagIssue {
-                            Label(issue.explanation, systemImage: "info.circle")
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        let names = release.assets.filter { $0.matchesMac && $0.matches(filename: filenameContains) }.map(\.name)
-                        Text(verbatim: names.isEmpty ? String(localized: "No compatible package identified by filename.") : names.joined(separator: "\n"))
-                            .lineLimit(4).help(names.joined(separator: "\n"))
-                    } else { Text(preview.truncated ? "No match in the latest 60 releases." : "No matching releases.") }
-                }.font(.callout)
-            }
-            Text("Installation is manual. DuoUpdater can check a package before you reveal it in Finder.").font(.callout).foregroundStyle(.secondary)
+            .frame(maxHeight: 346)
             Divider()
             HStack {
                 if store.record(result.app.path.path) != nil {
                     Button("Remove Source", role: .destructive) { store.remove(result.app.path.path); dismiss() }
                 }
                 Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { if validating { cancelValidation() } else { dismiss() } }.keyboardShortcut(.cancelAction)
                 Button("Save") { save() }.keyboardShortcut(.defaultAction).disabled(preview == nil || anchor == nil || validating)
             }
         }
         .padding(20).frame(width: 490)
+        .onDisappear { cancelValidation() }
+    }
+
+    private var editorFields: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("GitHub repository").fontWeight(.semibold)
+                HStack {
+                    TextField("GitHub repository", text: $repository, prompt: Text(verbatim: "owner/repo"))
+                        .labelsHidden()
+                        .onChange(of: repository) {
+                            cancelValidation()
+                            preview = nil
+                            anchor = nil
+                            message = nil
+                            anonymousLimited = false
+                        }
+                    Button {
+                        if validating { cancelValidation() } else { validate() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            if validating && !hoveringValidation {
+                                ProgressView().controlSize(.small)
+                                Text("Checking…")
+                            } else if validating {
+                                Image(systemName: "xmark")
+                                Text("Cancel")
+                            } else {
+                                Text("Validate")
+                            }
+                        }.frame(minWidth: 84)
+                    }
+                    .disabled(repository.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .onHover { hoveringValidation = $0 }
+                    .accessibilityLabel(validating ? Text("Cancel validation") : Text("Validate"))
+                }
+                Text(verbatim: "owner/repo  ·  https://github.com/owner/repo")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let message {
+                    Label {
+                        Text(verbatim: message).textSelection(.enabled)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    }.font(.callout).fixedSize(horizontal: false, vertical: true)
+                }
+                if anonymousLimited { SourceGitHubSettingsButton(model: model, retryQuery: validate) }
+            }
+            Picker("Release channel", selection: $track) {
+                ForEach(GitSource.Track.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            if track != .stable {
+                Toggle("Include the stable release for the same version", isOn: $includeStable)
+            }
+            LabeledContent("Filename contains") {
+                TextField("Optional, e.g. Lite", text: Binding(
+                    get: { filenameContains }, set: { filters[track.rawValue] = $0 }
+                ))
+            }
+            Text("Optional. Each channel remembers its own filename filter.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let preview { validationResult(preview) }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func validationResult(_ snapshot: GitSource.Snapshot) -> some View {
+        let release = snapshot.matches(track: track, installed: anchor?.version, includeStable: includeStable).first
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label {
+                    Text("Repository verified").fontWeight(.semibold)
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+                Spacer()
+                Text(verbatim: snapshot.repository.full_name).textSelection(.enabled)
+            }
+            Divider()
+            if let release {
+                LabeledContent("Release channel") {
+                    Text(verbatim: track.title + " · " + release.tag_name)
+                }
+                if let issue = release.tagIssue {
+                    Label(issue.explanation, systemImage: "info.circle").foregroundStyle(.secondary)
+                }
+                let names = release.assets.filter { $0.matchesMac && $0.matches(filename: filenameContains) }.map(\.name)
+                LabeledContent("Matching files") {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        if names.isEmpty { Text("No compatible package identified by filename.") }
+                        ForEach(names.indices, id: \.self) { index in
+                            Text(verbatim: names[index]).textSelection(.enabled)
+                        }
+                    }
+                }
+            } else {
+                Text(snapshot.truncated ? "No match in the latest 60 releases." : "No matching releases.")
+            }
+            Text("Package signature has not been checked.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .font(.callout)
+        .padding(10)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func cancelValidation() {
+        validationTask?.cancel()
+        validationTask = nil
     }
 
     private func validate() {
         let input = repository
         anonymousLimited = false
-        validating = true
+        cancelValidation()
         preview = nil
         anchor = nil
         message = nil
-        Task {
-            defer { validating = false }
+        validationTask = Task {
+            defer { if !Task.isCancelled { validationTask = nil } }
             do {
                 guard GitSource.slug(input) != nil else {
                     throw GitSource.Failure(String(localized: "Use a public GitHub repository. Enter owner/repo or its https://github.com URL."))
                 }
                 let current = try await offCooperativePool { try PersonalSourceZIP.Identity(at: result.app.path) }
+                try Task.checkCancellation()
                 let snapshot = try await PersonalGitHubClient.shared.fetch(input)
-                guard repository == input else { return }
+                guard !Task.isCancelled, repository == input else { return }
                 anchor = current
                 preview = snapshot
                 if let previous = store.record(result.app.path.path),
@@ -344,7 +413,7 @@ private struct PersonalSourceEditor: View {
                     message = String(localized: "Identity changed. Saving will bind this installation to the repository shown below.")
                 }
             } catch {
-                if repository == input {
+                if !Task.isCancelled, repository == input {
                     message = error.localizedDescription
                     anonymousLimited = (error as? GitSource.Failure)?.disposition == .anonymousLimit
                 }
@@ -356,8 +425,13 @@ private struct PersonalSourceEditor: View {
         guard let preview, let anchor else { return }
         let path = result.app.path.path
         do {
+            if store.records[path] == nil {
+                guard let current = model.results.first(where: { $0.app.path == result.app.path }), model.acceptsPersonalSource(current) else {
+                    throw GitSource.Failure(String(localized: "This app is no longer eligible for a custom source."))
+                }
+            }
             guard try PersonalSourceZIP.Identity(at: result.app.path) == anchor else { throw GitSource.Failure("Installation changed. Validate again.") }
-            try store.save(.init(repository: preview.repository, track: track, filenameContains: filenameContains, includeStable: track != .stable && includeStable, anchor: anchor, lastSuccessfulCheck: preview.checked), path: path)
+            try store.save(.init(repository: preview.repository, track: track, filenameContains: filenameContains.isEmpty ? nil : filenameContains, otherChannelFilters: filters.filter { $0.key != track.rawValue && !$0.value.isEmpty }, includeStable: track != .stable && includeStable, anchor: anchor, lastSuccessfulCheck: preview.checked), path: path)
             store.clear(path)
             store.snapshots[path] = preview
             dismiss()
@@ -372,7 +446,8 @@ extension AppListModel {
     )
 
     func acceptsPersonalSource(_ result: UpdateResult) -> Bool {
-        guard !isChecking, !isScanning, result.app.electronUpdate == nil,
+        guard !isChecking, !isScanning, result.app.electronUpdate == nil, result.app.sparkleFeedURL == nil,
+              UpdateSourceGroup(result) == .other, !SetappCatalogSource.owns(result.app),
               !result.homebrewSelfUpdating,
               !Self.registeredPersonalSourceConflicts.contains(result.app.recipeBundleID?.lowercased() ?? ""),
               case .noSourceCovers(.none) = rowState(for: result) else { return false }

@@ -25,6 +25,13 @@ import Testing
         let reopened = PersonalSources(defaults: defaults)
         #expect(reopened.record(app.path)?.filenameContains == "Lite")
         #expect(reopened.record(app.path)?.anchor == anchor)
+        #expect(reopened.record(app.path)?.channelFilters == ["Preview": "Lite"])
+        try reopened.save(.init(repository: repo, track: .stable, filenameContains: "Pro",
+                                otherChannelFilters: ["Preview": "Lite"], includeStable: false, anchor: anchor), path: app.path)
+        let switched = try #require(PersonalSources(defaults: defaults).record(app.path))
+        #expect(switched.filenameContains == "Pro")
+        #expect(switched.channelFilters == ["Stable": "Pro", "Preview": "Lite"])
+        #expect(switched.channelFilters["Nightly"] == nil)
         #expect(reopened.record(futurePath) == nil)
         let secondPath = "/tmp/another-copy/" + app.lastPathComponent
         #expect(reopened.record(secondPath) == nil)

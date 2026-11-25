@@ -9,7 +9,15 @@ final class PersonalSources {
         var schema = 1
         var repository: PersonalGitHubSource.Repository
         let track: PersonalGitHubSource.Track
+        // Existing records store the active channel here. Other channels only
+        // need entries after a user gives them a nonempty filter.
         let filenameContains: String?
+        var otherChannelFilters: [String: String]? = nil
+        var channelFilters: [String: String] {
+            var filters = otherChannelFilters ?? [:]
+            filters[track.rawValue] = filenameContains
+            return filters
+        }
         let includeStable: Bool
         var anchor: PersonalSourceZIP.Identity
         var lastSuccessfulCheck: Date?

@@ -66,9 +66,9 @@ final class PersonalSources {
         clear(path)
     }
 
-    func clear(_ path: String) {
+    func clear(_ path: String, preservingReleaseHistory: Bool = false) {
         if let old = checked.removeValue(forKey: path) { try? FileManager.default.removeItem(at: old.directory) }
-        snapshots[path] = nil
+        if !preservingReleaseHistory { snapshots[path] = nil }
         paused.remove(path)
         blocked[path] = nil
         manualOnly[path] = nil
@@ -161,7 +161,7 @@ final class PersonalSources {
         }
         guard self.record(path) == record else { return nil }
         if actual == record.anchor { return record }
-        clear(path)
+        clear(path, preservingReleaseHistory: verified)
         guard verified else {
             messages[path] = "The installation changed (now \(actual.version)). Review the source to continue."
             return nil

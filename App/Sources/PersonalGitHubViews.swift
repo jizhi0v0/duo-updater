@@ -275,7 +275,8 @@ private struct PersonalSourceEditor: View {
                     Button("Remove Source", role: .destructive) { store.remove(result.app.path.path); dismiss() }
                 }
                 Spacer()
-                Button("Cancel") { if validating { cancelValidation() } else { dismiss() } }.keyboardShortcut(.cancelAction)
+                Button(validating ? "Close" : "Cancel") { dismiss() }
+                    .keyboardShortcut(validating ? nil : .cancelAction)
                 Button("Save") { save() }.keyboardShortcut(.defaultAction).disabled(preview == nil || anchor == nil || validating)
             }
         }
@@ -297,12 +298,10 @@ private struct PersonalSourceEditor: View {
                             message = nil
                             anonymousLimited = false
                         }
-                    Button {
-                        if validating { cancelValidation() } else { validate() }
-                    } label: {
+                    Button(action: performValidationAction) {
                         HStack(spacing: 5) {
                             if validating && !hoveringValidation {
-                                ProgressView().controlSize(.small)
+                                ProgressView().controlSize(.small).accessibilityHidden(true)
                                 Text("Checking…")
                             } else if validating {
                                 Image(systemName: "xmark")
@@ -314,7 +313,11 @@ private struct PersonalSourceEditor: View {
                     }
                     .disabled(repository.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .onHover { hoveringValidation = $0 }
-                    .accessibilityLabel(validating ? Text("Cancel validation") : Text("Validate"))
+                    .keyboardShortcut(validating ? .cancelAction : nil)
+                    .accessibilityRepresentation {
+                        Button(validating ? "Cancel validation" : "Validate", action: performValidationAction)
+                            .disabled(repository.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 }
                 Text(verbatim: "owner/repo  ·  https://github.com/owner/repo")
                     .font(.caption).foregroundStyle(.secondary)
@@ -382,6 +385,10 @@ private struct PersonalSourceEditor: View {
         .font(.callout)
         .padding(10)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func performValidationAction() {
+        if validating { cancelValidation() } else { validate() }
     }
 
     private func cancelValidation() {

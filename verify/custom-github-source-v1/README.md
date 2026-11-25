@@ -47,3 +47,12 @@
 视觉 agent 在签名 Release `1f237100` 使用真实匿名限流复验了连续操作。同一草稿首次打开并关闭设置后，原限流提示与文件名筛选均保留。再次打开设置并启用本机 gh 后，原编辑器自动回到前台，显示 KeyRemap-1.0.7.zip，“保存”可用，全程无需点击“验证”。[自动返回后的结果](./credential-automatic-retry.png)
 
 隔离计数构建只对匿名请求模拟 HTTP 403，认证请求仍访问真实 GitHub。仅关闭设置触发零次查询。配置成功触发一次来源查询，包含仓库信息和发布列表两次 HTTP 请求。先关闭来源窗口再配置成功时，记录到零次查询、零次 HTTP 请求，原窗口保持关闭。
+
+## 编辑器第二版
+
+[全流程交互设计稿](./source-editor-design.html) 由 agy 的 Claude Opus 5.5 Medium 根据截图中的交互问题设计，并按确认的入口、发布线筛选和手动验包规则整理。HTML 为本地演示，不读取凭据或真实安装包。
+
+- 复用工作台现有的更新来源分组和无来源行判断。视觉 agent 在独立签名 Release 中看到 AirCard 的内建 GitHub Releases 来源，详情没有新增按钮。临时 KeyRemap 1.0.6 没有更新来源，可以新增。已保存的个人来源可以继续管理。
+- [聚焦时的格式提示](./redesign-focus.png)常驻仓库框下。真实 gh 查询返回[仓库校验结果](./redesign-verified.png)，卡片显示仓库、Stable、v1.0.7 和 KeyRemap-1.0.7.zip，并单独说明安装包尚未验签。
+- 视觉 agent 在同一安装副本分别填写 Stable 的 KeyRemap、Preview 的 beta-only 和 Nightly 的 nightly-arm。保存后重开编辑器，切换发布线可分别读回三个值。[Nightly 筛选](./redesign-nightly-filter.png)
+- 6 项 Core 测试及 App 配置测试通过，覆盖取消唯一在途查询、旧记录默认归入其活动发布线和多发布线保存。使用独立签名 QA 偏好及钥匙串服务；慢响应场景额外延迟 8 秒交回真实查询结果，用于观察按钮和取消后的状态。

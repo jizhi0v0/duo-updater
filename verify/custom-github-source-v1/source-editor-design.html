@@ -245,13 +245,13 @@ function ftHTML(){
  if(D.confirm)return `<div class="confirm"><div><b>移除 ${a.name} 的 GitHub 来源？</b><div class="t2 sm">App 本身不会被删除，它会移到「未配置来源」；已保存的过滤条件一并清除。</div></div><button class="btn" data-act="noRemove">取消</button><button class="btn danf" data-act="doRemove">移除</button></div>`;
  const m=D.phase==='done'?match():null,ok=!!m;
  const why=D.phase==='loading'?'验证中…':m?(ok?'':m.filtered.length>1?'请选择一个资产':'没有可用的安装包'):D.phase==='saved'?'没有修改':'验证通过后可保存';
- return `${D.mode==='edit'?'<button class="btn dan" data-act="askRemove">移除来源…</button>':''}<span class="sp"></span><span class="t3 sm">${why}</span><button class="btn" data-act="close">取消</button><button class="btn pri" data-act="save" ${ok?'':'disabled'}>保存<span class="kb">⌘↩</span></button>`;
+ return `${D.mode==='edit'?'<button class="btn dan" data-act="askRemove">移除来源…</button>':''}<span class="sp"></span><span class="t3 sm">${why}</span><button class="btn" data-act="close">${D.phase==='loading'?'关闭':'取消'}</button><button class="btn pri" data-act="save" ${ok?'':'disabled'}>保存<span class="kb">⌘↩</span></button>`;
 }
 function upd(){
  if(!D||sheet.type!=='edit')return;const ld=D.phase==='loading';
  $('#repo').disabled=false;$('#flt').disabled=ld;$('#seg').classList.toggle('dis',ld);
  [...$('#seg').children].forEach(b=>b.classList.toggle('on',b.dataset.id===D.ch));
- const vb=$('#vb');vb.className='btn vbtn'+(ld?' ld':'');vb.innerHTML=ld?'<span class="l"><i class="spin"></i>验证中</span><span class="c">取消</span>':'验证';vb.disabled=!ld&&!D.repo.trim();vb.title=ld?'取消（esc）':'';
+ const vb=$('#vb');vb.className='btn vbtn'+(ld?' ld':'');vb.innerHTML=ld?'<span class="l"><i class="spin"></i>验证中</span><span class="c">取消</span>':'验证';vb.disabled=!ld&&!D.repo.trim();vb.title=ld?'取消（esc）':'';vb.setAttribute('aria-label',ld?'取消校验':'校验仓库');
  const p=parseRepo(D.repo);
  $('#rh').innerHTML=D.repoErr?`<span class="red">${D.repoErr}</span>`:p&&/github\.com/i.test(D.repo)?`已从链接识别为 <span class="mono t1">${esc(p)}</span>，按纯文本处理`:p?`将查询 <span class="mono t1">${esc(p)}</span> 的最新发布`:'支持 owner/repo 或完整链接 · 例：https://github.com/owner/repo';
  $('#fh').textContent='可留空。只筛选此发布线下的文件，各发布线分别保存。';

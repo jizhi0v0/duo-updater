@@ -102,9 +102,26 @@ public enum PersonalGitHubSource {
 
     public struct Snapshot: Sendable {
         public let repository: Repository
-        public let releases: [Release]
+        private let fetchedReleases: [Release]
+        public let restrictedCredentialGeneration: Int?
+        private let rejectionRevision: Int
+        public var isAccessibleWithCurrentCredentials: Bool {
+            guard let generation = restrictedCredentialGeneration else { return true }
+            return GitHubCredentials.current.mayReadRestrictedSource(generation: generation, revision: rejectionRevision)
+        }
+        public var releases: [Release] { isAccessibleWithCurrentCredentials ? fetchedReleases : [] }
         public let checked: Date
         public let truncated: Bool
+
+        init(repository: Repository, releases: [Release], checked: Date, truncated: Bool,
+             restrictedCredentialGeneration: Int? = nil, rejectionRevision: Int = GitHubCredentials.current.restrictedSourceRevision) {
+            self.repository = repository
+            self.fetchedReleases = releases.filter { !$0.draft }
+            self.checked = checked
+            self.truncated = truncated
+            self.restrictedCredentialGeneration = restrictedCredentialGeneration
+            self.rejectionRevision = rejectionRevision
+        }
 
         public func changelog(track: Track, installed: String?, includeStable: Bool) -> Changelog {
             let selected = matches(track: track, installed: installed, includeStable: includeStable)
@@ -228,6 +245,9 @@ public actor PersonalGitHubClient {
             let snapshot = try await task.value
             try Task.checkCancellation()
             try checkCredentialGeneration(generation)
+            guard snapshot.isAccessibleWithCurrentCredentials else {
+                throw Source.Failure("GitHub credentials changed. Validate the repository again.", .repositoryAccess)
+            }
             return snapshot
         } onCancel: {
             Task { await self.finishLookup(key, caller: caller) }
@@ -241,8 +261,17 @@ public actor PersonalGitHubClient {
 
     private func load(_ slug: String, token: String?, generation: Int) async throws -> Source.Snapshot {
         let root = "https://api.github.com"
+        let revision = GitHubCredentials.current.restrictedSourceRevision
         let data = try await request(URL(string: root + "/repos/" + slug)!, metadataRedirect: true, token: token, generation: generation)
         // GitHub authorizes the repository and its release list separately.
+        struct Visibility: Decodable { let visibility: String?; let `private`: Bool? }
+        let access = try? JSONDecoder().decode(Visibility.self, from: data)
+        let isPublic = access?.visibility == "public" && access?.private == false
+        if !isPublic {
+            guard token != nil, GitHubCredentials.current.mayReadRestrictedSource(generation: generation, revision: revision) else {
+                throw Source.Failure("GitHub credentials are required for this repository.", .repositoryAccess)
+            }
+        }
         let repo = try JSONDecoder().decode(Source.Repository.self, from: data)
         guard repo.id > 0, repo.owner.id > 0, Source.slug(repo.full_name) == repo.full_name else { throw Source.Failure("Invalid GitHub repository identity.") }
         var releases: [Source.Release] = []
@@ -253,7 +282,8 @@ public actor PersonalGitHubClient {
             releases += slice
             if slice.count < 30 { break }
         }
-        return .init(repository: repo, releases: releases.filter { !$0.draft }, checked: Date(), truncated: releases.count == 60)
+        return .init(repository: repo, releases: releases, checked: Date(), truncated: releases.count == 60,
+                     restrictedCredentialGeneration: isPublic ? nil : generation, rejectionRevision: revision)
     }
 
     private func checkCredentialGeneration(_ generation: Int) throws {

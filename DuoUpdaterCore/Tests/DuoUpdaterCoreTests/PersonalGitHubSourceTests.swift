@@ -146,6 +146,8 @@ private final class PersonalGitHubFixture: URLProtocol, @unchecked Sendable {
                 body = #"{"private":true,"visibility":"private","id":42,"full_name":"demo/private","owner":{"id":12}}"#
             case "/repos/demo/internal" where auth == "Bearer fixture":
                 body = #"{"private":false,"visibility":"internal","id":43,"full_name":"demo/internal","owner":{"id":12}}"#
+            case "/repos/demo/unknown":
+                body = #"{"id":45,"full_name":"demo/unknown","owner":{"id":12}}"#
             case "/repos/demo/no-contents" where auth == "Bearer fixture":
                 body = #"{"private":true,"visibility":"private","id":44,"full_name":"demo/no-contents","owner":{"id":12}}"#
             case "/repositories/44/releases" where auth == "Bearer fixture":
@@ -158,8 +160,9 @@ private final class PersonalGitHubFixture: URLProtocol, @unchecked Sendable {
             case "/repositories/40/releases" where auth == nil,
                  "/repositories/41/releases" where auth == "Bearer fixture",
                  "/repositories/42/releases" where auth == "Bearer fixture",
+                 "/repositories/45/releases" where auth == "Bearer fixture",
                  "/repositories/43/releases" where auth == "Bearer fixture":
-                body = ###"[{"id":5,"tag_name":"v2.1","prerelease":false,"draft":false,"published_at":"2026-11-25T01:02:03Z","body":"## Changes\n\n- Plain <b>release notes</b>","assets":[{"id":7,"name":"App-Lite-arm64.zip","size":30,"digest":null,"updated_at":"2026-11-25"}]}]"###
+                body = ###"[{"id":5,"tag_name":"v2.1","prerelease":false,"draft":false,"published_at":"2026-11-25T01:02:03Z","body":"## Changes\n\n- Plain <b>release notes</b>","assets":[{"id":7,"name":"App-Lite-arm64.zip","size":30,"digest":null,"updated_at":"2026-11-25"}]},{"id":6,"tag_name":"v3","prerelease":false,"draft":true,"body":"draft","assets":[]}]"###
             default:
                 status = 404
                 body = ""
@@ -226,6 +229,38 @@ extension PersonalGitHubSourceTests {
         await login.enable()
         let snapshot = try await client.fetch("demo/limited")
         #expect(snapshot.releases.first?.tag_name == "v2.1")
+    }
+
+    @Test func restrictedReleaseDataExpiresAcrossCredentialChangesAndRejectedRounds() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PersonalGitHubFixture.self]
+        let credentials = GitHubCredentials()
+        try await GitHubCredentials.$current.withValue(credentials) {
+            let client = PersonalGitHubClient(configuration: config, resolveToken: { "fixture" })
+            let privateRepo = try await client.fetch("demo/private")
+            let internalRepo = try await client.fetch("demo/internal")
+            let unknown = try await client.fetch("demo/unknown")
+            let publicRepo = try await client.fetch("demo/limited")
+            for snapshot in [privateRepo, internalRepo, unknown] {
+                #expect(snapshot.restrictedCredentialGeneration == credentials.generation)
+                #expect(snapshot.releases.map(\.tag_name) == ["v2.1"])
+            }
+            #expect(publicRepo.restrictedCredentialGeneration == nil)
+            credentials.recordRejection(generation: credentials.generation)
+            #expect(privateRepo.releases.isEmpty)
+            credentials.beginRound()
+            #expect(!privateRepo.isAccessibleWithCurrentCredentials)
+            let fresh = try await client.fetch("demo/private")
+            #expect(fresh.isAccessibleWithCurrentCredentials)
+            credentials.changed()
+            #expect(!fresh.isAccessibleWithCurrentCredentials)
+            #expect(internalRepo.changelog(track: .stable, installed: nil, includeStable: false).entries.isEmpty)
+            #expect(unknown.releases.isEmpty)
+            #expect(publicRepo.releases.map(\.tag_name) == ["v2.1"])
+            let anonymous = PersonalGitHubClient(configuration: config)
+            await #expect(throws: Source.Failure.self) { try await anonymous.fetch("demo/unknown") }
+            await #expect(throws: Source.Failure.self) { try await anonymous.fetch("demo/internal") }
+        }
     }
 
     @Test func privateAndInternalSourcesUseTheCurrentGitHubLogin() async throws {

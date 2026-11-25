@@ -24,6 +24,29 @@ private extension PersonalGitHubSource.Release.TagIssue {
     }
 }
 
+private struct SourceGitHubSettingsButton: View {
+    let model: AppListModel
+    @Environment(\.openWindow) private var openWindow
+    @State private var request = UUID()
+
+    var body: some View {
+        Button("Open Settings") {
+            model.personalSourceSettingsOrigin = NSApp.keyWindow
+            model.personalSourceSettingsRequest = request
+            model.requestedSettingsSection = .github
+            model.requestedSettingsAnchor = .githubCLI
+            openWindow(id: SettingsView.windowID)
+            model.surfaceWindow(sceneID: SettingsView.windowID)
+        }
+        .onDisappear {
+            if model.personalSourceSettingsRequest == request {
+                model.personalSourceSettingsRequest = nil
+                model.personalSourceSettingsOrigin = nil
+            }
+        }
+    }
+}
+
 struct PersonalSourcePanel: View {
     let result: UpdateResult
     let model: AppListModel
@@ -47,6 +70,7 @@ struct PersonalSourcePanel: View {
                 }
             }
             if let message = store.messages[path] { Text(verbatim: message).font(.callout).textSelection(.enabled) }
+            if store.anonymousLimited.contains(path) { SourceGitHubSettingsButton(model: model).id(path) }
             if let snapshot = store.snapshots[path], let record = store.record(path) {
                 if !model.acceptsPersonalSource(result) {
                     Text("Tracking releases. The app’s existing update route takes priority.").foregroundStyle(.secondary)
@@ -119,7 +143,7 @@ struct PersonalSourcePanel: View {
         }
         .controlSize(.small)
         .padding(.horizontal, 16).padding(.vertical, 8)
-        .sheet(isPresented: $editor) { PersonalSourceEditor(result: result) }
+        .sheet(isPresented: $editor) { PersonalSourceEditor(result: result, model: model) }
         .task(id: path) { if store.snapshots[path] == nil { await store.refresh(result.app) } }
     }
 }
@@ -188,6 +212,8 @@ struct PersonalSourceAction: View {
 }
 
 private struct PersonalSourceEditor: View {
+    let model: AppListModel
+    @State private var anonymousLimited = false
     let result: UpdateResult
     @Environment(\.dismiss) private var dismiss
     @State private var repository: String
@@ -200,7 +226,8 @@ private struct PersonalSourceEditor: View {
     @State private var validating = false
     private let store = PersonalSources.shared
 
-    init(result: UpdateResult) {
+    init(result: UpdateResult, model: AppListModel) {
+        self.model = model
         self.result = result
         let record = PersonalSources.shared.record(result.app.path.path)
         _repository = State(initialValue: record?.repository.full_name ?? "")
@@ -225,7 +252,7 @@ private struct PersonalSourceEditor: View {
                 Text("GitHub repository")
                 HStack {
                     TextField("owner/repo or https://github.com/owner/repo", text: $repository)
-                        .onChange(of: repository) { preview = nil; anchor = nil; message = nil }
+                        .onChange(of: repository) { preview = nil; anchor = nil; message = nil; anonymousLimited = false }
                     Button("Validate") { validate() }.disabled(validating || repository.isEmpty)
                 }
                 if validating {
@@ -246,6 +273,7 @@ private struct PersonalSourceEditor: View {
                     .accessibilityElement(children: .combine)
                 }
             }
+            if anonymousLimited { SourceGitHubSettingsButton(model: model) }
             Picker("Release channel", selection: $track) { ForEach(GitSource.Track.allCases, id: \.self) { Text($0.title).tag($0) } }
             LabeledContent("Filename contains") {
                 TextField("Optional, e.g. Lite", text: $filenameContains)
@@ -283,6 +311,7 @@ private struct PersonalSourceEditor: View {
 
     private func validate() {
         let input = repository
+        anonymousLimited = false
         validating = true
         preview = nil
         anchor = nil
@@ -302,7 +331,12 @@ private struct PersonalSourceEditor: View {
                    previous.repository.id != snapshot.repository.id || previous.repository.owner.id != snapshot.repository.owner.id || previous.anchor != current {
                     message = String(localized: "Identity changed. Saving will bind this installation to the repository shown below.")
                 }
-            } catch { if repository == input { message = error.localizedDescription } }
+            } catch {
+                if repository == input {
+                    message = error.localizedDescription
+                    anonymousLimited = (error as? GitSource.Failure)?.disposition == .anonymousLimit
+                }
+            }
         }
     }
 

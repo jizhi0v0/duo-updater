@@ -39,6 +39,7 @@ final class PersonalSources {
     private let defaults: UserDefaults
     private(set) var records: [String: Data]
     var snapshots: [String: PersonalGitHubSource.Snapshot] = [:]
+    var anonymousLimited = Set<String>()
     var messages: [String: String] = [:]
     var busy = Set<String>()
     var checked: [String: Checked] = [:]
@@ -72,6 +73,7 @@ final class PersonalSources {
         paused.remove(path)
         blocked[path] = nil
         manualOnly[path] = nil
+        anonymousLimited.remove(path)
         messages[path] = nil
     }
 
@@ -112,6 +114,7 @@ final class PersonalSources {
             updated.repository = snapshot.repository
             if let handoff = updated.handoff, !handoff.isPublished(in: snapshot) { updated.handoff = nil }
             try save(updated, path: path)
+            anonymousLimited.remove(path)
             paused.remove(path)
             if let old = checked[path] {
                 let latest = snapshot.matches(track: record.track, installed: record.anchor.version, includeStable: record.includeStable).first
@@ -129,6 +132,8 @@ final class PersonalSources {
             guard self.record(path) == record else { return }
             let last = record.lastSuccessfulCheck
             if (error as? PersonalGitHubSource.Failure)?.disposition == .reviewSource { clear(path) }
+            anonymousLimited.remove(path)
+            if (error as? PersonalGitHubSource.Failure)?.disposition == .anonymousLimit { anonymousLimited.insert(path) }
             paused.insert(path)
             messages[path] = error.localizedDescription + (last.map { " Last successful check: " + $0.formatted() } ?? "")
         }
@@ -186,6 +191,7 @@ final class PersonalSources {
         let path = result.app.path.path
         guard let record = record(path), eligible(), busy.insert(path).inserted else { return }
         defer { busy.remove(path) }
+        anonymousLimited.remove(path)
         var localInspection = false
         var scratch: URL?
         do {
@@ -232,6 +238,7 @@ final class PersonalSources {
                 return
             }
             switch (error as? PersonalGitHubSource.Failure)?.disposition {
+            case .anonymousLimit: anonymousLimited.insert(path)
             case .releasePage: manualOnly[path, default: []].append(asset)
             case .reviewSource: snapshots[path] = nil
             case .blocked: blocked[path, default: []].append(asset)

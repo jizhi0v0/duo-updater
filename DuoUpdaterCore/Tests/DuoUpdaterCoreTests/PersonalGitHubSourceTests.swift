@@ -80,21 +80,39 @@ private final class PersonalGitHubFixture: URLProtocol, @unchecked Sendable {
         let url = request.url!
         var status = 200
         let body: String
-        if url.host != "api.github.com" || request.value(forHTTPHeaderField: "Authorization") != nil || request.value(forHTTPHeaderField: "Cookie") != nil {
+        var headers = [String: String]()
+        let auth = request.value(forHTTPHeaderField: "Authorization")
+        if url.host == "release-assets.githubusercontent.com", url.path == "/example", auth == nil {
+            body = "CDN"
+        } else if url.host != "api.github.com" || request.value(forHTTPHeaderField: "Cookie") != nil {
             status = 400
             body = ""
         } else {
             switch url.path {
-            case "/repos/demo/fixture":
-                body = #"{"id":40,"full_name":"demo/fixture","owner":{"id":12}}"#
-            case "/repositories/40/releases":
+            case "/repos/demo/fixture" where auth == nil:
+                body = #"{ "private":false,"visibility":"public","id":40,"full_name":"demo/fixture","owner":{"id":12}}"#
+            case "/repos/demo/limited" where auth == nil:
+                status = 403
+                headers = ["X-RateLimit-Remaining":"0","X-RateLimit-Reset":String(Int(Date().timeIntervalSince1970) + 600)]
+                body = ""
+            case "/repos/demo/limited" where auth == "Bearer fixture":
+                body = #"{"private":false,"visibility":"public","id":41,"full_name":"demo/limited","owner":{"id":12}}"#
+            case "/repos/demo/private" where auth == "Bearer fixture":
+                body = #"{"private":true,"visibility":"private","id":42,"full_name":"demo/private","owner":{"id":12}}"#
+            case "/repos/demo/internal" where auth == "Bearer fixture":
+                body = #"{"private":false,"visibility":"internal","id":42,"full_name":"demo/internal","owner":{"id":12}}"#
+            case "/repositories/41/releases/assets/7" where auth == "Bearer fixture":
+                status = 302
+                headers = ["Location":"https://release-assets.githubusercontent.com/example"]
+                body = ""
+            case "/repositories/40/releases" where auth == nil, "/repositories/41/releases" where auth == "Bearer fixture":
                 body = #"[{"id":5,"tag_name":"v2.1","prerelease":false,"draft":false,"body":"Plain <b>release notes</b>","assets":[{"id":7,"name":"App-Lite-arm64.zip","size":30,"digest":null,"updated_at":"2026-11-25"}]}]"#
             default:
                 status = 404
                 body = ""
             }
         }
-        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!
+        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(body.utf8))
         client?.urlProtocolDidFinishLoading(self)
@@ -113,5 +131,48 @@ extension PersonalGitHubSourceTests {
         #expect(snapshot.releases.first?.body == "Plain <b>release notes</b>")
         #expect(!snapshot.truncated)
         await #expect(throws: (any Error).self) { try await client.fetch("demo/missing") }
+    }
+}
+
+private actor SourceTestLogin {
+    var token: String?
+    func enable() { token = "fixture" }
+}
+
+extension PersonalGitHubSourceTests {
+    @Test func accountCanContinueAfterAnonymousLimitAndOnlyReadPublicReleases() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PersonalGitHubFixture.self]
+        let login = SourceTestLogin()
+        let client = PersonalGitHubClient(configuration: config, resolveToken: { await login.token })
+        do {
+            _ = try await client.fetch("demo/limited")
+            Issue.record("Expected an anonymous limit")
+        } catch let error as Source.Failure {
+            #expect(error.disposition == .anonymousLimit)
+        }
+        await login.enable()
+        let snapshot = try await client.fetch("demo/limited")
+        #expect(snapshot.releases.first?.tag_name == "v2.1")
+        for slug in ["demo/private", "demo/internal"] {
+            do {
+                _ = try await client.fetch(slug)
+                Issue.record("Expected nonpublic repository to be rejected")
+            } catch let error as Source.Failure {
+                #expect(error.disposition == .reviewSource)
+            }
+        }
+        // Only an authenticated API request and an anonymous CDN request reach
+        // the deliberately mismatched published digest in this fixture.
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let asset = Source.Asset(id: 7, name: "app.zip", size: 3, digest: "sha256:" + String(repeating: "0", count: 64), updated_at: "")
+        do {
+            _ = try await client.downloadZIP(repository: snapshot.repository, asset: asset, into: directory)
+            Issue.record("Expected fixture digest mismatch")
+        } catch let error as Source.Failure {
+            #expect(error.disposition == .blocked)
+        }
     }
 }

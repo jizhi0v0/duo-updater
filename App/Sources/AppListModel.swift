@@ -1511,6 +1511,20 @@ final class AppListModel {
     /// each refresh so a change made in the Settings window takes effect next check.
     let prefs: Preferences
 
+    /// The source window that requested GitHub settings, valid only while its view remains open.
+    @ObservationIgnored weak var personalSourceSettingsOrigin: NSWindow?
+    @ObservationIgnored var personalSourceSettingsRequest: UUID?
+
+    func returnToPersonalSource() {
+        let origin = personalSourceSettingsOrigin
+        personalSourceSettingsOrigin = nil
+        personalSourceSettingsRequest = nil
+        guard let origin, origin.isVisible, !origin.isMiniaturized else { return }
+        surfaceGeneration &+= 1
+        (origin.sheetParent ?? origin).makeKeyAndOrderFront(nil)
+        origin.attachedSheet?.makeKeyAndOrderFront(nil)
+    }
+
     /// A Settings section another window wants to deep-link to — set by onboarding's
     /// "Set Up GitHub…" before it opens Settings. `SettingsView` consumes and clears
     /// it on appear/change, so the window lands on that tab instead of General.
@@ -2558,6 +2572,7 @@ final class AppListModel {
             // A later change started its own resolve, which owns the answer.
             guard let self, GitHubCredentials.shared.generation == generation else { return }
             self.resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
+            if token != nil { self.returnToPersonalSource() }
         }
     }
 

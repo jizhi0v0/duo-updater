@@ -1512,17 +1512,31 @@ final class AppListModel {
     let prefs: Preferences
 
     /// The source window that requested GitHub settings, valid only while its view remains open.
-    @ObservationIgnored weak var personalSourceSettingsOrigin: NSWindow?
-    @ObservationIgnored var personalSourceSettingsRequest: UUID?
+    struct PersonalSourceSettingsRequest {
+        let id: UUID
+        weak var origin: NSWindow?
+        let retryQuery: @MainActor () -> Void
+        var resolvingCredentials = false
+        var settingsClosed = false
+    }
+    @ObservationIgnored var personalSourceSettingsRequest: PersonalSourceSettingsRequest?
 
-    func returnToPersonalSource() {
-        let origin = personalSourceSettingsOrigin
-        personalSourceSettingsOrigin = nil
-        personalSourceSettingsRequest = nil
-        guard let origin, origin.isVisible, !origin.isMiniaturized else { return }
-        surfaceGeneration &+= 1
-        (origin.sheetParent ?? origin).makeKeyAndOrderFront(nil)
-        origin.attachedSheet?.makeKeyAndOrderFront(nil)
+    func returnToPersonalSource(credentialsReady: Bool = false) {
+        guard let request = personalSourceSettingsRequest else { return }
+        // Closing Settings while gh is resolving still returns focus immediately.
+        // Keep this one query until resolution finishes or its source disappears.
+        if !credentialsReady && request.resolvingCredentials {
+            personalSourceSettingsRequest?.settingsClosed = true
+        } else {
+            personalSourceSettingsRequest = nil
+        }
+        guard let origin = request.origin, origin.isVisible, !origin.isMiniaturized else { return }
+        if !request.settingsClosed {
+            surfaceGeneration &+= 1
+            (origin.sheetParent ?? origin).makeKeyAndOrderFront(nil)
+            origin.attachedSheet?.makeKeyAndOrderFront(nil)
+        }
+        if credentialsReady { request.retryQuery() }
     }
 
     /// A Settings section another window wants to deep-link to — set by onboarding's
@@ -2565,6 +2579,8 @@ final class AppListModel {
         gitHubCredentialChanges += 1
         gitHubTokenRejected = false
         let generation = GitHubCredentials.shared.generation
+        let sourceRequestID = personalSourceSettingsRequest?.id
+        personalSourceSettingsRequest?.resolvingCredentials = true
         let explicit = explicitGitHubToken()
         let usesCLI = prefs.useGitHubCLIToken
         Task { [weak self] in
@@ -2572,7 +2588,13 @@ final class AppListModel {
             // A later change started its own resolve, which owns the answer.
             guard let self, GitHubCredentials.shared.generation == generation else { return }
             self.resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
-            if token != nil { self.returnToPersonalSource() }
+            guard let sourceRequestID, self.personalSourceSettingsRequest?.id == sourceRequestID else { return }
+            self.personalSourceSettingsRequest?.resolvingCredentials = false
+            if token != nil {
+                self.returnToPersonalSource(credentialsReady: true)
+            } else if self.personalSourceSettingsRequest?.settingsClosed == true {
+                self.personalSourceSettingsRequest = nil
+            }
         }
     }
 

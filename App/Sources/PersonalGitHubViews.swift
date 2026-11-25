@@ -26,22 +26,22 @@ private extension PersonalGitHubSource.Release.TagIssue {
 
 private struct SourceGitHubSettingsButton: View {
     let model: AppListModel
+    let retryQuery: @MainActor () -> Void
     @Environment(\.openWindow) private var openWindow
     @State private var request = UUID()
 
     var body: some View {
         Button("Open Settings") {
-            model.personalSourceSettingsOrigin = NSApp.keyWindow
-            model.personalSourceSettingsRequest = request
+            request = UUID()
+            model.personalSourceSettingsRequest = .init(id: request, origin: NSApp.keyWindow, retryQuery: retryQuery)
             model.requestedSettingsSection = .github
             model.requestedSettingsAnchor = .githubCLI
             openWindow(id: SettingsView.windowID)
             model.surfaceWindow(sceneID: SettingsView.windowID)
         }
         .onDisappear {
-            if model.personalSourceSettingsRequest == request {
+            if model.personalSourceSettingsRequest?.id == request {
                 model.personalSourceSettingsRequest = nil
-                model.personalSourceSettingsOrigin = nil
             }
         }
     }
@@ -70,7 +70,10 @@ struct PersonalSourcePanel: View {
                 }
             }
             if let message = store.messages[path] { Text(verbatim: message).font(.callout).textSelection(.enabled) }
-            if store.anonymousLimited.contains(path) { SourceGitHubSettingsButton(model: model).id(path) }
+            if store.anonymousLimited.contains(path) {
+                SourceGitHubSettingsButton(model: model) { Task { await store.refresh(result.app) } }
+                    .id(path)
+            }
             if let snapshot = store.snapshots[path], let record = store.record(path) {
                 if !model.acceptsPersonalSource(result) {
                     Text("Tracking releases. The app’s existing update route takes priority.").foregroundStyle(.secondary)
@@ -273,7 +276,7 @@ private struct PersonalSourceEditor: View {
                     .accessibilityElement(children: .combine)
                 }
             }
-            if anonymousLimited { SourceGitHubSettingsButton(model: model) }
+            if anonymousLimited { SourceGitHubSettingsButton(model: model, retryQuery: validate) }
             Picker("Release channel", selection: $track) { ForEach(GitSource.Track.allCases, id: \.self) { Text($0.title).tag($0) } }
             LabeledContent("Filename contains") {
                 TextField("Optional, e.g. Lite", text: $filenameContains)

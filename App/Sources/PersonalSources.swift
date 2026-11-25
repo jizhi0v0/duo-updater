@@ -83,6 +83,10 @@ final class PersonalSources {
         let application: URL
         let identity: PersonalSourceZIP.Identity
         let manifest: BackupManifest
+
+        func permitsReplacement(using binding: BindingRecord) -> Bool {
+            replacementRequirement != nil && release.tagIssue == nil && !binding.isKnownRollback(identity.version)
+        }
     }
     private let key = "personalGitHubSources"
     private let credentials: GitHubCredentials
@@ -508,7 +512,7 @@ final class PersonalSources {
     func setReplacement(_ enabled: Bool, path: String, expected: BindingRecord? = nil) throws {
         guard var record = record(path) else { return }
         if enabled {
-            guard record.replacementID == nil, record == expected, let checked = checked[path], let requirement = checked.replacementRequirement,
+            guard record.replacementID == nil, record == expected, let checked = checked[path], checked.permitsReplacement(using: record), let requirement = checked.replacementRequirement,
                   try PersonalSourceZIP.Identity(at: URL(fileURLWithPath: path)) == record.anchor else {
                 throw PersonalGitHubSource.Failure("Verify the current package before enabling replacement.")
             }
@@ -548,7 +552,7 @@ final class PersonalSources {
                          eligible: @escaping @MainActor () -> Bool) async throws {
         let target = result.app.path
         let path = target.path
-        guard package.replacementRequirement != nil, !binding.isKnownRollback(package.identity.version), package.release.tagIssue == nil else { return }
+        guard package.permitsReplacement(using: binding) else { return }
         let generation = credentials.generation
         let revision = repositoryRevision
         func validateLocal() throws {

@@ -62,8 +62,6 @@ struct PersonalSourceControls: View {
     let isEligible: Bool
     let isRoundInFlight: Bool
     @State private var editor = false
-    @State private var confirmReplacement = false
-    @State private var proposedBinding: PersonalSources.BindingRecord?
     private let store = PersonalSources.shared
     private var path: String { result.app.path.path }
 
@@ -74,9 +72,10 @@ struct PersonalSourceControls: View {
                     Button("Edit Source…") { editor = true }
                         .disabled(record.replacementID != nil)
                     if record.grant != nil {
-                        Button("Revoke One-Click Updates") { changeReplacement(false) }
-                    } else if isEligible, store.checked[path]?.replacementRequirement != nil {
-                        Button("Enable One-Click Updates…") { proposedBinding = record; confirmReplacement = true }
+                        Button("Revoke One-Click Updates") {
+                            do { try store.setReplacement(false, path: path) }
+                            catch { store.messages[path] = error.localizedDescription }
+                        }
                     }
                     if store.recovering.contains(path) {
                         Button("Show Recovery Files") {
@@ -106,29 +105,17 @@ struct PersonalSourceControls: View {
             }
         }
         .controlSize(.small)
-        .alert("Allow one-click updates for this copy?", isPresented: $confirmReplacement) {
-            Button("Cancel", role: .cancel) {}
-            Button("I Checked the Instructions") { changeReplacement(true) }
-        } message: {
-            if let record = proposedBinding {
-                Text("Confirm that the publisher instructs you to replace this app directly. Each update requires your click.\n\n\(record.repository.full_name) · \(record.track.rawValue)\n\(path)")
-            }
-        }
         .sheet(isPresented: $editor) { PersonalSourceEditor(result: result, model: model) }
         .task(id: path) { if store.snapshot(for: path) == nil { await store.refresh(result.app) } }
     }
-
-    private func changeReplacement(_ enabled: Bool) {
-        do { try store.setReplacement(enabled, path: path, expected: proposedBinding) }
-        catch { store.messages[path] = error.localizedDescription }
-    }
-
 }
 
 struct PersonalSourceNotice: View {
     let result: UpdateResult
     let model: AppListModel
     let isCurrent: Bool
+    @State private var confirmReplacement = false
+    @State private var proposedBinding: PersonalSources.BindingRecord?
     private let store = PersonalSources.shared
     private var path: String { result.app.path.path }
 
@@ -141,6 +128,26 @@ struct PersonalSourceNotice: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+        if let record = store.record(path), record.grant == nil, model.acceptsPersonalSource(result),
+           let release = store.candidate(result), case .reveal(let package) = store.action(for: release, path: path, record: record),
+           package.permitsReplacement(using: record), !store.busy.contains(path) {
+            Button("Enable One-Click Updates…") {
+                proposedBinding = record
+                confirmReplacement = true
+            }
+            .font(.callout).buttonStyle(.link)
+            .alert("Allow one-click updates for this copy?", isPresented: $confirmReplacement) {
+                Button("Cancel", role: .cancel) {}
+                Button("I Checked the Instructions") {
+                    do { try store.setReplacement(true, path: path, expected: proposedBinding) }
+                    catch { store.messages[path] = error.localizedDescription }
+                }
+            } message: {
+                if let record = proposedBinding {
+                    Text("Confirm that the publisher instructs you to replace this app directly. Each update requires your click.\n\n\(record.repository.full_name) · \(record.track.rawValue)\n\(path)")
+                }
+            }
         }
         if let issue = store.checked[path]?.replacementIssue, !isCurrent {
             Text("Manual update only: \(issue)").font(.caption).foregroundStyle(.secondary)
@@ -207,8 +214,7 @@ struct PersonalSourceAction: View {
             case .page(let reason):
                 Link("Open", destination: page).help(reason)
             case .verify, .reveal:
-                if case .reveal(let package) = action, record.grant?.path == path, package.replacementRequirement != nil,
-                   release.tagIssue == nil, !record.isKnownRollback(package.identity.version), !store.recovering.contains(path) {
+                if case .reveal(let package) = action, record.grant?.path == path, package.permitsReplacement(using: record) {
                     Button("Update \(package.identity.version)") {
                         store.startReplacement(result, package: package, installed: { await model.appsLane.handle(.diskChanged) }) {
                             model.results.first(where: { $0.app.path == result.app.path }).map(model.acceptsPersonalSource) == true
@@ -226,8 +232,8 @@ struct PersonalSourceAction: View {
                     Link("Open release page", destination: page)
                     Button("Show current installation", action: revealCurrentInstallation)
                 } label: {
-                    if case .reveal = action, record.grant != nil {
-                        Image(systemName: "ellipsis.circle")
+                    if case .reveal(let package) = action, record.grant != nil, package.permitsReplacement(using: record) {
+                        if compact { Image(systemName: "folder") } else { Text("Manual Updates") }
                     } else { Text("Update") }
                 }
                 .fixedSize().help("Manual update options for \(release.tag_name)")

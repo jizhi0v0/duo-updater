@@ -3,34 +3,92 @@ import AppKit
 import Carbon.HIToolbox
 import Observation
 
-/// Supporting detail for a count or status beside a disclosure control.
-struct SummaryDetailButton<Label: View>: View {
-    let details: String
-    @ViewBuilder let label: () -> Label
+struct SummaryDetail: Equatable {
+    var title: String? = nil
+    let message: String
+}
+
+/// A tips icon that anchors the supporting details beside a count or status.
+struct SummaryDetailButton: View {
+    let entries: [SummaryDetail]
+    let symbol: String
+    let accessibilityTitle: String
 
     @State private var showing = false
 
+    init(
+        entries: [SummaryDetail], symbol: String = "info.circle",
+        accessibilityTitle: String = String(localized: "Details")
+    ) {
+        self.entries = entries
+        self.symbol = symbol
+        self.accessibilityTitle = accessibilityTitle
+    }
+
+    init(
+        details: String, symbol: String = "info.circle",
+        accessibilityTitle: String = String(localized: "Details")
+    ) {
+        self.init(entries: [SummaryDetail(message: details)], symbol: symbol, accessibilityTitle: accessibilityTitle)
+    }
+
     var body: some View {
-        Button { showing.toggle() } label: { label() }
+        Button { showing.toggle() } label: {
+            Image(systemName: symbol)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
             .buttonStyle(.plain)
-            .help(details)
-            .accessibilityHint(Text("Details"))
+            .help(accessibilityTitle)
+            .accessibilityLabel(accessibilityTitle)
             .popover(isPresented: $showing, arrowEdge: .bottom) {
-                ViewThatFits(in: .vertical) {
-                    detailText.fixedSize(horizontal: false, vertical: true)
-                    ScrollView { detailText }
+                SummaryDetailPopoverLayout {
+                    ViewThatFits {
+                        detailContent.fixedSize()
+                        detailContent
+                            .frame(width: SummaryDetailPopoverLayout.width, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        ScrollView {
+                            detailContent.frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(width: SummaryDetailPopoverLayout.width, height: SummaryDetailPopoverLayout.height)
+                    }
                 }
                 .padding(12)
-                .frame(width: 320)
-                .frame(maxHeight: 260)
             }
     }
 
-    private var detailText: some View {
-        Text(verbatim: details)
-            .font(.callout)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var detailContent: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            ForEach(entries.indices, id: \.self) { index in
+                let entry = entries[index]
+                VStack(alignment: .leading, spacing: 2) {
+                    if let title = entry.title {
+                        Text(verbatim: title).font(.callout.weight(.semibold))
+                    }
+                    Text(verbatim: entry.message)
+                        .font(entry.title == nil ? .callout : .caption)
+                        .foregroundStyle(entry.title == nil ? .primary : .secondary)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .textSelection(.enabled)
+    }
+}
+
+/// Give ViewThatFits a bounded proposal even during the popover's ideal-size pass.
+private struct SummaryDetailPopoverLayout: Layout {
+    static let width: CGFloat = 288
+    static let height: CGFloat = 232
+    private static let limit = ProposedViewSize(width: width, height: height)
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews[0].sizeThatFits(Self.limit)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews[0].place(at: bounds.origin, anchor: .topLeading, proposal: Self.limit)
     }
 }
 

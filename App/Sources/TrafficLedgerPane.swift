@@ -424,12 +424,18 @@ private struct TrafficRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                SummaryDetailButton(details: String(localized: "\(stat.totalBytes) bytes")) {
+                let exactBytes = String(localized: "\(stat.totalBytes) bytes")
+                HStack(spacing: 4) {
                     Text(ByteFormat.string(stat.totalBytes))
                         .font(.system(size: 13, weight: .semibold))
                         .monospacedDigit()
-                        .frame(width: 84, alignment: .trailing)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    SummaryDetailButton(details: exactBytes, accessibilityTitle: exactBytes)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .frame(width: 84, alignment: .trailing)
                 Text("\(stat.updateCount)×")
                     .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                     .frame(width: 40, alignment: .trailing)

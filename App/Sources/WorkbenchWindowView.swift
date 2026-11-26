@@ -1142,8 +1142,10 @@ struct WorkbenchWindowView: View {
                 Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
             }
             if let sudo = CLIToolPresentation.needSudo(sudoCount) {
-                SummaryDetailButton(details: CLIToolPresentation.sudoBadgeHelp) {
+                HStack(spacing: 4) {
                     Text(sudo).foregroundStyle(.secondary).lineLimit(1)
+                    SummaryDetailButton(details: CLIToolPresentation.sudoBadgeHelp, accessibilityTitle: sudo)
+                        .foregroundStyle(.secondary)
                 }
             }
             if !held.isEmpty {
@@ -1151,37 +1153,36 @@ struct WorkbenchWindowView: View {
                 let details = CLIToolPresentation.summaryDetails(held) { status in
                     status.withheld.map { CLIToolsModel.reason($0, of: status) } ?? label
                 }
-                SummaryDetailButton(details: details) {
+                HStack(spacing: 4) {
                     Text(label).foregroundStyle(.secondary).lineLimit(1)
+                    SummaryDetailButton(entries: details, accessibilityTitle: label).foregroundStyle(.secondary)
                 }
             }
             if !unchecked.isEmpty {
                 let details = CLIToolPresentation.summaryDetails(unchecked) { status in
                     CLIToolPresentation.rowWarning(status) ?? String(localized: "Version can’t be read")
                 }
-                SummaryDetailButton(details: details) {
-                    Label {
-                        Text(verbatim: "\(unchecked.count)")
-                    } icon: {
-                        Image(systemName: "questionmark.circle")
-                    }
-                    .labelStyle(.titleAndIcon)
-                    .foregroundStyle(.orange)
-                    .fixedSize()
+                HStack(spacing: 4) {
+                    SummaryDetailButton(
+                        entries: details, symbol: "questionmark.circle",
+                        accessibilityTitle: String(localized: "\(unchecked.count) not checked"))
+                    Text(verbatim: "\(unchecked.count)")
                 }
-                .accessibilityLabel(String(localized: "\(unchecked.count) not checked"))
+                .foregroundStyle(.orange)
+                .fixedSize()
             }
             Spacer(minLength: 0)
             if let trailing {
-                SummaryDetailButton(details: trailing) {
-                    Text(verbatim: trailing)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                Text(verbatim: trailing)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if info == nil {
+                    SummaryDetailButton(details: trailing).foregroundStyle(.secondary)
                 }
             }
             if let info {
-                ManagedPathsInfoButton(info: info)
+                ManagedPathsInfoButton(info: info, summary: trailing)
             }
         }
         .font(.caption)
@@ -1198,6 +1199,7 @@ struct WorkbenchWindowView: View {
 
     private struct ManagedPathsInfoButton: View {
         let info: ManagedHeaderInfo
+        let summary: String?
         @State private var showing = false
 
         var body: some View {
@@ -1211,6 +1213,9 @@ struct WorkbenchWindowView: View {
             .accessibilityLabel(Text(verbatim: "Manager paths"))
             .popover(isPresented: $showing, arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 10) {
+                    if let summary {
+                        Text(verbatim: summary).font(.callout.weight(.semibold))
+                    }
                     ForEach(Array(info.paths.enumerated()), id: \.offset) { index, paths in
                         if index > 0 { Divider() }
                         if let binary = paths.binary {
@@ -1384,7 +1389,7 @@ struct WorkbenchWindowView: View {
             // the name, version and (for a multi-root manager) the root, and the
             // full paths stay out of the way until asked for.
             if let info = managedHeaderInfo(group) {
-                ManagedPathsInfoButton(info: info)
+                ManagedPathsInfoButton(info: info, summary: nil)
             }
             // The node an npm prefix runs has notices: one mark for the node,
             // on its group, not one on each package it runs. A click says them.

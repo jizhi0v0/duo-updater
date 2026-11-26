@@ -29,9 +29,12 @@ struct CLIToolPresentationTests {
         let second = fx("/tmp/duo-tests/second/bin/fx")
         let name = first.kind.displayName
         let details = CLIToolPresentation.summaryDetails([first, second]) { _ in "Version unavailable" }
-        #expect(details == "\(name) · \(first.path)\nVersion unavailable\n\n\(name) · \(second.path)\nVersion unavailable")
+        #expect(details == [
+            SummaryDetail(title: "\(name) · \(first.path)", message: "Version unavailable"),
+            SummaryDetail(title: "\(name) · \(second.path)", message: "Version unavailable")
+        ])
         #expect(CLIToolPresentation.summaryDetails([first]) { _ in "Version unavailable" }
-            == "\(name)\nVersion unavailable")
+            == [SummaryDetail(title: name, message: "Version unavailable")])
     }
 
     /// The command to copy only beside an update withheld because the user turned

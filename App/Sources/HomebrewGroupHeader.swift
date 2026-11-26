@@ -86,11 +86,10 @@ struct HomebrewGroupSummary: View {
             countsRow
             if let readError {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    SummaryDetailButton(details: readError) {
-                        Label(String(localized: "Check failed — showing last results"), systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
-                            .lineLimit(2)
-                    }
+                    let label = String(localized: "Check failed — showing last results")
+                    SummaryDetailButton(details: readError, symbol: "exclamationmark.triangle", accessibilityTitle: label)
+                        .foregroundStyle(.orange)
+                    Text(label).foregroundStyle(.orange).lineLimit(2)
                     Spacer(minLength: 0)
                     Button("Retry", action: retry)
                         .buttonStyle(.plain)
@@ -105,18 +104,17 @@ struct HomebrewGroupSummary: View {
     private var countsRow: some View {
         HStack(spacing: 8) {
             if let upgradeError {
-                SummaryDetailButton(details: upgradeError) {
+                HStack(spacing: 4) {
                     Text(verbatim: upgradeError).foregroundStyle(.red).lineLimit(1)
-                }
-            } else if unlistedUpdates > 0 || batchUpdates != outdated {
-                SummaryDetailButton(details: batchDetails) {
-                    HStack(spacing: 4) {
-                        countsLabel
-                        Image(systemName: "info.circle").foregroundStyle(.secondary)
-                    }
+                    SummaryDetailButton(details: upgradeError).foregroundStyle(.secondary)
                 }
             } else {
-                countsLabel
+                HStack(spacing: 4) {
+                    countsLabel
+                    if unlistedUpdates > 0 || batchUpdates != outdated {
+                        SummaryDetailButton(details: batchDetails).foregroundStyle(.secondary)
+                    }
+                }
             }
             marks.fixedSize()
             Spacer(minLength: 0)
@@ -151,25 +149,21 @@ struct HomebrewGroupSummary: View {
         HStack(spacing: 6) {
             if !uncheckedDetails.isEmpty {
                 let count = uncheckedDetails.count
-                SummaryDetailButton(details: uncheckedDetails.joined(separator: "\n\n")) {
-                    Label {
-                        Text(verbatim: "\(count)")
-                    } icon: {
-                        Image(systemName: "questionmark.circle")
-                    }
-                    .labelStyle(.titleAndIcon)
-                    .foregroundStyle(.orange)
+                HStack(spacing: 4) {
+                    SummaryDetailButton(
+                        details: uncheckedDetails.joined(separator: "\n\n"),
+                        symbol: "questionmark.circle",
+                        accessibilityTitle: String(localized: "\(count) packages not checked"))
+                    Text(verbatim: "\(count)")
                 }
-                .accessibilityLabel(String(localized: "\(count) packages not checked"))
+                .foregroundStyle(.orange)
             }
             if let homebrewUpdate {
                 // The glyph alone, the version on hover: with it spelled out, the
                 // Spanish counts beside it were cut at the 260 pt minimum (rendered).
                 let help = String(localized: "Homebrew \(homebrewUpdate) is available")
-                SummaryDetailButton(details: help) {
-                    Image(systemName: "arrow.up.circle.fill").foregroundStyle(.tint)
-                }
-                .accessibilityLabel(help)
+                SummaryDetailButton(details: help, symbol: "arrow.up.circle.fill", accessibilityTitle: help)
+                    .foregroundStyle(.tint)
             }
         }
     }

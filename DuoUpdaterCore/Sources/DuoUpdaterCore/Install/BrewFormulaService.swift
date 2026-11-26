@@ -67,6 +67,8 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     /// The version `brew outdated` says is available, or nil when up to date.
     public let availableVersion: String?
     public var hasUpdate: Bool { availableVersion != nil }
+    /// Whether Workbench can show the newer version on this package row.
+    public var hasListedUpdate: Bool { hasUpdate && missingAppPath == nil }
     /// Set when Homebrew has deprecated or disabled it — see `BrewLifecycle`.
     public var lifecycle: BrewLifecycle? = nil
     /// Set when the keg in use was built from HEAD — see `BrewHeadInstall`.
@@ -210,10 +212,12 @@ public struct BrewCaskLifecycle: Sendable, Identifiable, Equatable {
     }
 
     public static func standaloneWarnings(
-        _ warnings: [Self], packageRows: [BrewInstalledFormula], appPaths: Set<String>
+        _ warnings: [Self], packageRows: [BrewInstalledFormula],
+        uncheckedRows: [BrewUncheckedPackage], appPaths: Set<String>
     ) -> [Self] {
-        let packageTokens = Set(packageRows.lazy.filter { $0.kind == .cask && $0.lifecycle != nil }
+        var packageTokens = Set(packageRows.lazy.filter { $0.kind == .cask && $0.lifecycle != nil }
             .map { BrewFormulaService.shortName($0.name) })
+        packageTokens.formUnion(uncheckedRows.lazy.filter { $0.kind == .cask }.map(\.name))
         return warnings.filter { !packageTokens.contains($0.token) && appPaths.isDisjoint(with: $0.appPaths) }
     }
 }

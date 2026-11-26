@@ -156,9 +156,13 @@ import Foundation
             lifecycle: cli.lifecycle, kind: .cask)
 
         #expect(BrewCaskLifecycle.standaloneWarnings(
-            casks, packageRows: [qualified], appPaths: Set(gui.appPaths)) == [pkg])
+            casks, packageRows: [qualified], uncheckedRows: [], appPaths: Set(gui.appPaths)) == [pkg])
         #expect(BrewCaskLifecycle.standaloneWarnings(
-            casks, packageRows: [], appPaths: []) == [cli, gui, pkg])
+            casks, packageRows: [], uncheckedRows: [], appPaths: []) == [cli, gui, pkg])
+        let uncheckedGUI = BrewUncheckedPackage(
+            fullName: "org/tap/zzfixture-gui", kind: .cask, installedVersion: "2.1.0", reason: .tapNotTrusted)
+        #expect(BrewCaskLifecycle.standaloneWarnings(
+            casks, packageRows: [qualified], uncheckedRows: [uncheckedGUI], appPaths: []) == [pkg])
     }
 
     /// Through the service: the report carries the lifecycles from the same

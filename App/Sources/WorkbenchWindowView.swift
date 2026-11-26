@@ -374,7 +374,7 @@ struct WorkbenchWindowView: View {
                 FormulaDetailPane(formula: formula, model: model)
                     .id(formula.workbenchRowID)
             } else if let package = selectedUnchecked {
-                BrewUncheckedDetailPane(package: package)
+                BrewUncheckedDetailPane(package: package, lifecycle: model.brewCaskLifecycle(for: package)?.lifecycle)
                     .id(package.workbenchRowID)
             } else if let cask = selectedLifecycleCask {
                 BrewLifecycleCaskDetailPane(cask: cask)
@@ -1381,7 +1381,7 @@ struct WorkbenchWindowView: View {
         HomebrewGroupSummary(
             packages: model.brewFormulae.count + model.brewUnchecked.count
                 + model.brewStandaloneCaskLifecycles.count,
-            outdated: model.brewFormulae.filter(\.hasUpdate).count,
+            outdated: model.brewFormulae.count(where: \.hasListedUpdate),
             unchecked: model.brewUnchecked.count,
             // While Upgrade All is on offer, as the popover shows it.
             upgradeError: model.brewOutdatedFormulae.isEmpty ? nil : model.brewUpgradeError,
@@ -1692,7 +1692,9 @@ struct WorkbenchWindowView: View {
             BrewLifecycleCaskSidebarRow(cask: cask)
                 .sidebarRow(entry.id, selection: $selection)
         case .unchecked(let package):
-            BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
+            BrewUncheckedSidebarRow(
+                package: package, lifecycle: model.brewCaskLifecycle(for: package)?.lifecycle,
+                highlighted: highlightUnchecked)
                 .sidebarRow(entry.id, selection: $selection)
         case .managerSummary(let level):
             managerLevelSummary(level, lists).sidebarStaticRow()
@@ -2692,6 +2694,7 @@ private struct HomebrewSelfUpdateDetailPane: View {
 /// (for a formula moved to a cask, the commands that swap it — `fixCommand`).
 private struct BrewUncheckedSidebarRow: View {
     let package: BrewUncheckedPackage
+    let lifecycle: BrewLifecycle?
     /// Set briefly when the popover's tip sends the user here.
     var highlighted = false
 
@@ -2704,7 +2707,12 @@ private struct BrewUncheckedSidebarRow: View {
         HStack(spacing: 8) {
             FormulaIcon(name: package.name, size: 22)
             VStack(alignment: .leading, spacing: 1) {
-                Text(package.name).font(.body).lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(package.name).font(.body).lineLimit(1)
+                    if let lifecycle {
+                        BrewCaskLifecycleMark(lifecycle: lifecycle, help: lifecycle.statusText)
+                    }
+                }
                 Text(status)
                     .font(.caption).foregroundStyle(.orange)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -2766,6 +2774,7 @@ private extension BrewUncheckedPackage {
 /// them from. What it can say is why, and what to run.
 private struct BrewUncheckedDetailPane: View {
     let package: BrewUncheckedPackage
+    let lifecycle: BrewLifecycle?
 
     /// The narrowest a detail-pane block of wrapped, `fixedSize` text is laid out
     /// at — see the frame at the end of `body`.
@@ -2796,6 +2805,9 @@ private struct BrewUncheckedDetailPane: View {
             Divider()
             VStack(alignment: .leading, spacing: 12) {
                 Text(package.uncheckedExplanation)
+                if let lifecycle {
+                    BrewLifecycleNotice(name: package.fullName, lifecycle: lifecycle, isCask: true)
+                }
                 if let command = package.fixCommand {
                     HStack(spacing: 8) {
                         Text(command)
@@ -3422,6 +3434,7 @@ private struct RuntimeSecurityMarkButton: View {
 /// disabled. Orange like the formula rows' status; the detail pane explains.
 private struct BrewCaskLifecycleMark: View {
     let lifecycle: BrewLifecycle
+    var help: String? = nil
 
     static let width: CGFloat = 13
 
@@ -3430,14 +3443,12 @@ private struct BrewCaskLifecycleMark: View {
             .font(.system(size: 10))
             .foregroundStyle(.orange)
             .frame(width: Self.width)
-            .help(lifecycle.caskHelp)
-            .accessibilityLabel(lifecycle.caskHelp)
+            .help(help ?? lifecycle.caskHelp)
+            .accessibilityLabel(help ?? lifecycle.caskHelp)
     }
 }
 
-/// A Brew-tree row for a cask that installs no app (a CLI, a font) and that
-/// Homebrew deprecated or disabled: without it nothing would say so, since such a
-/// cask has a row only while it's outdated.
+/// A Brew-tree row for a deprecation or disable notice without another row to carry it.
 private struct BrewLifecycleCaskSidebarRow: View {
     let cask: BrewCaskLifecycle
 
@@ -3457,7 +3468,7 @@ private struct BrewLifecycleCaskSidebarRow: View {
     }
 }
 
-/// The detail pane for an app-less deprecated cask: what Homebrew says about it.
+/// The detail pane for a standalone deprecation or disable notice.
 private struct BrewLifecycleCaskDetailPane: View {
     let cask: BrewCaskLifecycle
 

@@ -1304,6 +1304,11 @@ final class AppListModel {
         return brewCaskLifecycles.first { $0.appPaths.contains(path) }
     }
 
+    func brewCaskLifecycle(for package: BrewUncheckedPackage) -> BrewCaskLifecycle? {
+        guard package.kind == .cask else { return nil }
+        return brewCaskLifecycles.first { $0.token == package.name }
+    }
+
     /// Cask notices that need their own row in the Workbench Homebrew group.
     var brewStandaloneCaskLifecycles: [BrewCaskLifecycle] {
         brewStandaloneCaskLifecycles(for: brewFormulae)
@@ -1313,7 +1318,8 @@ final class AppListModel {
         guard !brewCaskLifecycles.isEmpty else { return [] }
         let appPaths = Set(results.lazy.filter { !self.prefs.isIgnored($0.app) }
             .map { $0.app.path.standardizedFileURL.path })
-        return BrewCaskLifecycle.standaloneWarnings(brewCaskLifecycles, packageRows: packages, appPaths: appPaths)
+        return BrewCaskLifecycle.standaloneWarnings(
+            brewCaskLifecycles, packageRows: packages, uncheckedRows: brewUnchecked, appPaths: appPaths)
     }
     /// Whether Homebrew is installed at all (cached once — install state doesn't
     /// change mid-session). Lets the menu reserve the brew row's space from the very
@@ -5225,8 +5231,14 @@ final class AppListModel {
         })
         let packages = brewFormulae
         // Same list and update marks as the Workbench Homebrew summary.
-        let listedUpdates = packages.filter(\.hasUpdate)
-        let deprecated = packages.count { $0.lifecycle != nil } + brewStandaloneCaskLifecycles(for: packages).count
+        let listedUpdates = packages.filter(\.hasListedUpdate)
+        let deprecatedPackages = packages.filter { $0.lifecycle != nil }
+        let deprecatedCaskTokens = Set(deprecatedPackages.lazy.filter { $0.kind == .cask }
+            .map { ($0.name as NSString).lastPathComponent })
+        let deprecatedUnchecked = Set(brewUnchecked.compactMap { brewCaskLifecycle(for: $0)?.token })
+        let deprecated = deprecatedPackages.count
+            + deprecatedUnchecked.subtracting(deprecatedCaskTokens).count
+            + brewStandaloneCaskLifecycles(for: packages).count
         return .live(
             upgradeAll: brewRun(Self.upgradeAllJobID, upgradeAllPhase),
             upgradeAllDone: brewUpgradeDone, upgradeAllTotal: brewUpgradeTotal, upgradeAllError: brewUpgradeError,

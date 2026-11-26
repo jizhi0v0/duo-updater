@@ -141,6 +141,7 @@ struct BrewReadMergeTests {
         let merged = previous.merging(
             leaves: [], formulaUpdates: [], caskUpdates: nil, report: Self.failedInfo)
         #expect(merged.inventory.map(\.availableVersion) == ["2.0"])
+        #expect(merged.inventory[0].hasListedUpdate)
         #expect(!merged.inventory[0].canUpgrade)
         #expect(merged.outdated.isEmpty)
     }

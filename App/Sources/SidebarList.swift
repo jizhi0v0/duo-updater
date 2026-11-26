@@ -3,6 +3,37 @@ import AppKit
 import Carbon.HIToolbox
 import Observation
 
+/// Supporting detail for a count or status beside a disclosure control.
+struct SummaryDetailButton<Label: View>: View {
+    let details: String
+    @ViewBuilder let label: () -> Label
+
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing.toggle() } label: { label() }
+            .buttonStyle(.plain)
+            .help(details)
+            .accessibilityHint(Text("Details"))
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                ViewThatFits(in: .vertical) {
+                    detailText.fixedSize(horizontal: false, vertical: true)
+                    ScrollView { detailText }
+                }
+                .padding(12)
+                .frame(width: 320)
+                .frame(maxHeight: 260)
+            }
+    }
+
+    private var detailText: some View {
+        Text(verbatim: details)
+            .font(.callout)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// The workbench's sidebar lists (Apps, CLI, Rollback): a lazily built scroll of
 /// rows that draws its own selection.
 ///

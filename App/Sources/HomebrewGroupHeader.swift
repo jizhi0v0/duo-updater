@@ -59,18 +59,17 @@ struct HomebrewGroupHeader<Trailing: View>: View {
     }
 }
 
-/// The row under the Homebrew header: how many packages and how many outdated,
-/// then the marks. A click on it opens or closes the group, like the header's name.
+/// The row under the Homebrew header: counts and their supporting details.
 struct HomebrewGroupSummary: View {
     let packages: Int
     let outdated: Int
-    let unchecked: Int
+    let batchUpdates: Int
+    let unlistedUpdates: Int
+    let uncheckedDetails: [String]
     /// Why the last Upgrade All failed (`AppListModel.brewUpgradeError`), or nil.
     let upgradeError: String?
     /// The Homebrew release on offer (`HomebrewSelfUpdate.latest`), or nil.
     let homebrewUpdate: String?
-    let toggleDisabled: Bool
-    let toggle: () -> Void
     var readError: String? = nil
     var retry: () -> Void = {}
 
@@ -87,10 +86,11 @@ struct HomebrewGroupSummary: View {
             countsRow
             if let readError {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Label(String(localized: "Check failed — showing last results"), systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                        .lineLimit(2)
-                        .help(readError)
+                    SummaryDetailButton(details: readError) {
+                        Label(String(localized: "Check failed — showing last results"), systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                            .lineLimit(2)
+                    }
                     Spacer(minLength: 0)
                     Button("Retry", action: retry)
                         .buttonStyle(.plain)
@@ -103,56 +103,73 @@ struct HomebrewGroupSummary: View {
     }
 
     private var countsRow: some View {
-        Button(action: toggle) {
-            HStack(spacing: 8) {
-                // A failed Upgrade All takes the counts' place, as it takes the
-                // update count's in the popover; the whole of it on hover.
-                if let upgradeError {
-                    Text(verbatim: upgradeError)
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                        .help(upgradeError)
-                } else {
-                    Text(verbatim: counts)
-                        .foregroundStyle(outdated > 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+        HStack(spacing: 8) {
+            if let upgradeError {
+                SummaryDetailButton(details: upgradeError) {
+                    Text(verbatim: upgradeError).foregroundStyle(.red).lineLimit(1)
                 }
-                // The marks are what a closed group hides that the counts do not say,
-                // so they keep their room and the counts give way.
-                marks.fixedSize()
-                Spacer(minLength: 0)
+            } else if unlistedUpdates > 0 || batchUpdates != outdated {
+                SummaryDetailButton(details: batchDetails) {
+                    HStack(spacing: 4) {
+                        countsLabel
+                        Image(systemName: "info.circle").foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                countsLabel
             }
-            .font(.caption)
-            .contentShape(Rectangle())
+            marks.fixedSize()
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
-        .disabled(toggleDisabled)
+        .font(.caption)
+    }
+
+    private var countsLabel: some View {
+        Text(verbatim: counts)
+            .foregroundStyle(outdated > 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            .lineLimit(1)
+            .truncationMode(.middle)
+    }
+
+    static func batchUpdateLines(updates: Int, unlisted: Int) -> [String] {
+        let summary = String(localized: "Upgrade All") + " · " + String(localized: "\(updates) updates")
+        return unlisted > 0 ? [summary, String(localized: "\(unlisted) unlisted updates")] : [summary]
+    }
+
+    private var batchDetails: String {
+        var lines = Self.batchUpdateLines(updates: batchUpdates, unlisted: unlistedUpdates)
+        if unlistedUpdates > 0 {
+            lines.append(String(localized: "Homebrew can also upgrade packages such as dependencies that have no row in this list."))
+        }
+        if outdated > batchUpdates - unlistedUpdates {
+            lines.append(String(localized: "Some listed updates aren’t eligible for Upgrade All."))
+        }
+        return lines.joined(separator: "\n")
     }
 
     private var marks: some View {
         HStack(spacing: 6) {
-            if unchecked > 0 {
-                let help = String(localized: "\(unchecked) packages not checked")
-                Label {
-                    Text(verbatim: "\(unchecked)")
-                } icon: {
-                    Image(systemName: "questionmark.circle")
+            if !uncheckedDetails.isEmpty {
+                let count = uncheckedDetails.count
+                SummaryDetailButton(details: uncheckedDetails.joined(separator: "\n\n")) {
+                    Label {
+                        Text(verbatim: "\(count)")
+                    } icon: {
+                        Image(systemName: "questionmark.circle")
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.orange)
                 }
-                .labelStyle(.titleAndIcon)
-                .foregroundStyle(.orange)
-                .help(help)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(help)
+                .accessibilityLabel(String(localized: "\(count) packages not checked"))
             }
             if let homebrewUpdate {
                 // The glyph alone, the version on hover: with it spelled out, the
                 // Spanish counts beside it were cut at the 260 pt minimum (rendered).
                 let help = String(localized: "Homebrew \(homebrewUpdate) is available")
-                Image(systemName: "arrow.up.circle.fill")
-                    .foregroundStyle(.tint)
-                    .help(help)
-                    .accessibilityLabel(help)
+                SummaryDetailButton(details: help) {
+                    Image(systemName: "arrow.up.circle.fill").foregroundStyle(.tint)
+                }
+                .accessibilityLabel(help)
             }
         }
     }

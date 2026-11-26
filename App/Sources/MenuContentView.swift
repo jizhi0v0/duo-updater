@@ -1518,8 +1518,7 @@ private struct CommandLineRow: View {
     }
 
     private func brewUpdateHelp(upgradeCount: Int, unlistedCount: Int) -> String {
-        let summary = String(localized: "Upgrade All") + " · " + String(localized: "\(upgradeCount) updates")
-        let counts = unlistedCount > 0 ? [summary, String(localized: "\(unlistedCount) unlisted updates")] : [summary]
+        let counts = HomebrewGroupSummary.batchUpdateLines(updates: upgradeCount, unlisted: unlistedCount)
         let help = String(localized: "Runs `brew upgrade --formula`, then upgrades eligible casks by name.")
         return counts.joined(separator: "\n") + "\n\n" + help
     }

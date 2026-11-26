@@ -238,38 +238,38 @@ struct XcodeSettingsPage: View {
         return Set([XcodeDownloadGroup.defaultOpen(in: groups, hostMacOSMajor: host)].compactMap { $0 })
     }
 
-    /// One line per Xcode major. The whole line opens and closes it.
+    /// One line per Xcode major, with its version counts beside the disclosure.
     private func groupHeader(_ group: XcodeDownloadGroup, isOpen: Bool, toggle: @escaping () -> Void) -> some View {
-        Button(action: toggle) {
-            // Icon at the card's edge, where the rows' text starts, and the
-            // chevron at the far end: an indent for the rows left a wide empty
-            // column under the header (tried in this PR, looked worse).
-            HStack(spacing: 8) {
-                groupIcon(group)
-                    .frame(width: 20, height: 20)
-                if let major = group.major {
-                    Text(verbatim: "Xcode \(major)").fontWeight(.medium)
-                } else {
-                    Text("Older Xcode").fontWeight(.medium)
+        HStack(spacing: 8) {
+            Button(action: toggle) {
+                HStack(spacing: 8) {
+                    groupIcon(group).frame(width: 20, height: 20)
+                    if let major = group.major {
+                        Text(verbatim: "Xcode \(major)").fontWeight(.medium)
+                    } else {
+                        Text("Older Xcode").fontWeight(.medium)
+                    }
                 }
-                // Only where the numbers differ (Xcode 12–16): "Xcode 27 macOS 27"
-                // said the same thing twice.
-                if let macOS = group.macOS, macOS != group.major.map(String.init) {
-                    Text(verbatim: "macOS \(macOS)").foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 8)
-                Text("\(group.items.count) versions")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(GroupHeaderButtonStyle())
+            if let macOS = group.macOS, macOS != group.major.map(String.init) {
+                Text(verbatim: "macOS \(macOS)").foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Text("\(group.items.count) versions")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button(action: toggle) {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isOpen ? 90 : 0))
                     .frame(width: 10)
             }
-            .contentShape(Rectangle())
+            .buttonStyle(GroupHeaderButtonStyle())
+            .accessibilityHidden(true)
         }
-        .buttonStyle(GroupHeaderButtonStyle())
         .animation(.easeOut(duration: 0.15), value: isOpen)
         .settingsRow()
     }

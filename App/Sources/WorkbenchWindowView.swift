@@ -1125,99 +1125,67 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    /// The row under the "Other tools" header: how many updates the tool groups
-    /// below have, and how many copies went unchecked — the whole set's, not the
-    /// search's, like the Homebrew summary. A click on it opens or closes the
-    /// level, like the Homebrew summary's.
-    private func otherToolsSummary(_ lists: SidebarLists) -> some View {
-        toolsSummary(scope: standaloneScope, trailing: nil, toggleDisabled: otherToolsSearchHits(lists)) {
-            toggleOtherTools(lists)
-        }
-    }
-
-    /// The same row under a manager's level: its items' counts, and on the
-    /// right what its group header said — "mise 2026.10.15", with the root after
-    /// it when the manager has more than one, which tells two roots of one
-    /// manager apart.
-    private func managerLevelSummary(_ level: CLIToolPresentation.Group, _ lists: SidebarLists) -> some View {
-        toolsSummary(scope: scope(of: level), trailing: cliToolHeaderSummary(level),
-                     info: managedHeaderInfo(level),
-                     toggleDisabled: managerLevelSearchHits(level, lists)) {
-            toggleManagerLevel(level, lists)
-        }
-    }
-
-    /// A level's counts over the copies `scope` names.
+    /// Counts for Other tools and for each package manager's group.
     private func toolsSummary(
-        scope: Set<CLIToolID>, trailing: String?, info: ManagedHeaderInfo? = nil, toggleDisabled: Bool,
-        toggle: @escaping () -> Void
+        scope: Set<CLIToolID>, trailing: String? = nil, info: ManagedHeaderInfo? = nil
     ) -> some View {
         let tools = model.cliTools
         let inScope = { (status: CLIToolStatus) in scope.contains(status.toolID) }
-        // What Update All updates; a held-back update is counted apart — counted
-        // with them, "2 updates" sat above one Update button.
         let updates = tools.offered.filter(inScope).count
         let held = tools.heldBack.filter(inScope)
-        let unchecked = tools.unchecked.filter(inScope).count
+        let unchecked = tools.unchecked.filter(inScope)
         let sudoCount = tools.adminOffered.filter(inScope).count
         return HStack(spacing: 8) {
-            Button { inOneFrame(toggle) } label: {
-                HStack(spacing: 8) {
-                    if updates > 0 {
-                        Text(String(localized: "\(updates) updates")).foregroundStyle(.tint).lineLimit(1)
-                    } else if held.isEmpty && unchecked == 0 {
-                        // Not while a copy went unanswered: that would be a claim
-                        // about it too (`CLIToolsModel.unchecked`).
-                        Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    if let sudo = CLIToolPresentation.needSudo(sudoCount) {
-                        Text(sudo)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .help(CLIToolPresentation.sudoBadgeHelp)
-                    }
-                    if !held.isEmpty {
-                        // Why each was held back, on hover: "openclaw 2026.9.8 needs …".
-                        Text(String(localized: "\(held.count) held back"))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .help(held.compactMap { status in
-                                status.withheld.map { CLIToolsModel.reason($0, of: status) }
-                            }.joined(separator: "\n"))
-                    }
-                    if unchecked > 0 {
-                        let help = String(localized: "\(unchecked) not checked")
-                        Label {
-                            Text(verbatim: "\(unchecked)")
-                        } icon: {
-                            Image(systemName: "questionmark.circle")
-                        }
-                        .labelStyle(.titleAndIcon)
-                        .foregroundStyle(.orange)
-                        .help(help)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(help)
-                        .fixedSize()
-                    }
-                    Spacer(minLength: 0)
-                    if let trailing {
-                        Text(verbatim: trailing)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .help(trailing)
-                    }
-                }
-                .font(.caption)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            if updates > 0 {
+                Text(String(localized: "\(updates) updates")).foregroundStyle(.tint).lineLimit(1)
+            } else if held.isEmpty && unchecked.isEmpty {
+                Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
             }
-            .buttonStyle(.plain)
-            .disabled(toggleDisabled)
+            if let sudo = CLIToolPresentation.needSudo(sudoCount) {
+                SummaryDetailButton(details: CLIToolPresentation.sudoBadgeHelp) {
+                    Text(sudo).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            if !held.isEmpty {
+                let reasons = held.compactMap { status in
+                    status.withheld.map { CLIToolsModel.reason($0, of: status) }
+                }
+                let label = String(localized: "\(held.count) held back")
+                SummaryDetailButton(details: reasons.isEmpty ? label : reasons.joined(separator: "\n\n")) {
+                    Text(label).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            if !unchecked.isEmpty {
+                let reasons = unchecked.map { status in
+                    CLIToolPresentation.rowWarning(status)
+                        ?? (status.name ?? status.kind.displayName) + " · " + String(localized: "Version can’t be read")
+                }
+                SummaryDetailButton(details: reasons.joined(separator: "\n\n")) {
+                    Label {
+                        Text(verbatim: "\(unchecked.count)")
+                    } icon: {
+                        Image(systemName: "questionmark.circle")
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.orange)
+                    .fixedSize()
+                }
+                .accessibilityLabel(String(localized: "\(unchecked.count) not checked"))
+            }
+            Spacer(minLength: 0)
+            if let trailing {
+                SummaryDetailButton(details: trailing) {
+                    Text(verbatim: trailing)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
             if let info {
                 ManagedPathsInfoButton(info: info)
             }
         }
+        .font(.caption)
     }
 
     /// The managed group's info affordance: hover shows the abbreviated paths,
@@ -1377,18 +1345,19 @@ struct WorkbenchWindowView: View {
     /// The counts-and-marks row under that header (`HomebrewGroupSummary`). The
     /// whole group's, not the search's: a search that matches inside opens the
     /// group, and its rows show what matched.
-    private func homebrewSummary(_ lists: SidebarLists) -> some View {
-        HomebrewGroupSummary(
+    private var homebrewSummary: some View {
+        let snapshot = model.brewRowSnapshot
+        return HomebrewGroupSummary(
             packages: model.brewFormulae.count + model.brewUnchecked.count
                 + model.brewStandaloneCaskLifecycles.count,
-            outdated: model.brewFormulae.count(where: \.hasListedUpdate),
-            unchecked: model.brewUnchecked.count,
+            outdated: snapshot.listedOutdated,
+            batchUpdates: snapshot.outdated,
+            unlistedUpdates: snapshot.unlistedOutdated,
+            uncheckedDetails: model.brewUnchecked.map(\.uncheckedExplanation),
             // While Upgrade All is on offer, as the popover shows it.
-            upgradeError: model.brewOutdatedFormulae.isEmpty ? nil : model.brewUpgradeError,
+            upgradeError: snapshot.outdated == 0 ? nil : snapshot.upgradeAllError,
             homebrewUpdate: model.homebrewSelfUpdate?.latest,
-            toggleDisabled: homebrewSearchHits(lists),
-            toggle: { inOneFrame { toggleHomebrewGroup() } },
-            readError: model.brewReadError,
+            readError: snapshot.readError,
             retry: { Task { await model.brewLane.handle(.manual) } })
     }
 
@@ -1681,7 +1650,7 @@ struct WorkbenchWindowView: View {
             cliHeaderView(header, lists: lists, isFixed: false)
                 .id(entry.id)
         case .homebrewSummary:
-            homebrewSummary(lists).sidebarStaticRow()
+            homebrewSummary.sidebarStaticRow()
         case .homebrewSelfUpdate(let update):
             HomebrewSelfUpdateSidebarRow(update: update, model: model)
                 .sidebarRow(entry.id, selection: $selection)
@@ -1697,9 +1666,10 @@ struct WorkbenchWindowView: View {
                 highlighted: highlightUnchecked)
                 .sidebarRow(entry.id, selection: $selection)
         case .managerSummary(let level):
-            managerLevelSummary(level, lists).sidebarStaticRow()
+            toolsSummary(scope: scope(of: level), trailing: cliToolHeaderSummary(level), info: managedHeaderInfo(level))
+                .sidebarStaticRow()
         case .otherToolsSummary:
-            otherToolsSummary(lists).sidebarStaticRow()
+            toolsSummary(scope: standaloneScope).sidebarStaticRow()
         case .tool(let status):
             CLIToolSidebarRow(status: status, cli: model.cliTools,
                               showsRuntime: model.prefs.showCLIRuntimeTags)

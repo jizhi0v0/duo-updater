@@ -146,8 +146,12 @@ public struct BrewRowSnapshot: Equatable, Sendable {
     public var installed: Bool
     /// The first `brew outdated` has returned.
     public var checked: Bool
-    /// Outdated formulae and app-less casks: what Upgrade All upgrades.
+    /// The pending targets of Upgrade All, including dependencies.
     public var outdated: Int
+    /// Workbench package rows with an update badge, including blocked casks.
+    public var listedOutdated: Int
+    /// Upgrade All targets without a matching Workbench update row.
+    public var unlistedOutdated: Int
     /// Packages brew would not read.
     public var unchecked: Int
     /// Formulae and app-less casks Homebrew is phasing out.
@@ -159,7 +163,8 @@ public struct BrewRowSnapshot: Equatable, Sendable {
     public init(
         upgradeAll: Run = Run(id: "brew-upgrade-all"), upgradeAllDone: Int = 0, upgradeAllTotal: Int = 0,
         upgradeAllError: String? = nil, formulae: [Formula] = [], installed: Bool = true, checked: Bool = true,
-        outdated: Int = 0, unchecked: Int = 0, deprecated: Int = 0, readError: String? = nil
+        outdated: Int = 0, listedOutdated: Int? = nil, unlistedOutdated: Int = 0,
+        unchecked: Int = 0, deprecated: Int = 0, readError: String? = nil
     ) {
         self.upgradeAll = upgradeAll
         self.upgradeAllDone = upgradeAllDone
@@ -169,6 +174,8 @@ public struct BrewRowSnapshot: Equatable, Sendable {
         self.installed = installed
         self.checked = checked
         self.outdated = outdated
+        self.listedOutdated = listedOutdated ?? outdated
+        self.unlistedOutdated = unlistedOutdated
         self.unchecked = unchecked
         self.deprecated = deprecated
         self.readError = readError
@@ -177,12 +184,13 @@ public struct BrewRowSnapshot: Equatable, Sendable {
     /// The same with **no defaults** — see `Run.live`.
     public static func live(
         upgradeAll: Run, upgradeAllDone: Int, upgradeAllTotal: Int, upgradeAllError: String?,
-        formulae: [Formula], installed: Bool, checked: Bool, outdated: Int, unchecked: Int, deprecated: Int,
-        readError: String?
+        formulae: [Formula], installed: Bool, checked: Bool, outdated: Int, listedOutdated: Int,
+        unlistedOutdated: Int, unchecked: Int, deprecated: Int, readError: String?
     ) -> BrewRowSnapshot {
         BrewRowSnapshot(upgradeAll: upgradeAll, upgradeAllDone: upgradeAllDone, upgradeAllTotal: upgradeAllTotal,
                         upgradeAllError: upgradeAllError, formulae: formulae, installed: installed,
-                        checked: checked, outdated: outdated, unchecked: unchecked, deprecated: deprecated,
+                        checked: checked, outdated: outdated, listedOutdated: listedOutdated,
+                        unlistedOutdated: unlistedOutdated, unchecked: unchecked, deprecated: deprecated,
                         readError: readError)
     }
 
@@ -286,7 +294,7 @@ public struct BrewRowSnapshot: Equatable, Sendable {
             return Row(lines: [.progress(.queued)], mark: .spinner, button: button, isRunning: true)
         }
         // Before the first verdict only; a re-check keeps the last answer up.
-        if outdated == 0 && !checked && readError == nil {
+        if outdated == 0 && listedOutdated == 0 && !checked && readError == nil {
             return Row(lines: [.checking], mark: .spinner, button: .none, isRunning: false)
         }
         // Packages brew would not read stay said beside the updates: no count
@@ -294,9 +302,11 @@ public struct BrewRowSnapshot: Equatable, Sendable {
         let rest: [Row.Line] = (readError == nil ? [] : [.checkFailed])
             + (unchecked > 0 ? [.notChecked(unchecked)] : []) + (deprecated > 0 ? [.deprecated(deprecated)] : [])
         let mark: Row.Mark? = readError.map(Row.Mark.readFailed) ?? (unchecked > 0 ? .unchecked : nil)
-        if outdated > 0 {
-            return Row(lines: [upgradeAllError.map(Row.Line.error) ?? .updates(outdated)] + rest,
-                       mark: mark, button: .update(admin: false), isRunning: false)
+        if outdated > 0 || listedOutdated > 0 {
+            let line: Row.Line = listedOutdated > 0 ? .updates(listedOutdated) : .unlistedUpdates(unlistedOutdated)
+            let errorLine = (outdated > 0 ? upgradeAllError : nil).map(Row.Line.error)
+            return Row(lines: [errorLine ?? line] + rest, mark: mark,
+                       button: outdated > 0 ? .update(admin: false) : .none, isRunning: false)
         }
         if unchecked > 0 || readError != nil { return Row(lines: rest, mark: mark, button: .none, isRunning: false) }
         return Row(lines: [.upToDate] + rest, mark: .seal, button: .none, isRunning: false)
@@ -364,6 +374,7 @@ public struct BrewPopoverRow: Equatable, Sendable {
         /// In red.
         case error(String)
         case updates(Int)
+        case unlistedUpdates(Int)
         case notChecked(Int)
         case deprecated(Int)
         case upToDate

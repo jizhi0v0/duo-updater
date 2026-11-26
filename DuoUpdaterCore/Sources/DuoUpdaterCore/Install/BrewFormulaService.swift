@@ -184,8 +184,8 @@ public struct BrewLifecycle: Sendable, Equatable {
 /// necessarily Homebrew: `HomebrewCaskCatalog` drops disabled casks (#881), so a
 /// disabled cask's app is checked by Sparkle or another source, or by none. So the
 /// notice goes on whatever row has the app's path, matched on the `target` brew
-/// records for each `app` artifact. A cask that installs no app (a CLI, a font)
-/// has no row of its own, and gets one for this.
+/// records for each `app` artifact. Workbench gives the notice its own row
+/// when neither a package row nor an app row can show it.
 public struct BrewCaskLifecycle: Sendable, Identifiable, Equatable {
     public var id: String { token }
     public let token: String
@@ -207,6 +207,14 @@ public struct BrewCaskLifecycle: Sendable, Identifiable, Equatable {
         self.appPaths = appPaths
         self.installsAnApp = installsAnApp
         self.lifecycle = lifecycle
+    }
+
+    public static func standaloneWarnings(
+        _ warnings: [Self], packageRows: [BrewInstalledFormula], appPaths: Set<String>
+    ) -> [Self] {
+        let packageTokens = Set(packageRows.lazy.filter { $0.kind == .cask && $0.lifecycle != nil }
+            .map { BrewFormulaService.shortName($0.name) })
+        return warnings.filter { !packageTokens.contains($0.token) && appPaths.isDisjoint(with: $0.appPaths) }
     }
 }
 

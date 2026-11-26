@@ -247,7 +247,7 @@ struct WorkbenchWindowView: View {
         let allApps = apps
         let allRollbackable = rollbackableApps
         let installedFormulae = model.brewFormulae
-        let lifecycleCasks = model.brewAppLessCaskLifecycles
+        let lifecycleCasks = model.brewStandaloneCaskLifecycles
         let brewTotal = installedFormulae.count + model.brewUnchecked.count
             + lifecycleCasks.count + (model.homebrewSelfUpdate == nil ? 0 : 1)
         let cliTools = CLIToolPresentation.holding(
@@ -330,13 +330,13 @@ struct WorkbenchWindowView: View {
         return model.brewUnchecked.first { $0.id == packageID }
     }
 
-    /// The app-less deprecated cask selected, when the selection is one of those
+    /// The standalone deprecated cask selected, when the selection is one of those
     /// rows (tagged `brew:cask:<token>`).
     private var selectedLifecycleCask: BrewCaskLifecycle? {
         let prefix = "brew:cask:"
         guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
         let token = String(id.dropFirst(prefix.count))
-        return model.brewAppLessCaskLifecycles.first { $0.token == token }
+        return model.brewStandaloneCaskLifecycles.first { $0.token == token }
     }
 
     /// The Homebrew self-update row's selection tag. Under `brew:`, so it counts
@@ -746,7 +746,7 @@ struct WorkbenchWindowView: View {
     /// Homebrew has anything for the CLI tab to show, before the search.
     private var homebrewHasAnything: Bool {
         !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
-            || !model.brewAppLessCaskLifecycles.isEmpty || model.homebrewSelfUpdate != nil
+            || !model.brewStandaloneCaskLifecycles.isEmpty || model.homebrewSelfUpdate != nil
             || model.brewReadError != nil
     }
 
@@ -1380,7 +1380,7 @@ struct WorkbenchWindowView: View {
     private func homebrewSummary(_ lists: SidebarLists) -> some View {
         HomebrewGroupSummary(
             packages: model.brewFormulae.count + model.brewUnchecked.count
-                + model.brewAppLessCaskLifecycles.count,
+                + model.brewStandaloneCaskLifecycles.count,
             outdated: model.brewFormulae.filter(\.hasUpdate).count,
             unchecked: model.brewUnchecked.count,
             // While Upgrade All is on offer, as the popover shows it.

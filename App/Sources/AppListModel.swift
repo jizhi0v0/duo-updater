@@ -1304,11 +1304,16 @@ final class AppListModel {
         return brewCaskLifecycles.first { $0.appPaths.contains(path) }
     }
 
-    /// Flagged casks that install no app, so no other row would carry the notice.
-    var brewAppLessCaskLifecycles: [BrewCaskLifecycle] {
-        // A cask with a row of its own in the tree carries its notice there.
-        let listed = Set(brewFormulae.filter { $0.kind == .cask }.map(\.name))
-        return brewCaskLifecycles.filter { !$0.installsAnApp && !listed.contains($0.token) }
+    /// Cask notices that need their own row in the Workbench Homebrew group.
+    var brewStandaloneCaskLifecycles: [BrewCaskLifecycle] {
+        brewStandaloneCaskLifecycles(for: brewFormulae)
+    }
+
+    private func brewStandaloneCaskLifecycles(for packages: [BrewInstalledFormula]) -> [BrewCaskLifecycle] {
+        guard !brewCaskLifecycles.isEmpty else { return [] }
+        let appPaths = Set(results.lazy.filter { !self.prefs.isIgnored($0.app) }
+            .map { $0.app.path.standardizedFileURL.path })
+        return BrewCaskLifecycle.standaloneWarnings(brewCaskLifecycles, packageRows: packages, appPaths: appPaths)
     }
     /// Whether Homebrew is installed at all (cached once — install state doesn't
     /// change mid-session). Lets the menu reserve the brew row's space from the very
@@ -5214,9 +5219,14 @@ final class AppListModel {
     /// What the popover's Homebrew row and the workbench's Upgrade All draw
     /// from (`BrewRowSnapshot`).
     var brewRowSnapshot: BrewRowSnapshot {
-        let outdatedKeys = Set(brewOutdatedFormulae.map {
+        let outdated = brewOutdatedFormulae
+        let outdatedKeys = Set(outdated.map {
             BrewInstalledFormula.key(kind: $0.kind, name: $0.name)
         })
+        let packages = brewFormulae
+        // Same list and update marks as the Workbench Homebrew summary.
+        let listedUpdates = packages.filter(\.hasUpdate)
+        let deprecated = packages.count { $0.lifecycle != nil } + brewStandaloneCaskLifecycles(for: packages).count
         return .live(
             upgradeAll: brewRun(Self.upgradeAllJobID, upgradeAllPhase),
             upgradeAllDone: brewUpgradeDone, upgradeAllTotal: brewUpgradeTotal, upgradeAllError: brewUpgradeError,
@@ -5225,10 +5235,9 @@ final class AppListModel {
                 brewFormula(name, hasUpdate: outdatedKeys.contains(name))
             },
             installed: brewInstalled, checked: brewChecked,
-            outdated: brewOutdatedFormulae.count, unchecked: brewUnchecked.count,
-            // Casks once: every flagged one is in `brewCaskLifecycles`, rows or not.
-            deprecated: brewFormulae.filter { $0.kind == .formula && $0.lifecycle != nil }.count
-                + brewCaskLifecycles.count,
+            outdated: outdated.count, listedOutdated: listedUpdates.count,
+            unlistedOutdated: outdatedKeys.subtracting(listedUpdates.map(\.key)).count,
+            unchecked: brewUnchecked.count, deprecated: deprecated,
             readError: brewReadError)
     }
 

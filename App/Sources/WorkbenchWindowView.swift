@@ -2806,7 +2806,7 @@ private struct BrewUncheckedDetailPane: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(package.uncheckedExplanation)
                 if let lifecycle {
-                    BrewLifecycleNotice(name: package.fullName, lifecycle: lifecycle, isCask: true)
+                    BrewLifecycleNotice(text: AttributedString(lifecycle.statusText))
                 }
                 if let command = package.fixCommand {
                     HStack(spacing: 8) {

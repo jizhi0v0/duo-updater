@@ -1534,6 +1534,7 @@ private struct CommandLineRow: View {
         case .error(let error): return Text(error).foregroundStyle(.red)
         case .updates(let count): return Text(String(localized: "\(count) updates"))
         case .unlistedUpdates(let count): return Text(String(localized: "\(count) unlisted updates"))
+        case .registeredPathMissing: return Text(String(localized: "Registered path missing"))
         // Packages brew wouldn't read: no count here can include them.
         case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
         // Formulae Homebrew is phasing out (`BrewLifecycle`): checked, so not

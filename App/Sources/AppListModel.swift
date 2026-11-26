@@ -1306,7 +1306,7 @@ final class AppListModel {
 
     func brewCaskLifecycle(for package: BrewUncheckedPackage) -> BrewCaskLifecycle? {
         guard package.kind == .cask else { return nil }
-        return brewCaskLifecycles.first { $0.token == package.name }
+        return brewCaskLifecycles.first { $0.matchesUncheckedPackage(package) }
     }
 
     /// Cask notices that need their own row in the Workbench Homebrew group.
@@ -5249,6 +5249,7 @@ final class AppListModel {
             installed: brewInstalled, checked: brewChecked,
             outdated: outdated.count, listedOutdated: listedUpdates.count,
             unlistedOutdated: outdatedKeys.subtracting(listedUpdates.map(\.key)).count,
+            hasMissingPathUpdate: packages.contains { $0.hasUpdate && $0.missingAppPath != nil },
             unchecked: brewUnchecked.count, deprecated: deprecated,
             readError: brewReadError)
     }

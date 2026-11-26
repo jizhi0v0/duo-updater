@@ -82,10 +82,21 @@ enum AuditedUpdateFeeds {
         let reason: String
     }
 
+    private static let rogueAmoebaAudit = "docs/app-audits/com-rogueamoeba-airfoil.md"
+    private static let rogueAmoebaStable: [(name: String, id: String)] = [
+        ("Airfoil", "com.rogueamoeba.Airfoil"),
+        ("Airfoil Satellite", "com.rogueamoeba.AirfoilSpeakers"),
+        ("Farrago", "com.rogueamoeba.farrago"),
+        ("Fission", "com.rogueamoeba.Fission"),
+        ("Loopback", "com.rogueamoeba.Loopback"),
+        ("Piezo", "com.rogueamoeba.Piezo"),
+        ("SoundSource", "com.rogueamoeba.soundsource"),
+    ]
+
     /// Current rows in `docs/app-audits/README.md`'s Electron-covered and
     /// Sparkle-covered sections, represented only where an exact public feed
     /// and track are established by that row's linked audit.
-    static let entries: [Entry] = [
+    static let entries: [Entry] = ([
         sparkle("Audio Hijack", "com.rogueamoeba.audiohijack", .stable,
                 feed: SparkleFeedCatalog.feed(forBundleID: "com.rogueamoeba.audiohijack")!.absoluteString,
                 audit: "docs/app-audits/com-rogueamoeba-audiohijack.md"),
@@ -432,7 +443,10 @@ enum AuditedUpdateFeeds {
                 feed: "https://raw.githubusercontent.com/Loon0x00/Loon4Mac/refs/heads/main/appcast.xml",
                 publicKey: "uEraTruMBhN4ATxXmON6F27zstasLdhxCx/yht+cEJE=",
                 audit: "docs/app-audits/com-loon-Loon.md"),
-    ].sorted { $0.recipeID < $1.recipeID }
+    ] + rogueAmoebaStable.map { app in
+        sparkle(app.name, app.id, .stable, feed: SparkleFeedCatalog.feed(forBundleID: app.id)!.absoluteString,
+                audit: rogueAmoebaAudit)
+    }).sorted { $0.recipeID < $1.recipeID }
 
     /// Entire rows excluded because their audit does not establish a live public
     /// feed that this catalog can honestly monitor.
@@ -450,6 +464,10 @@ enum AuditedUpdateFeeds {
     /// Tracks named by an audit but intentionally not represented as live feed
     /// entries because the public feed or the track itself is not established.
     static let uncoveredTracks: [Gap] = [
+        Gap(
+            bundleID: "com.rogueamoeba.soundsource", trackID: "legacy-5",
+            auditDocument: rogueAmoebaAudit,
+            reason: "SoundSource 5 is retired and its last signed app excludes macOS 27 onward. Its version-qualified public feed is available on supported older hosts."),
         Gap(
             bundleID: "com.kimi.code.desktop", trackID: "canary",
             auditDocument: "docs/app-audits/com-kimi-code-desktop.md",
@@ -486,7 +504,10 @@ enum AuditedUpdateFeeds {
             bundleID: "com.dinoki.osaurus", trackID: "beta",
             auditDocument: "docs/app-audits/com-dinoki-osaurus.md",
             reason: "A live feed beta item was observed after the audit, but its mapping to installed beta copies/preferences has not been established; only the audited release track is catalogued."),
-    ]
+    ] + rogueAmoebaStable.map {
+        Gap(bundleID: $0.id, trackID: "test-releases", auditDocument: rogueAmoebaAudit,
+            reason: "The vendor's stable appcast has no test-release items and no verified public test feed is mapped to installed copies.")
+    }
 
     /// Sparkle identities whose complete public EdDSA key was not available in
     /// the matching installed app plist or the linked published audit. A missing
@@ -546,7 +567,10 @@ enum AuditedUpdateFeeds {
                      reason: "The matching installed copy's Info.plist has no SUPublicEDKey; the audit records the signature and Team fallback, not an EdDSA key."),
         PublicKeyGap(bundleID: "uk.co.bzwrd.macperfmonitor", auditDocument: "docs/app-audits/uk-co-bzwrd-macperfmonitor.md",
                      reason: "No matching installed copy or full public key in the linked audit was available from the permitted sources."),
-    ]
+    ] + rogueAmoebaStable.map {
+        PublicKeyGap(bundleID: $0.id, auditDocument: rogueAmoebaAudit,
+                     reason: "The verified direct bundle has no SUPublicEDKey. Installation checks the Developer ID seal, Team ID, bundle ID and offered build.")
+    }
 
     private static func electron(
         _ name: String, _ bundleID: String, _ channel: ReleaseChannel,

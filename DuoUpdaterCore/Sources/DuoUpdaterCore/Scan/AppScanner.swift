@@ -742,7 +742,9 @@ public struct AppScanner: Sendable {
         // Developer ID with no receipt. An `ls` settles which copy is in front of
         // you and nothing more, which is the whole point — a store copy carrying
         // a feed is a real arrangement, so this branch has to be right for both.)
-        if feedURL == nil, !isMAS { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
+        if feedURL == nil, !isMAS {
+            feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID, installedVersion: shortVersion)
+        }
         // The narrower gap: the bundle DOES name a feed, and the vendor stopped
         // publishing to it. Matched on the dead address itself, not on the bundle
         // id, so the entry stops applying the moment the app names anything else —

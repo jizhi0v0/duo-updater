@@ -92,7 +92,7 @@ public enum ArtifactInspection {
     /// assembles — production takes it from the installed copy.
     public static func inspect(
         _ remote: RemoteVersion, bundleName: String, workDir: URL,
-        sparklePublicKey: String? = nil
+        sparklePublicKey: String? = nil, expectedBundleID: String? = nil
     ) async -> Result<Inspected, Failure> {
         guard let url = remote.downloadURL,
               remote.vendorInstallerKind != nil || remote.sourceName == "Sparkle" else {
@@ -194,6 +194,7 @@ public enum ArtifactInspection {
         do {
             app = try await VendorInstaller.unpackVerified(
                 remote, download: download, bundleName: bundleName,
+                expectedBundleID: remote.requiresMatchingSparkleBuild ? expectedBundleID : nil,
                 onStage: { _ in }, vetStub: stubSealVerifies)
         } catch VendorInstaller.InstallError.checksumMismatch {
             return failure(.checksum, VendorInstaller.InstallError.checksumMismatch)

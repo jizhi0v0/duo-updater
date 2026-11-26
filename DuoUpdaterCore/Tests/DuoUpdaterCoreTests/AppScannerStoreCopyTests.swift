@@ -32,7 +32,7 @@ struct AppScannerStoreCopyTests {
     /// fixture earned it — a fixture that quietly stopped reading as a store copy
     /// would make every store half of this file vacuously green.
     private static func scan(
-        bundleID: String, declaringFeed feed: String?, storeReceipt: Bool
+        bundleID: String, declaringFeed feed: String?, storeReceipt: Bool, version: String = "1.0"
     ) throws -> InstalledApp {
         let fm = FileManager.default
         let root = fm.temporaryDirectory
@@ -41,7 +41,7 @@ struct AppScannerStoreCopyTests {
         var plist: [String: Any] = [
             "CFBundleDisplayName": "Fixture",
             "CFBundleIdentifier": bundleID,
-            "CFBundleShortVersionString": "1.0",
+            "CFBundleShortVersionString": version,
             "CFBundleVersion": "100",
         ]
         if let feed { plist["SUFeedURL"] = feed }
@@ -66,14 +66,15 @@ struct AppScannerStoreCopyTests {
         try #require(!SparkleFeedCatalog.feeds.isEmpty)
         for bundleID in SparkleFeedCatalog.feeds.keys {
             let feed = try #require(SparkleFeedCatalog.feed(forBundleID: bundleID))
+            let major = RogueAmoebaAppcast.offeredMajor(bundleID: bundleID, feedURL: feed) ?? 1
             let direct = try Self.scan(
-                bundleID: bundleID, declaringFeed: nil, storeReceipt: false)
+                bundleID: bundleID, declaringFeed: nil, storeReceipt: false, version: "\(major).0")
             #expect(!direct.isMASApp)
             #expect(direct.sparkleFeedURL == feed,
                     "\(bundleID): a direct copy stating no feed should get the curated one")
 
             let store = try Self.scan(
-                bundleID: bundleID, declaringFeed: nil, storeReceipt: true)
+                bundleID: bundleID, declaringFeed: nil, storeReceipt: true, version: "\(major).0")
             #expect(store.isMASApp, "\(bundleID): fixture stopped reading as a store copy")
             #expect(store.sparkleFeedURL == nil,
                     "\(bundleID): a store copy was handed a feed address it never stated")

@@ -233,9 +233,12 @@ public enum SparkleFeedCatalog {
 
     /// The curated feed for an app that publishes none of its own, if we have one.
     /// Case-insensitive on bundle id, matching `ChangelogCatalog`'s convention.
-    public static func feed(forBundleID bundleID: String?) -> URL? {
+    public static func feed(forBundleID bundleID: String?, installedVersion: String? = nil) -> URL? {
         guard let bundleID else { return nil }
-        return resolvedFeeds[bundleID.lowercased()]
+        let key = bundleID.lowercased()
+        let current = resolvedFeeds[key]
+        guard let installedVersion else { return current }
+        return RogueAmoebaAppcast.installedFeed(bundleID: key, version: installedVersion, current: current)
     }
 
     /// The live feed to use in place of `declaredFeed`, when that is an address we

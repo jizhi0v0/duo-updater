@@ -433,6 +433,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Sparkle-covered (auto-detected, no custom recipe)
 
 - [x] [**Audio Hijack**](com-rogueamoeba-audiohijack.md) · `com.rogueamoeba.audiohijack` — S（官网 stable feed 补全）· 2026-11-26
+- [x] [**Rogue Amoeba**](com-rogueamoeba-airfoil.md) · Airfoil、Airfoil Satellite、Farrago、Fission、Loopback、Piezo、SoundSource — S（官网正式版 feed 补全）· 2026-11-26
 
 - [x] [**RapidAPI for Mac / Paw**](com-luckymarmot-Paw.md) · `com.luckymarmot.Paw` — S（feed 补全）· 4.5.4→4.5.5 一键 ZIP ✓（停用/运行中）· 结构化日志（保留分节）✓ · 2026-11-16
 

@@ -276,7 +276,8 @@ public actor SparkleInstaller {
         } else {
             // Awaited in place, for the same reason: see `extractApp`.
             newApp = try await ArchiveExtractor.extractApp(
-                from: download.archiveURL, workDir: download.workDir)
+                from: download.archiveURL, workDir: download.workDir,
+                expectedBundleID: remote.requiresMatchingSparkleBuild ? result.app.bundleID : nil)
         }
 
         // 3b. The signature didn't match the key we hold. If the download ships a
@@ -369,7 +370,9 @@ public actor SparkleInstaller {
                 edPublicKey: SignatureVerifier.embeddedEdPublicKey(at: installedApp),
                 onStage: onStage)
         } else {
-            newApp = try await ArchiveExtractor.extractApp(from: file, workDir: download.workDir)
+            newApp = try await ArchiveExtractor.extractApp(
+                from: file, workDir: download.workDir,
+                expectedBundleID: remote.requiresMatchingSparkleBuild ? result.app.bundleID : nil)
         }
 
         onStage(.verifyingCodeSignature)

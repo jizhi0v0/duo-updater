@@ -420,7 +420,8 @@ public enum InstallVerify {
         let bundleName = target.bundleID.split(separator: ".").last.map(String.init) ?? "App"
         let inspection = await ArtifactInspection.inspect(
             remote, bundleName: bundleName, workDir: workDir,
-            sparklePublicKey: target.registry == "sparkle" ? target.recordedSparkleKey : nil)
+            sparklePublicKey: target.registry == "sparkle" ? target.recordedSparkleKey : nil,
+            expectedBundleID: target.bundleID)
         // Here, not after returning: the archive and the unpacked app are both
         // still in `workDir`, and the `defer` above deletes them on the way out.
         await disk.sample()

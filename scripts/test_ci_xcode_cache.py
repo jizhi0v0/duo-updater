@@ -278,11 +278,20 @@ class MiniCompilationCache(unittest.TestCase):
         self.assertIn("DUO_CI_XCODE_CAS_CONFIG=\n", env_file.read_text())
 
     def test_save_reclaims_cas_before_applying_derived_data_disk_floor(self):
+        self.assert_save_reclaims_cas(cas_used=True)
+
+    def test_save_reclaims_inactive_cas_before_applying_derived_data_disk_floor(self):
+        self.assert_save_reclaims_cas(cas_used=False)
+
+    def assert_save_reclaims_cas(self, cas_used):
         subprocess.run(["git", "init", "-q", str(self.workspace)], check=True)
         previous_directory = Path.cwd()
         os.chdir(self.workspace)
         self.addCleanup(os.chdir, previous_directory)
         config = self.prepare()
+        if not cas_used:
+            cache.save_mini_cas("platform")
+            config = ""
         build_slot = cache.mini_slot(self.workspace)
         build_slot.mkdir()
         product = build_slot / "build-product"

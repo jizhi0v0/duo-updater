@@ -143,12 +143,15 @@ def prepare_mini_cas(workspace, platform, build_slot):
         return config.name
 
 
-def save_mini_cas(platform):
+def save_mini_cas(platform, *, used=True):
     slot = mini_cas_slot()
-    if shutil.disk_usage(slot.parent).free < mini.MIN_FREE_BYTES or cas_size_kib(slot) > CAS_MAX_KIB:
+    if not slot.is_dir():
+        return
+    if (shutil.disk_usage(slot.parent).free < mini.MIN_FREE_BYTES
+            or (used and cas_size_kib(slot) > CAS_MAX_KIB)):
         shutil.rmtree(slot)
         print("Discarding App compilation cache to limit disk use")
-    else:
+    elif used:
         with (slot / mini.READY).open("xb") as ready:
             ready.write(cas_key(platform))
         print("Kept App compilation cache on the mini")
@@ -217,9 +220,10 @@ def main():
         if sys.argv[1:] == ["prepare-mini"]:
             prepare_mini(root.resolve(), os.environ["MINI_PLATFORM"])
         elif sys.argv[1:] == ["save-mini"]:
-            if os.environ.get("DUO_CI_XCODE_CAS_CONFIG"):
+            cas_used = bool(os.environ.get("DUO_CI_XCODE_CAS_CONFIG"))
+            if cas_used or shutil.disk_usage(root).free < mini.MIN_FREE_BYTES:
                 try:
-                    save_mini_cas(os.environ["MINI_PLATFORM"])
+                    save_mini_cas(os.environ["MINI_PLATFORM"], used=cas_used)
                 except (OSError, ValueError, subprocess.CalledProcessError) as error:
                     print(f"::warning::Could not save the App compilation cache: {error}")
             save_mini(root.resolve(), os.environ["MINI_APP_CACHE_KEY"])

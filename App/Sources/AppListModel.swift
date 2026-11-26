@@ -5225,15 +5225,27 @@ final class AppListModel {
     struct BrewBatchCounts {
         let listed: Int
         let eligible: Int
-        let unlisted: Int
         fileprivate let eligibleKeys: Set<String>
+        private let unlistedKeys: Set<String>
+        private let targets: [BrewOutdatedFormula]
+
+        var unlisted: Int { unlistedKeys.count }
+
+        var unlistedNames: [String] {
+            var remaining = unlistedKeys
+            return targets.compactMap { target in
+                let key = BrewInstalledFormula.key(kind: target.kind, name: target.name)
+                return remaining.remove(key) == nil ? nil : target.name
+            }
+        }
 
         fileprivate init(packages: [BrewInstalledFormula], targets: [BrewOutdatedFormula]) {
             let listedUpdates = packages.filter(\.hasListedUpdate)
+            self.targets = targets
             eligibleKeys = Set(targets.map { BrewInstalledFormula.key(kind: $0.kind, name: $0.name) })
             listed = listedUpdates.count
             eligible = targets.count
-            unlisted = eligibleKeys.subtracting(listedUpdates.map(\.key)).count
+            unlistedKeys = eligibleKeys.subtracting(listedUpdates.map(\.key))
         }
     }
 

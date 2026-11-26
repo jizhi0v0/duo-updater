@@ -16,7 +16,7 @@ struct SummaryDetailButton: View {
         case error(String)
         case value(String)
         case tools([SummaryDetail])
-        case counts([String], explanation: String?, caveat: String?)
+        case counts([String], explanation: String?, caveat: String?, items: [String])
     }
 
     let content: Content
@@ -86,8 +86,8 @@ struct SummaryDetailButton: View {
                 Text(verbatim: value).font(.callout.monospacedDigit()).foregroundStyle(.primary)
             case .tools(let entries):
                 toolDetails(entries)
-            case .counts(let counts, let explanation, let caveat):
-                countDetails(counts, explanation: explanation, caveat: caveat)
+            case .counts(let counts, let explanation, let caveat, let items):
+                countDetails(counts, explanation: explanation, caveat: caveat, items: items)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -111,7 +111,7 @@ struct SummaryDetailButton: View {
         }
     }
 
-    private func countDetails(_ counts: [String], explanation: String?, caveat: String?) -> some View {
+    private func countDetails(_ counts: [String], explanation: String?, caveat: String?, items: [String]) -> some View {
         let facts = ForEach(counts.indices, id: \.self) { index in
             Text(verbatim: counts[index])
         }
@@ -135,6 +135,15 @@ struct SummaryDetailButton: View {
             .font(.subheadline.monospacedDigit())
             .foregroundStyle(.secondary)
             .padding(.top, 2)
+            if !items.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(items.indices, id: \.self) { index in
+                        Text(verbatim: items[index])
+                    }
+                }
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(.primary)
+            }
         }
     }
 }

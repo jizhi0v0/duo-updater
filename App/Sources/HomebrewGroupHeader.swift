@@ -64,7 +64,7 @@ struct HomebrewGroupSummary: View {
     let packages: Int
     let outdated: Int
     let batchUpdates: Int
-    let unlistedUpdates: Int
+    let unlistedUpdates: [String]
     let uncheckedDetails: [String]
     /// Why the last Upgrade All failed (`AppListModel.brewUpgradeError`), or nil.
     let upgradeError: String?
@@ -111,7 +111,7 @@ struct HomebrewGroupSummary: View {
             } else {
                 HStack(spacing: 4) {
                     countsLabel
-                    if unlistedUpdates > 0 || batchUpdates != outdated {
+                    if !unlistedUpdates.isEmpty || batchUpdates != outdated {
                         SummaryDetailButton(
                             content: batchDetails, accessibilityTitle: "Homebrew · \(String(localized: "Details"))"
                         )
@@ -139,11 +139,12 @@ struct HomebrewGroupSummary: View {
 
     private var batchDetails: SummaryDetailButton.Content {
         .counts(
-            Self.batchUpdateLines(updates: batchUpdates, unlisted: unlistedUpdates),
-            explanation: unlistedUpdates > 0
+            Self.batchUpdateLines(updates: batchUpdates, unlisted: unlistedUpdates.count),
+            explanation: !unlistedUpdates.isEmpty
                 ? String(localized: "Homebrew can also upgrade packages such as dependencies that have no row in this list.") : nil,
-            caveat: outdated > batchUpdates - unlistedUpdates
-                ? String(localized: "Some listed updates aren’t eligible for Upgrade All.") : nil
+            caveat: outdated > batchUpdates - unlistedUpdates.count
+                ? String(localized: "Some listed updates aren’t eligible for Upgrade All.") : nil,
+            items: unlistedUpdates
         )
     }
 

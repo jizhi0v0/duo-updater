@@ -14,12 +14,16 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 
 import ci_mini_core_cache as mini
+
+
+CAS_MAX_KIB = 2 * 1024**2
 
 
 CONFIG = (
@@ -62,22 +66,128 @@ def mini_slot(workspace):
     return slot
 
 
+def mini_cas_slot():
+    # The runner clears _temp between jobs. Keep the store next to it, so
+    # changes to the checkout path and DerivedData cannot move the CAS.
+    temp = Path(os.environ["RUNNER_TEMP"]).resolve()
+    if temp.name != "_temp" or not temp.is_dir():
+        raise ValueError(f"Unexpected App runner temporary directory: {temp}")
+    slot = temp.parent / ".duo-updater-app-cas"
+    if slot.is_symlink() or (slot.exists() and not slot.is_dir()):
+        raise ValueError(f"Unexpected App compilation cache path: {slot}")
+    return slot
+
+
+def cas_key(platform):
+    return f"xcode-cas-v1-{platform}".encode()
+
+
+def cas_size_kib(slot):
+    return int(mini.command("du", "-sk", str(slot)).split()[0])
+
+
+def cas_has_headroom(free_bytes, size_kib):
+    # Free bytes already exclude the disk occupied by this store.
+    return free_bytes >= mini.MIN_FREE_BYTES + (CAS_MAX_KIB - size_kib) * 1024
+
+
+def supports_cas_paths(*paths):
+    # Xcode can spell paths under /private/tmp and /private/var two ways.
+    # Also keep xcconfig metacharacters out of the paths it reads.
+    return all(
+        path.parts[:3] not in (("/", "private", "tmp"), ("/", "private", "var"))
+        and re.fullmatch(r"/[A-Za-z0-9_./-]+", str(path))
+        for path in paths
+    )
+
+
+def prepare_mini_cas(workspace, platform, build_slot):
+    slot = mini_cas_slot()
+    if not supports_cas_paths(slot):
+        return None
+    ready = slot / mini.READY
+    free = shutil.disk_usage(slot.parent).free
+    size_kib = 0
+    if slot.is_dir():
+        valid = not ready.is_symlink() and ready.is_file() and ready.read_bytes() == cas_key(platform)
+        if valid:
+            size_kib = cas_size_kib(slot)
+        if not valid or size_kib > CAS_MAX_KIB or not cas_has_headroom(free, size_kib):
+            shutil.rmtree(slot)
+            size_kib = 0
+            free = shutil.disk_usage(slot.parent).free
+    if (build_slot is None or not supports_cas_paths(workspace, build_slot)
+            or not cas_has_headroom(free, size_kib)):
+        return None
+
+    slot.mkdir(exist_ok=True)
+    ready.unlink(missing_ok=True)
+    # Match XCODE_CLONED_SOURCE_PACKAGES in the App job. Swift's explicit
+    # module keys otherwise embed the C shims' absolute module map paths.
+    packages = build_slot / "build/SourcePackages"
+    mappings = f"{workspace}=/^duo-source {packages}=/^duo-packages"
+    with tempfile.NamedTemporaryFile(
+        mode="w", prefix="duo-app-cas-", suffix=".xcconfig", dir=os.environ["RUNNER_TEMP"], delete=False
+    ) as config:
+        config.write(
+            "COMPILATION_CACHE_ENABLE_CACHING = YES\n"
+            f"COMPILATION_CACHE_CAS_PATH = {slot}\n"
+            "COMPILATION_CACHE_LIMIT_SIZE = 2G\n"
+            "SWIFT_ENABLE_PREFIX_MAPPING = YES\n"
+            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING = YES\n"
+            f"SWIFT_OTHER_PREFIX_MAPPINGS = {mappings}\n"
+            "CLANG_ENABLE_PREFIX_MAPPING = YES\n"
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING = YES\n"
+            f"CLANG_OTHER_PREFIX_MAPPINGS = {mappings}\n"
+        )
+        return config.name
+
+
+def save_mini_cas(platform, *, used=True):
+    slot = mini_cas_slot()
+    if not slot.is_dir():
+        return
+    if (shutil.disk_usage(slot.parent).free < mini.MIN_FREE_BYTES
+            or (used and cas_size_kib(slot) > CAS_MAX_KIB)):
+        shutil.rmtree(slot)
+        print("Discarding App compilation cache to limit disk use")
+    elif used:
+        with (slot / mini.READY).open("xb") as ready:
+            ready.write(cas_key(platform))
+        print("Kept App compilation cache on the mini")
+
+
+def try_prepare_mini_cas(workspace, platform, build_slot):
+    try:
+        return prepare_mini_cas(workspace, platform, build_slot)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print(f"::warning::Building without an App compilation cache: {error}")
+        return None
+
+
 def prepare_mini(workspace, platform):
     try:
         slot = mini_slot(workspace)
         if shutil.disk_usage(workspace).free < mini.MIN_FREE_BYTES:
-            if slot.is_dir():
-                shutil.rmtree(slot)
-            raise OSError("insufficient disk space for a persistent App cache")
+            # Reclaim the secondary compiler store before dropping DerivedData.
+            try_prepare_mini_cas(workspace, platform, build_slot=None)
+            if shutil.disk_usage(workspace).free < mini.MIN_FREE_BYTES:
+                if slot.is_dir():
+                    shutil.rmtree(slot)
+                raise OSError("insufficient disk space for a persistent App cache")
         key = cache_key(workspace, platform)
         mini.prepare(slot, key, "Xcode")
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"::warning::Using temporary Xcode build directories: {error}")
         slot = Path(tempfile.mkdtemp(prefix="duo-app-ci.", dir=os.environ["RUNNER_TEMP"]))
         key = ""
+    config = try_prepare_mini_cas(workspace, platform, build_slot=slot if key else None)
     with open(os.environ["GITHUB_ENV"], "a") as env:
         print(f"MINI_APP_SCRATCH={slot}", file=env)
         print(f"MINI_APP_CACHE_KEY={key}", file=env)
+        print(f"DUO_CI_XCODE_CAS_CONFIG={config or ''}", file=env)
+        if config:
+            print("App compilation cache enabled on the mini")
 
 
 def save_mini(workspace, key):
@@ -110,6 +220,12 @@ def main():
         if sys.argv[1:] == ["prepare-mini"]:
             prepare_mini(root.resolve(), os.environ["MINI_PLATFORM"])
         elif sys.argv[1:] == ["save-mini"]:
+            cas_used = bool(os.environ.get("DUO_CI_XCODE_CAS_CONFIG"))
+            if cas_used or shutil.disk_usage(root).free < mini.MIN_FREE_BYTES:
+                try:
+                    save_mini_cas(os.environ["MINI_PLATFORM"], used=cas_used)
+                except (OSError, ValueError, subprocess.CalledProcessError) as error:
+                    print(f"::warning::Could not save the App compilation cache: {error}")
             save_mini(root.resolve(), os.environ["MINI_APP_CACHE_KEY"])
         else:
             sys.exit("usage: ci_xcode_cache.py [prepare-mini|save-mini]")

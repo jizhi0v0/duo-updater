@@ -27,13 +27,56 @@ struct SparkleFeedCatalogTests {
     /// apply to it — and abandoned appcasts from the 2010s are routinely plain
     /// `http`, which is a shape this table must be able to record.
     private static var allFeeds: [(key: String, url: URL)] {
-        SparkleFeedCatalog.feeds.map { ($0.key, $0.value) }
-            + SparkleFeedCatalog.supersededFeeds.map { ($0.key, $0.value.live) }
+        SparkleFeedCatalog.verificationCases.map { ($0.bundleID, $0.feed) }
     }
 
     @Test func heliumResolvesToItsArm64Appcast() {
         #expect(SparkleFeedCatalog.feed(forBundleID: "net.imput.helium")?.absoluteString
             == "https://updates.helium.computer/mac/appcast-arm64.xml")
+    }
+
+    @Test func audioHijackUsesTheHostSystemInItsOfficialFeed() throws {
+        let bundleID = "com.rogueamoeba.audiohijack"
+        let template = try #require(SparkleFeedCatalog.feeds[bundleID])
+        let url = SparkleFeedCatalog.resolveHostOS(in: template, version: "27.3.0")
+        #expect(url.absoluteString == "https://rogueamoeba.net/ping/versionCheck.cgi?format=sparkle&bundleid=com.rogueamoeba.audiohijack&platform=osx&arch=arm64&system=2730")
+        let verification = try #require(SparkleFeedCatalog.verificationCases.first {
+            $0.bundleID == bundleID
+        })
+        #expect(verification.feed == SparkleFeedCatalog.feed(forBundleID: bundleID))
+
+        let body = Data("""
+        <?xml version="1.0" encoding="utf-8" standalone="yes"?>
+        <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
+             xmlns:ra="http://rogueamoeba.com/public/rss/sparkle/">
+          <channel><item>
+            <title>Version 4.6.1</title>
+            <sparkle:version>4.6.1</sparkle:version>
+            <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
+            <ra:checkInterval>432000</ra:checkInterval>
+            <enclosure url="https://rogueamoeba.com/audiohijack/download.php" type="application/octet-stream"/>
+          </item></channel>
+        </rss>
+        """.utf8)
+        let items = SparkleAppcastSource.parsedItems(body, feedURL: verification.feed, bundleID: bundleID)
+        let release = try #require(items.first)
+        #expect(items.count == 1)
+        #expect(release.version == "4.6.1")
+        #expect(release.shortVersionString == "4.6.1")
+        #expect(release.minimumSystemVersion == "14.4")
+        #expect(release.enclosureURL?.absoluteString == "https://rogueamoeba.com/audiohijack/download.php")
+        let otherFeed = SparkleAppcastSource.parsedItems(
+            body, feedURL: URL(string: "https://example.invalid/other.xml")!, bundleID: bundleID
+        ).first
+        #expect(otherFeed?.shortVersionString == nil)
+        #expect(otherFeed?.enclosureURL?.absoluteString == "https://rogueamoeba.com/audiohijack/download.php")
+
+        let legacyURL = "https://rogueamoeba.com/legacy/downloads/AudioHijack-435.zip"
+        let legacyBody = String(decoding: body, as: UTF8.self).replacingOccurrences(
+            of: "https://rogueamoeba.com/audiohijack/download.php", with: legacyURL)
+        #expect(SparkleAppcastSource.parsedItems(
+            Data(legacyBody.utf8), feedURL: verification.feed, bundleID: bundleID
+        ).first?.enclosureURL?.absoluteString == legacyURL)
     }
 
     @Test func lookupIsCaseInsensitiveAndMissesCleanly() {
@@ -297,10 +340,10 @@ struct SparkleFeedCatalogTests {
         // reshuffle both from run to run.
         #expect(cases.map(\.recipeID) == cases.map(\.recipeID).sorted())
 
-        for (key, url) in SparkleFeedCatalog.feeds {
+        for key in SparkleFeedCatalog.feeds.keys {
             let entry = cases.first { $0.bundleID == key }
             #expect(entry?.kind == .fillIn)
-            #expect(entry?.feed == url)
+            #expect(entry?.feed == SparkleFeedCatalog.feed(forBundleID: key))
             // A fill-in overrides nothing, so there is no second address to
             // read — and the sweep's expiry check keys on this being nil.
             #expect(entry?.declared == nil)

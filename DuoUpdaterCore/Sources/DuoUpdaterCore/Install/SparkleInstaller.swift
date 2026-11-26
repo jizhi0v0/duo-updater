@@ -141,7 +141,8 @@ public actor SparkleInstaller {
             let downloader = Downloader(destinationDir: workDir) { fraction in
                 onStage(.downloading(fraction: fraction))
             }
-            let archive = try await downloader.download(patch?.url ?? downloadURL)
+            let archive = try await downloader.download(
+                patch?.url ?? downloadURL, headers: patch == nil ? remote.downloadHeaders : [:])
             return DownloadedUpdate(
                 archiveURL: archive,
                 bytesDownloaded: downloader.bytesDownloaded,
@@ -306,6 +307,7 @@ public actor SparkleInstaller {
         // it. Sparkle-only; see `verifyNoBundleVersionDowngrade`.
         try SignatureVerifier.verifyNoBundleVersionDowngrade(
             installedApp: result.app.path, downloadedApp: newApp)
+        try SignatureVerifier.verifyOfferedSparkleBuild(downloadedApp: newApp, remote: remote)
 
         // 5. Swap the bundle into place. We do this even while the app is
         // running: macOS keeps the live process on the code it already mapped,
@@ -379,6 +381,7 @@ public actor SparkleInstaller {
         )
         try SignatureVerifier.verifyNoBundleVersionDowngrade(
             installedApp: installedApp, downloadedApp: newApp)
+        try SignatureVerifier.verifyOfferedSparkleBuild(downloadedApp: newApp, remote: remote)
 
         onStage(.installing)
         let archiveAlone = await offCooperativePool {

@@ -86,6 +86,9 @@ enum AuditedUpdateFeeds {
     /// Sparkle-covered sections, represented only where an exact public feed
     /// and track are established by that row's linked audit.
     static let entries: [Entry] = [
+        sparkle("Audio Hijack", "com.rogueamoeba.audiohijack", .stable,
+                feed: SparkleFeedCatalog.feed(forBundleID: "com.rogueamoeba.audiohijack")!.absoluteString,
+                audit: "docs/app-audits/com-rogueamoeba-audiohijack.md"),
         // Audit: docs/app-audits/com-moonshot-kimichat.md
         electron("Kimi", "com.moonshot.kimichat", .stable,
                  url: "https://kimi-img.moonshot.cn/app/upgrade/", channel: "latest",
@@ -490,6 +493,9 @@ enum AuditedUpdateFeeds {
     /// value stays nil in `Source.sparkle`; these records make that limitation
     /// explicit for archive-verification consumers.
     static let unavailablePublicKeys: [PublicKeyGap] = [
+        PublicKeyGap(bundleID: "com.rogueamoeba.audiohijack",
+                     auditDocument: "docs/app-audits/com-rogueamoeba-audiohijack.md",
+                     reason: "Both verified direct bundles have no SUPublicEDKey. The Sparkle install uses the Developer ID and Team ID checks."),
         PublicKeyGap(bundleID: "ai.openclaw.mac", auditDocument: "docs/app-audits/ai-openclaw-mac.md",
                      reason: "No matching installed copy or full public key in the linked audit was available from the permitted sources."),
         PublicKeyGap(bundleID: "ai.perplexity.macv3", auditDocument: "docs/app-audits/ai-perplexity-macv3.md",

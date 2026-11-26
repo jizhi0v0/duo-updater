@@ -2397,7 +2397,7 @@ private struct BrewFormulaSidebarRow: View {
                         .foregroundStyle(formula.missingAppPath == nil ? .primary : .secondary)
                     if formula.needsSudo { CLISudoBadge(help: CLIToolPresentation.brewSudoBadgeHelp) }
                     if formula.kind == .cask, let lifecycle = formula.lifecycle {
-                        BrewCaskLifecycleMark(lifecycle: lifecycle)
+                        BrewCaskLifecycleMark(lifecycle: lifecycle, help: lifecycle.statusText)
                     }
                 }
                 if let path = formula.missingAppPath {

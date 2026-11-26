@@ -47,6 +47,7 @@ fi''')
         env = {**os.environ, "PATH": str(self.bin) + ":/usr/bin:/bin", "FAKE_BIN": str(self.bin),
                "CALLS": str(self.log), "UNSIGNED_RELEASE_DD": str(self.root / "dd"),
                "XCODE_CLONED_SOURCE_PACKAGES": str(self.root / "dd/SourcePackages"),
+               "DUO_CI_XCODE_CAS_CONFIG": "",
                "XCODE_PROJECT_PREGENERATED": "0", **extra}
         return subprocess.run(["/bin/bash", str(self.root / "scripts/unsigned-release-build.sh")],
                               env=env, capture_output=True, text=True)
@@ -77,6 +78,15 @@ fi''')
         run = self.run_build()
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(self.log.read_text().splitlines()[0], "generate")
+
+    def test_both_schemes_receive_the_optional_compilation_cache_settings(self):
+        config = str(self.root / "compilation cache.xcconfig")
+        run = self.run_build(DUO_CI_XCODE_CAS_CONFIG=config)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        calls = self.log.read_text().splitlines()[1:]
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            self.assertIn(f"-xcconfig {config} ", call)
 
     def test_build_errors_and_missing_products_still_fail(self):
         run = self.run_build(FAIL_BUILD="1")

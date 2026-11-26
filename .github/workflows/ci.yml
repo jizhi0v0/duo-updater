@@ -30,8 +30,9 @@
 # Assign duo-mini-app and duo-mini-core to different runners. The Core runner
 # serializes Swift and Release disk-image tests, while App can build in parallel.
 # Swift and Release keep separate SwiftPM caches on the mini. App uses a
-# local Xcode build cache. Disable the repository variable to use hosted macOS
-# runners for new runs, or opt into hosted macOS per dispatch.
+# local Xcode build cache and a separate compilation cache for the unsigned
+# App test and Release build steps. Disable the repository variable to use
+# hosted macOS runners for new runs, or opt into hosted macOS per dispatch.
 name: CI
 
 on:
@@ -509,6 +510,8 @@ jobs:
 
       - name: Keep the successful Xcode build on the mini
         if: success() && runner.environment == 'self-hosted'
+        env:
+          MINI_PLATFORM: ${{ steps.platform.outputs.digest }}
         run: python3 scripts/ci_xcode_cache.py save-mini
 
       - name: Record the Xcode build's source times

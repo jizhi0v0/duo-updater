@@ -77,6 +77,9 @@ PACKAGE_ARGS=(COMPILER_INDEX_STORE_ENABLE=NO)
 if [ -n "${XCODE_CLONED_SOURCE_PACKAGES:-}" ]; then
   PACKAGE_ARGS+=(-clonedSourcePackagesDirPath "$XCODE_CLONED_SOURCE_PACKAGES")
 fi
+if [ -n "${DUO_CI_XCODE_CAS_CONFIG:-}" ]; then
+  PACKAGE_ARGS+=(-xcconfig "$DUO_CI_XCODE_CAS_CONFIG")
+fi
 xcodebuild -project App/DuoUpdater.xcodeproj \
            -scheme DuoUpdaterAppTests -configuration Debug \
            -derivedDataPath "$DD" \

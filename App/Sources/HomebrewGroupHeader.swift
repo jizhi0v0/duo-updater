@@ -142,7 +142,7 @@ struct HomebrewGroupSummary: View {
         .counts(
             Self.batchUpdateLines(updates: batchUpdates, unlisted: unlistedUpdates.count),
             explanation: !unlistedUpdates.isEmpty
-                ? String(localized: "Homebrew can also upgrade packages such as dependencies that have no row in this list.") : nil,
+                ? String(localized: "Homebrew’s last check reported these updates for packages outside the list, such as dependencies.") : nil,
             caveat: outdated > batchUpdates - unlistedUpdates.count
                 ? String(localized: "Some listed updates aren’t eligible for Upgrade All.") : nil,
             items: unlistedUpdates.map { update in

@@ -51450,73 +51450,73 @@
         }
       }
     },
-    "Homebrew can also upgrade packages such as dependencies that have no row in this list.": {
+    "Homebrew’s last check reported these updates for packages outside the list, such as dependencies.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew kann auch Pakete wie Abhängigkeiten aktualisieren, die in dieser Liste nicht einzeln aufgeführt sind."
+            "value": "Die letzte Homebrew-Prüfung meldete diese Updates für Pakete außerhalb der Liste, etwa Abhängigkeiten."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew can also upgrade packages such as dependencies that have no row in this list."
+            "value": "Homebrew’s last check reported these updates for packages outside the list, such as dependencies."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew también puede actualizar paquetes que no aparecen en esta lista, como las dependencias."
+            "value": "La última comprobación de Homebrew detectó estas actualizaciones para paquetes fuera de la lista, como las dependencias."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew peut aussi mettre à jour les paquets absents de cette liste, comme les dépendances."
+            "value": "La dernière vérification de Homebrew a trouvé ces mises à jour pour des paquets hors liste, comme les dépendances."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew può aggiornare anche i pacchetti che non compaiono in questo elenco, come le dipendenze."
+            "value": "L’ultimo controllo di Homebrew ha rilevato questi aggiornamenti per pacchetti fuori dall’elenco, come le dipendenze."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew は、依存パッケージなど、この一覧に表示されていないパッケージも更新できます。"
+            "value": "Homebrew の前回の確認で、依存パッケージなど一覧外のパッケージにこれらの更新が見つかりました。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Homebrew também pode atualizar pacotes que não aparecem nesta lista, como dependências."
+            "value": "A última verificação do Homebrew encontrou estas atualizações de pacotes fora da lista, como dependências."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew может обновлять и пакеты, которых нет в этом списке, например зависимости."
+            "value": "При последней проверке Homebrew обнаружил эти обновления для пакетов вне списка, например зависимостей."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew, bağımlılıklar gibi bu listede yer almayan paketleri de güncelleyebilir."
+            "value": "Son Homebrew denetimi, bağımlılıklar gibi liste dışındaki paketler için bu güncellemeleri buldu."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 也可以升级未在此列表中单独列出的包，例如依赖包。"
+            "value": "Homebrew 上次检查发现，列表之外的包也有这些更新，例如依赖包。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 也可以升級未在此清單中單獨列出的套件，例如相依套件。"
+            "value": "Homebrew 上次檢查發現，清單之外的套件也有這些更新，例如相依套件。"
           }
         }
       }

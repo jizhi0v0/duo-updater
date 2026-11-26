@@ -288,7 +288,7 @@ struct WorkbenchWindowView: View {
             homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
             rollbackable: rollbackMatches.apps,
             bundleIDOnly: Set(appMatches.bundleIDOnly.map(\.id) + rollbackMatches.bundleIDOnly.map(\.id)),
-            hasCLI: brewTotal > 0 || !cliTools.isEmpty,
+            hasCLI: brewTotal > 0 || !cliTools.isEmpty || !model.brewOutdatedFormulae.isEmpty,
             appsTotal: allApps.count,
             cliTotal: brewTotal + cliTools.count,
             rollbackTotal: allRollbackable.count)
@@ -747,7 +747,7 @@ struct WorkbenchWindowView: View {
     private var homebrewHasAnything: Bool {
         !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
             || !model.brewStandaloneCaskLifecycles.isEmpty || model.homebrewSelfUpdate != nil
-            || model.brewReadError != nil
+            || model.brewReadError != nil || !model.brewOutdatedFormulae.isEmpty
     }
 
     /// Rows the Homebrew group shows after the search.
@@ -2396,6 +2396,9 @@ private struct BrewFormulaSidebarRow: View {
                     Text(formula.name).font(.body).lineLimit(1)
                         .foregroundStyle(formula.missingAppPath == nil ? .primary : .secondary)
                     if formula.needsSudo { CLISudoBadge(help: CLIToolPresentation.brewSudoBadgeHelp) }
+                    if formula.kind == .cask, let lifecycle = formula.lifecycle {
+                        BrewCaskLifecycleMark(lifecycle: lifecycle)
+                    }
                 }
                 if let path = formula.missingAppPath {
                     Text("Registered path missing")
@@ -2451,7 +2454,7 @@ private struct BrewFormulaSidebarRow: View {
                 .font(.caption)
                 .foregroundStyle(status.isBehind ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
-        } else if let lifecycle = formula.lifecycle {
+        } else if formula.kind == .formula, let lifecycle = formula.lifecycle {
             // Up to date, but Homebrew is phasing it out: say so in the one
             // line the row has. An update line above outranks it.
             Text("\(formula.installedVersion) · \(lifecycle.statusText)")

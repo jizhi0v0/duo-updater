@@ -72,7 +72,7 @@ struct SummaryDetailButton: View {
         if case .value = content {
             return EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
         }
-        return EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+        return EdgeInsets(top: 9, leading: 12, bottom: 9, trailing: 12)
     }
 
     private var detailContent: some View {
@@ -81,9 +81,9 @@ struct SummaryDetailButton: View {
             case .message(let message):
                 Text(verbatim: message).font(.callout).foregroundStyle(.primary)
             case .error(let message):
-                Text(verbatim: message).font(.caption.monospaced()).foregroundStyle(.secondary)
+                Text(verbatim: message).font(.caption.monospaced()).foregroundStyle(.primary)
             case .value(let value):
-                Text(verbatim: value).font(.footnote.monospacedDigit()).foregroundStyle(.primary)
+                Text(verbatim: value).font(.callout.monospacedDigit()).foregroundStyle(.primary)
             case .tools(let entries):
                 toolDetails(entries)
             case .counts(let counts, let explanation, let caveat):
@@ -95,19 +95,16 @@ struct SummaryDetailButton: View {
     }
 
     private func toolDetails(_ entries: [SummaryDetail]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(entries.indices, id: \.self) { index in
                 let entry = entries[index]
-                if index > entries.startIndex { Divider() }
-                VStack(alignment: .leading, spacing: 3) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: entry.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                        if let path = entry.path {
-                            Text(verbatim: path).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        }
-                    }
+                VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: entry.message)
-                        .font(.footnote).foregroundStyle(.secondary).lineSpacing(2)
+                        .font(.callout).foregroundStyle(.primary).lineSpacing(2)
+                    Text(verbatim: entry.title).font(.subheadline).foregroundStyle(.secondary)
+                    if let path = entry.path {
+                        Text(verbatim: path).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
                 }
                 .accessibilityElement(children: .contain)
             }
@@ -115,41 +112,37 @@ struct SummaryDetailButton: View {
     }
 
     private func countDetails(_ counts: [String], explanation: String?, caveat: String?) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(counts.indices, id: \.self) { index in
-                    Text(verbatim: counts[index])
-                        .font(index == counts.startIndex ? .subheadline.weight(.semibold) : .footnote)
-                        .monospacedDigit()
-                        .foregroundStyle(.primary)
+        let facts = ForEach(counts.indices, id: \.self) { index in
+            Text(verbatim: counts[index])
+        }
+        return VStack(alignment: .leading, spacing: 6) {
+            if let explanation {
+                Text(verbatim: explanation).font(.callout).foregroundStyle(.primary).lineSpacing(2)
+            }
+            if let caveat {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .accessibilityHidden(true)
+                    Text(verbatim: caveat).font(.callout).foregroundStyle(.primary).lineSpacing(2)
                 }
             }
-            if explanation != nil || caveat != nil {
-                Divider()
-                VStack(alignment: .leading, spacing: 6) {
-                    if let explanation {
-                        Text(verbatim: explanation).foregroundStyle(.secondary)
-                    }
-                    if let caveat {
-                        Text(verbatim: caveat)
-                            .foregroundStyle(.primary)
-                            .padding(.leading, 8)
-                            .overlay(alignment: .leading) {
-                                Rectangle().fill(.orange).frame(width: 2)
-                            }
-                    }
-                }
-                .font(.footnote)
-                .lineSpacing(2)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { facts }.fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 2) { facts }
             }
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .padding(.top, 2)
         }
     }
 }
 
 /// Give ViewThatFits a bounded proposal even during the popover's ideal-size pass.
 private struct SummaryDetailPopoverLayout: Layout {
-    static let width: CGFloat = 288
-    static let height: CGFloat = 200
+    static let width: CGFloat = 256
+    static let height: CGFloat = 222
     private static let limit = ProposedViewSize(width: width, height: height)
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

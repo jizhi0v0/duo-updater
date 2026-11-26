@@ -131,7 +131,7 @@ extension Verify {
         // about — the same condition `classifyFeed` reads it under.
         var enclosure: SparkleEnclosureAnswer?
         if case .read(let reading) = live, let url = fetchableEnclosure(reading) {
-            enclosure = await source.probeEnclosure(url)
+            enclosure = await source.probeEnclosure(url, headers: reading.headDownloadHeaders)
             requestsSpent += 1
         }
 

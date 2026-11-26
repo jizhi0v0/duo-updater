@@ -40,6 +40,8 @@ public struct SparkleFeedReading: Sendable {
     public let osVersion: String
     /// Bytes of appcast fetched.
     public let byteCount: Int
+    /// The same enclosure headers the one-click downloader uses for this feed.
+    public var headDownloadHeaders: [String: String] = [:]
 }
 
 /// A feed read that never got as far as parsing.
@@ -108,6 +110,8 @@ public extension SparkleAppcastSource {
             items, feedURL: feedURL, bundleID: bundleID, osVersion: osVersion,
             resolution: resolution)
         let head = usable.first
+        let downloadHeaders = com_rogueamoeba_audiohijack.matchesFeed(bundleID: bundleID, feedURL: feedURL)
+            ? com_rogueamoeba_audiohijack.downloadHeaders : [:]
         return .success(SparkleFeedReading(
             itemCount: items.count,
             usableCount: usable.count,
@@ -117,7 +121,8 @@ public extension SparkleAppcastSource {
             itemsDeclaringMaximumSystemVersion:
                 items.filter { $0.maximumSystemVersion?.isEmpty == false }.count,
             osVersion: osVersion,
-            byteCount: data.count))
+            byteCount: data.count,
+            headDownloadHeaders: downloadHeaders))
     }
 
     /// The notes link a fresh default-channel install would be shown for this
@@ -210,18 +215,21 @@ public extension SparkleAppcastSource {
     /// it. Sweep-only, like `VendorProbeSource.installURLReachability`, whose
     /// request it mirrors — `Downloader`'s user agent and identity encoding,
     /// plus `Range: bytes=0-0` — so it asks about the request a one-click
-    /// install would make. Sparkle installs send no other headers.
+    /// install would make, including any headers required by the feed.
     ///
     /// One ranged GET, no HEAD first. A body is read only on a 2xx, at most
     /// `enclosureReadCap` bytes, and the transfer is then cancelled
     /// (`URLSession.CountedBytes` settles it, so the request is still recorded).
     /// A 200 where 206 was asked for is still an answer that the file is there.
-    func probeEnclosure(_ url: URL, store: EventStore = .shared) async -> SparkleEnclosureAnswer {
+    func probeEnclosure(
+        _ url: URL, headers: [String: String] = [:], store: EventStore = .shared
+    ) async -> SparkleEnclosureAnswer {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue(Downloader.userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
         do {
             let (stream, response) = try await session.countedBytes(

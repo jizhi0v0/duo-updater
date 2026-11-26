@@ -161,6 +161,10 @@ public enum ArtifactInspection {
             }
         }
         if kind == .pkg || remote.sparklePackageEnclosure {
+            if remote.requiresMatchingSparkleBuild {
+                return .failure(Failure(stage: .content,
+                    message: "the update needs an app archive to verify its advertised build", bytes: bytes))
+            }
             let result = await inspectPackage(
                 archive, remote: remote, kind: kind, bytes: bytes,
                 finalHost: downloader.finalHost)
@@ -208,6 +212,7 @@ public enum ArtifactInspection {
                     try SignatureVerifier.verifyCodeSignature(appAt: app)
                 }
                 try VendorInstaller.verifyGitHubPackageVersion(app: app, remote: remote)
+                try SignatureVerifier.verifyOfferedSparkleBuild(downloadedApp: app, remote: remote)
                 let identity = try identity(of: app)
                 // Attribute map drift only to Anthropic's Apple-anchored Developer ID.
                 let isClaudeZIP = kind == .zip

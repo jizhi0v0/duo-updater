@@ -60,6 +60,15 @@ public enum SparkleFeedCatalog {
     static let feeds: [String: URL] =
         AppRecipeIndex.merged(\.sparkleFeeds, into: "SparkleFeedCatalog.feeds")
 
+    private static let resolvedFeeds = feeds.mapValues { resolveHostOS(in: $0) }
+
+    static func resolveHostOS(in feed: URL, version: @autoclosure () -> String = HostOS.numericVersion()) -> URL {
+        let placeholder = "__HOST_OS_COMPACT_VERSION__"
+        guard feed.absoluteString.contains(placeholder) else { return feed }
+        return URL(string: feed.absoluteString.replacingOccurrences(
+            of: placeholder, with: version().replacingOccurrences(of: ".", with: "")))!
+    }
+
     /// A feed the bundle still declares, paired with the one the vendor publishes
     /// for that app. Both addresses and the justification are load-bearing:
     /// `declared` is the match key, while the justification controls whether the
@@ -211,7 +220,7 @@ public enum SparkleFeedCatalog {
     /// second list is a list that can be short by one, and a catalog entry
     /// nothing sweeps is precisely the state #324 was filed about.
     public static var verificationCases: [VerificationCase] {
-        let fillIns = feeds.map {
+        let fillIns = resolvedFeeds.map {
             VerificationCase(bundleID: $0.key, kind: .fillIn, feed: $0.value, declared: nil)
         }
         let superseded = supersededFeeds.map {
@@ -226,7 +235,7 @@ public enum SparkleFeedCatalog {
     /// Case-insensitive on bundle id, matching `ChangelogCatalog`'s convention.
     public static func feed(forBundleID bundleID: String?) -> URL? {
         guard let bundleID else { return nil }
-        return feeds[bundleID.lowercased()]
+        return resolvedFeeds[bundleID.lowercased()]
     }
 
     /// The live feed to use in place of `declaredFeed`, when that is an address we

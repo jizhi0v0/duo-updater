@@ -64,7 +64,8 @@ struct AppScannerStoreCopyTests {
     /// then gets the curated address and the row is offered a direct download.
     @Test func aFilledInFeedGoesToDirectCopiesAndNotToStoreCopies() throws {
         try #require(!SparkleFeedCatalog.feeds.isEmpty)
-        for (bundleID, feed) in SparkleFeedCatalog.feeds {
+        for bundleID in SparkleFeedCatalog.feeds.keys {
+            let feed = try #require(SparkleFeedCatalog.feed(forBundleID: bundleID))
             let direct = try Self.scan(
                 bundleID: bundleID, declaringFeed: nil, storeReceipt: false)
             #expect(!direct.isMASApp)

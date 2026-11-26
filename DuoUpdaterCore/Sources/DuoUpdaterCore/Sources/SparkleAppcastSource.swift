@@ -146,6 +146,8 @@ public struct SparkleAppcastSource: UpdateSource {
         // timeline dedupes by — so the newest item does not double-record.
         let history = Self.releaseHistory(from: usable)
         let bestFields = ReleaseDate.publishedFields(from: best.pubDate)
+        let isAudioHijackFeed = com_rogueamoeba_audiohijack.matchesFeed(
+            bundleID: app.bundleID, feedURL: feedURL)
 
         return RemoteVersion(
             shortVersion: best.shortVersionString,
@@ -162,6 +164,8 @@ public struct SparkleAppcastSource: UpdateSource {
             sourceName: name,
             minimumAutoupdateVersion: best.minimumAutoupdateVersion,
             sparklePackageEnclosure: best.installationType == "package",
+            requiresMatchingSparkleBuild: isAudioHijackFeed,
+            downloadHeaders: isAudioHijackFeed ? com_rogueamoeba_audiohijack.downloadHeaders : [:],
             releaseNotesHTML: best.descriptionHTML,
             structuredChangelog: structured,
             changelogURL: best.releaseNotesLink,
@@ -353,11 +357,15 @@ public struct SparkleAppcastSource: UpdateSource {
         return request
     }
 
-    /// Shared by live checks and feed verification: a recorded repository move
-    /// applies to absolute release links inside the feed as well as its address.
+    /// Shared by live checks and feed verification so both read the same feed metadata.
     static func parsedItems(_ content: Data, feedURL: URL, bundleID: String?) -> [SparkleAppcastItem] {
-        SparkleAppcastParser.parse(content, relativeTo: feedURL).map { parsed in
+        let isAudioHijackFeed = com_rogueamoeba_audiohijack.matchesFeed(bundleID: bundleID, feedURL: feedURL)
+        return SparkleAppcastParser.parse(content, relativeTo: feedURL).map { parsed in
             var item = parsed
+            if isAudioHijackFeed {
+                // The stable appcast writes the shared bundle version only once.
+                item.shortVersionString = item.shortVersionString ?? item.version
+            }
             func relocated(_ url: URL) -> URL {
                 SparkleFeedCatalog.relocatedReleaseURL(url, forBundleID: bundleID, feedURL: feedURL)
             }

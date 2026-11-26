@@ -369,12 +369,18 @@ public enum SignatureVerifier {
     /// own would otherwise equal it. The MyGo source refuses an empty version
     /// itself and the GitHub source sets it from the tag (or, with
     /// `assetVersionPattern`, from the asset's name), so this is a backstop.
-    static func verifyOfferedVersion(downloadedApp: URL, offered: String) throws {
-        let downloaded = (infoPlist(of: downloadedApp)["CFBundleShortVersionString"] as? String)?
+    static func verifyOfferedVersion(downloadedApp: URL, offered: String, compareBuild: Bool = false) throws {
+        let key = compareBuild ? "CFBundleVersion" : "CFBundleShortVersionString"
+        let downloaded = (infoPlist(of: downloadedApp)[key] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !offered.isEmpty, downloaded == offered else {
             throw VerifyError.infoPlistVersionMismatch(expected: offered, downloaded: downloaded)
         }
+    }
+
+    static func verifyOfferedSparkleBuild(downloadedApp: URL, remote: RemoteVersion) throws {
+        guard remote.requiresMatchingSparkleBuild else { return }
+        try verifyOfferedVersion(downloadedApp: downloadedApp, offered: remote.version ?? "", compareBuild: true)
     }
 
     // MARK: Gates 3 + 4, Sparkle route without a Team ID

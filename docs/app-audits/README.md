@@ -432,6 +432,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
+- [x] [**Audio Hijack**](com-rogueamoeba-audiohijack.md) · `com.rogueamoeba.audiohijack` — S（官网 stable feed 补全）· 2026-11-26
+
 - [x] [**RapidAPI for Mac / Paw**](com-luckymarmot-Paw.md) · `com.luckymarmot.Paw` — S（feed 补全）· 4.5.4→4.5.5 一键 ZIP ✓（停用/运行中）· 结构化日志（保留分节）✓ · 2026-11-16
 
 - [x] [**iTerm2**](com-googlecode-iterm2.md) · `com.googlecode.iterm2` — S+B · stable/nightly ✓ · test release ✓（`ITerm2Channel`）· 一键 ✓ · changelog recipe ✓（stable/test release）· 2026-10-08

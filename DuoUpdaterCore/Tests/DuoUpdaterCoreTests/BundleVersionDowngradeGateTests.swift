@@ -141,6 +141,14 @@ import Testing
     /// `SparkleInstaller.applyVerified` → the swap goes ahead (into this scratch
     /// directory) and the test fails.
     @Test func sparkleInstallerRefusesAnOlderBuildBeforeTheSwap() async throws {
+        try await Self.checkRefusal(installedBuild: "99999999", requiresFeedMatch: false)
+    }
+
+    @Test func sparkleInstallerRefusesAWrongOfferedBuildBeforeTheSwap() async throws {
+        try await Self.checkRefusal(installedBuild: "0", requiresFeedMatch: true)
+    }
+
+    private static func checkRefusal(installedBuild: String, requiresFeedMatch: Bool) async throws {
         guard let source = await DigestOnlyInstallTests.teamSignedApp() else { return }
         let dir = try Self.scratch("wiring")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -157,11 +165,9 @@ import Testing
 
         let downloadedBuild = try #require(
             SignatureVerifier.infoPlist(of: downloaded)["CFBundleVersion"] as? String)
-        let higher = "99999999"
-        #expect(VersionComparator.isNewer(higher, than: downloadedBuild))
         let plistURL = installed.appendingPathComponent("Contents/Info.plist")
         var plist = SignatureVerifier.infoPlist(of: installed)
-        plist["CFBundleVersion"] = higher
+        plist["CFBundleVersion"] = installedBuild
         try PropertyListSerialization.data(fromPropertyList: plist, format: .binary, options: 0)
             .write(to: plistURL)
 
@@ -171,24 +177,30 @@ import Testing
         let app = InstalledApp(
             name: installed.deletingPathExtension().lastPathComponent,
             bundleID: plist["CFBundleIdentifier"] as? String,
-            shortVersion: plist["CFBundleShortVersionString"] as? String, buildVersion: higher,
+            shortVersion: plist["CFBundleShortVersionString"] as? String, buildVersion: installedBuild,
             path: installed, isMASApp: false, sparkleFeedURL: nil)
         // The feed's claim: a newer build than the one installed.
+        let offeredBuild = "999999999"
         let remote = RemoteVersion(
-            shortVersion: "999.0", version: "999999999", downloadURL: archive, sourceName: "Sparkle")
+            shortVersion: "999.0", version: offeredBuild, downloadURL: archive, sourceName: "Sparkle",
+            requiresMatchingSparkleBuild: requiresFeedMatch)
         let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: "999.0"))
         let download = DownloadedUpdate(archiveURL: archive, bytesDownloaded: 0, workDir: dir)
 
         do {
             try await SparkleInstaller().apply(result, download: download, onStage: { _ in })
-            Issue.record("SparkleInstaller.apply must refuse an older CFBundleVersion than the installed one")
-        } catch {
-            guard case SignatureVerifier.VerifyError.bundleVersionDowngrade(higher, downloadedBuild) = error else {
-                Issue.record("expected .bundleVersionDowngrade(\(higher), \(downloadedBuild)), got \(error) — is gate 7 still called from apply()?")
-                return
+            Issue.record("SparkleInstaller.apply accepted a build it should refuse")
+        } catch let error as SignatureVerifier.VerifyError {
+            switch error {
+            case .infoPlistVersionMismatch(offeredBuild, downloadedBuild) where requiresFeedMatch:
+                break
+            case .bundleVersionDowngrade(installedBuild, downloadedBuild) where !requiresFeedMatch:
+                break
+            default:
+                Issue.record("Unexpected verification error: \(error)")
             }
         }
         // Refused before the swap: the installed copy is the one written above.
-        #expect(SignatureVerifier.infoPlist(of: installed)["CFBundleVersion"] as? String == higher)
+        #expect(SignatureVerifier.infoPlist(of: installed)["CFBundleVersion"] as? String == installedBuild)
     }
 }

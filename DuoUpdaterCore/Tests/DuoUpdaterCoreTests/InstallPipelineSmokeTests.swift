@@ -2,6 +2,26 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
+@Test func nestedZipSelectsTheRequestedBundleFromSiblingApps() async throws {
+    let fm = FileManager.default
+    let work = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let contents = work.appendingPathComponent("Airfoil")
+    defer { try? fm.removeItem(at: work) }
+    for (name, id) in [("Airfoil Satellite", "com.rogueamoeba.AirfoilSpeakers"),
+                       ("Airfoil", "com.rogueamoeba.Airfoil")] {
+        let dir = contents.appendingPathComponent("\(name).app/Contents")
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["CFBundleIdentifier": id], format: .binary, options: 0)
+        try plist.write(to: dir.appendingPathComponent("Info.plist"))
+    }
+    let archive = work.appendingPathComponent("Airfoil.zip")
+    try await DigestOnlyInstallTests.zip(contents, to: archive)
+    let app = try await ArchiveExtractor.extractApp(
+        from: archive, workDir: work, expectedBundleID: "com.rogueamoeba.Airfoil")
+    #expect(app.lastPathComponent == "Airfoil.app")
+}
+
 /// Exercises the install pipeline against REAL Sparkle updates — download,
 /// EdDSA verify, extract, code-signature + Team ID + bundle id verify — but
 /// stops short of actually replacing anything on disk. Validates the security

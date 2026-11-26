@@ -218,6 +218,7 @@ public enum AppRecipeIndex {
         com_reqable_macosx.set,
         com_rlxone_equinox.set,
         com_robinebers_openusage.set,
+        RogueAmoebaAppcast.set,
         com_rogueamoeba_audiohijack.set,
         com_roversx_launchnext.set,
         com_runningwithcrayons_Alfred.set,

@@ -3,9 +3,6 @@ import Foundation
 enum com_rogueamoeba_audiohijack {
     static let bundleID = "com.rogueamoeba.audiohijack"
 
-    // The vendor's download page redirects Sparkle clients to its archive.
-    static let downloadHeaders = ["User-Agent": "\(Downloader.userAgent) Sparkle"]
-
     static func matchesFeed(bundleID: String?, feedURL: URL) -> Bool {
         bundleID?.lowercased() == self.bundleID
             && feedURL == SparkleFeedCatalog.feed(forBundleID: self.bundleID)

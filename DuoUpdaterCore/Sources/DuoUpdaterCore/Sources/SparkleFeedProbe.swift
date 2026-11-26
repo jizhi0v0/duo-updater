@@ -110,8 +110,8 @@ public extension SparkleAppcastSource {
             items, feedURL: feedURL, bundleID: bundleID, osVersion: osVersion,
             resolution: resolution)
         let head = usable.first
-        let downloadHeaders = com_rogueamoeba_audiohijack.matchesFeed(bundleID: bundleID, feedURL: feedURL)
-            ? com_rogueamoeba_audiohijack.downloadHeaders : [:]
+        let downloadHeaders = RogueAmoebaAppcast.matchesFeed(bundleID: bundleID, feedURL: feedURL)
+            ? RogueAmoebaAppcast.downloadHeaders : [:]
         return .success(SparkleFeedReading(
             itemCount: items.count,
             usableCount: usable.count,

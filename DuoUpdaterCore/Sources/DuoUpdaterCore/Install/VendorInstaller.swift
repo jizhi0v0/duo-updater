@@ -527,6 +527,7 @@ public actor VendorInstaller {
         _ remote: RemoteVersion,
         download: DownloadedUpdate,
         bundleName: String,
+        expectedBundleID: String? = nil,
         onStage: @Sendable @escaping (InstallStage) -> Void,
         vetStub: @Sendable @escaping (URL) throws -> Void
     ) async throws -> URL {
@@ -598,7 +599,7 @@ public actor VendorInstaller {
                 workDir: download.workDir)
         } else {
             newApp = try await ArchiveExtractor.extractApp(
-                from: download.archiveURL, workDir: download.workDir)
+                from: download.archiveURL, workDir: download.workDir, expectedBundleID: expectedBundleID)
             // 3b. Some vendors ship an installer stub with the app inside it —
             // see `VendorInstallSpec.nestedArchivePath`. Unwrap one level, having
             // first proven the stub is the vendor's: the nested archive sits under

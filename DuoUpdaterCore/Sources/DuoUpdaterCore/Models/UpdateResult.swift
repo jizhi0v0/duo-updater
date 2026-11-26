@@ -346,6 +346,10 @@ public struct RemoteVersion: Sendable, Hashable {
     /// Sparkle then decides by extension, which `UpdatePolicy` already does.
     public let sparklePackageEnclosure: Bool
 
+    /// This feed's enclosure can change independently of its advertised build.
+    /// One-click installation must inspect the app bundle and match `version`.
+    public let requiresMatchingSparkleBuild: Bool
+
     /// Optional expected SHA-512 (base64) of the vendor download, verified before
     /// unpacking. Nil when the feed doesn't publish one.
     public let expectedSHA512: String?
@@ -532,6 +536,7 @@ public struct RemoteVersion: Sendable, Hashable {
         vendorInstallerKind: VendorInstallerKind? = nil,
         vendorInstallerApp: VendorInstallerApp? = nil,
         sparklePackageEnclosure: Bool = false,
+        requiresMatchingSparkleBuild: Bool = false,
         expectedSHA512: String? = nil,
         expectedSHA256: String? = nil,
         installTrust: InstallTrust = .developerID,
@@ -569,6 +574,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.vendorInstallerKind = vendorInstallerKind
         self.vendorInstallerApp = vendorInstallerApp
         self.sparklePackageEnclosure = sparklePackageEnclosure
+        self.requiresMatchingSparkleBuild = requiresMatchingSparkleBuild
         self.expectedSHA512 = expectedSHA512
         self.expectedSHA256 = expectedSHA256
         self.installTrust = installTrust

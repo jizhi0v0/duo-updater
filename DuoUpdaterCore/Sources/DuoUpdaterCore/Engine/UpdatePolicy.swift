@@ -224,14 +224,17 @@ public enum UpdatePolicy {
         }
         switch result.remote?.sourceName {
         case "Sparkle":
-            let ext = result.remote?.downloadURL?.pathExtension.lowercased()
+            guard let remote = result.remote, let url = remote.downloadURL else { return false }
             // A package is not an in-place archive. Signed Sparkle packages are
             // still installable, but `requiresInstaller` owns them so the download
             // is EdDSA-verified and then handed to macOS Installer. Keeping them out
             // of this branch prevents `SparkleInstaller` from feeding a `.pkg` to
             // `ArchiveExtractor`, which can never extract it — nor a `.dmg` that
             // only wraps one (AdGuard), which fails there as "No .app bundle".
-            if Self.isSparklePackage(result.remote) { return false }
+            if Self.isSparklePackage(remote) { return false }
+            // An appcast may point at a redirect with no archive extension.
+            // The opt-in route checks the delivered bundle against the offered build.
+            if remote.requiresMatchingSparkleBuild, remote.version?.isEmpty != false { return false }
             // Signed feed: the full EdDSA path — needs both the app's SUPublicEDKey
             // and a signature in the item.
             if result.app.sparkleEdPublicKey?.isEmpty == false {
@@ -243,9 +246,8 @@ public enum UpdatePolicy {
             // only when the enclosure is an archive we can extract and swap in place
             // — a `.pkg` is a system-installer payload, not an in-place archive, and
             // a missing URL leaves nothing to install.
-            return ext.map {
-                Self.sparkleArchiveExtensions.contains($0)
-            } ?? false
+            return remote.requiresMatchingSparkleBuild
+                || Self.sparkleArchiveExtensions.contains(url.pathExtension.lowercased())
         case "Homebrew":
             return result.remote?.sourceIdentifier != nil
                 && result.remote?.requiresManualInstaller == false
@@ -498,7 +500,8 @@ public enum UpdatePolicy {
             // (EdDSA over the exact enclosure bytes) before PackageInstaller applies
             // its Developer ID Installer + Team-ID gate. An unsigned package stays
             // detection-only: unlike an extracted app, it has no bundle-id gate.
-            guard Self.isSparklePackage(result.remote),
+            guard result.remote?.requiresMatchingSparkleBuild != true,
+                  Self.isSparklePackage(result.remote),
                   result.app.sparkleEdPublicKey?.isEmpty == false,
                   result.remote?.edSignature?.isEmpty == false else { return false }
             return true

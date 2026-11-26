@@ -12,12 +12,23 @@ struct SparkleDiagnosticTests {
                 client?.urlProtocol(self, didFailWithError: URLError(.timedOut)); return
             }
             let status = url.path.contains("missing") ? 404 : url.path.contains("busy") ? 503 : 200
-            let body = url.path.contains("malformed") ? "not an appcast; token=secret" : """
-            <?xml version="1.0"?><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>
-            <sparkle:version>200</sparkle:version><sparkle:shortVersionString>2.0</sparkle:shortVersionString>
-            <enclosure url="https://example.com/App.zip" sparkle:edSignature="sig" length="10"/>
-            </item></channel></rss>
-            """
+            let body = if url.path.hasSuffix("versionCheck.cgi") {
+                """
+                <?xml version="1.0"?><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>
+                <sparkle:version>4.6.1</sparkle:version><sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
+                <enclosure url="https://rogueamoeba.com/audiohijack/download.php"/>
+                </item></channel></rss>
+                """
+            } else if url.path.contains("malformed") {
+                "not an appcast; token=secret"
+            } else {
+                """
+                <?xml version="1.0"?><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>
+                <sparkle:version>200</sparkle:version><sparkle:shortVersionString>2.0</sparkle:shortVersionString>
+                <enclosure url="https://example.com/App.zip" sparkle:edSignature="sig" length="10"/>
+                </item></channel></rss>
+                """
+            }
             client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: status,
                   httpVersion: "HTTP/1.1", headerFields: ["Content-Type":"application/xml"])!, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: Data(body.utf8))
@@ -48,5 +59,23 @@ struct SparkleDiagnosticTests {
         #expect(await source.probeDiagnostic(for: app("offline")).failure?.classification == .infra)
         let malformed = await source.probeDiagnostic(for: app("malformed"))
         #expect(malformed.failure?.classification == .recipe && malformed.bodySample == nil)
+    }
+
+    @Test func audioHijackOffersTheFeedEnclosureWithBuildVerification() async throws {
+        let bundleID = "com.rogueamoeba.audiohijack"
+        let feed = try #require(SparkleFeedCatalog.feed(forBundleID: bundleID))
+        let app = InstalledApp(name: "Audio Hijack", bundleID: bundleID,
+                               shortVersion: "4.6.0", buildVersion: "4.6.0",
+                               path: URL(fileURLWithPath: "/nonexistent/Audio Hijack.app"),
+                               isMASApp: false, sparkleFeedURL: feed)
+        let source = source()
+        let remote = try #require(try await source.latestVersion(for: app))
+        #expect(remote.downloadURL?.absoluteString == "https://rogueamoeba.com/audiohijack/download.php")
+        #expect(remote.downloadHeaders["User-Agent"] == "DuoUpdater/0.1 Sparkle")
+        #expect(remote.version == "4.6.1")
+        #expect(remote.requiresMatchingSparkleBuild)
+        let reading = try await source.readFeed(feed, bundleID: bundleID).get()
+        #expect(reading.headEnclosure == remote.downloadURL)
+        #expect(reading.headDownloadHeaders == remote.downloadHeaders)
     }
 }

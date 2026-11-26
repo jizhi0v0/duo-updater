@@ -5222,16 +5222,31 @@ final class AppListModel {
         brewFormula(formula.key, hasUpdate: formula.canUpgrade).row(upgradeAll: upgradeAllPhase)
     }
 
+    struct BrewBatchCounts {
+        let listed: Int
+        let eligible: Int
+        let unlisted: Int
+        fileprivate let eligibleKeys: Set<String>
+
+        fileprivate init(packages: [BrewInstalledFormula], targets: [BrewOutdatedFormula]) {
+            let listedUpdates = packages.filter(\.hasListedUpdate)
+            eligibleKeys = Set(targets.map { BrewInstalledFormula.key(kind: $0.kind, name: $0.name) })
+            listed = listedUpdates.count
+            eligible = targets.count
+            unlisted = eligibleKeys.subtracting(listedUpdates.map(\.key)).count
+        }
+    }
+
+    /// Counts used by the Workbench summary without observing run progress.
+    var brewBatchCounts: BrewBatchCounts {
+        BrewBatchCounts(packages: brewFormulae, targets: brewOutdatedFormulae)
+    }
+
     /// What the popover's Homebrew row and the workbench's Upgrade All draw
     /// from (`BrewRowSnapshot`).
     var brewRowSnapshot: BrewRowSnapshot {
-        let outdated = brewOutdatedFormulae
-        let outdatedKeys = Set(outdated.map {
-            BrewInstalledFormula.key(kind: $0.kind, name: $0.name)
-        })
         let packages = brewFormulae
-        // Same list and update marks as the Workbench Homebrew summary.
-        let listedUpdates = packages.filter(\.hasListedUpdate)
+        let counts = BrewBatchCounts(packages: packages, targets: brewOutdatedFormulae)
         let deprecatedPackages = packages.filter { $0.lifecycle != nil }
         let deprecatedCaskTokens = Set(deprecatedPackages.lazy.filter { $0.kind == .cask }
             .map { ($0.name as NSString).lastPathComponent })
@@ -5244,11 +5259,11 @@ final class AppListModel {
             upgradeAllDone: brewUpgradeDone, upgradeAllTotal: brewUpgradeTotal, upgradeAllError: brewUpgradeError,
             // The popover row's: those with an upgrade of their own claimed.
             formulae: upgradingFormulae.sorted().map { name in
-                brewFormula(name, hasUpdate: outdatedKeys.contains(name))
+                brewFormula(name, hasUpdate: counts.eligibleKeys.contains(name))
             },
             installed: brewInstalled, checked: brewChecked,
-            outdated: outdated.count, listedOutdated: listedUpdates.count,
-            unlistedOutdated: outdatedKeys.subtracting(listedUpdates.map(\.key)).count,
+            outdated: counts.eligible, listedOutdated: counts.listed,
+            unlistedOutdated: counts.unlisted,
             hasMissingPathUpdate: packages.contains { $0.hasUpdate && $0.missingAppPath != nil },
             unchecked: brewUnchecked.count, deprecated: deprecated,
             readError: brewReadError)

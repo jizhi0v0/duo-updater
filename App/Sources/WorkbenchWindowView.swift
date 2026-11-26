@@ -1147,20 +1147,19 @@ struct WorkbenchWindowView: View {
                 }
             }
             if !held.isEmpty {
-                let reasons = held.compactMap { status in
-                    status.withheld.map { CLIToolsModel.reason($0, of: status) }
-                }
                 let label = String(localized: "\(held.count) held back")
-                SummaryDetailButton(details: reasons.isEmpty ? label : reasons.joined(separator: "\n\n")) {
+                let details = CLIToolPresentation.summaryDetails(held) { status in
+                    status.withheld.map { CLIToolsModel.reason($0, of: status) } ?? label
+                }
+                SummaryDetailButton(details: details) {
                     Text(label).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             if !unchecked.isEmpty {
-                let reasons = unchecked.map { status in
-                    CLIToolPresentation.rowWarning(status)
-                        ?? (status.name ?? status.kind.displayName) + " · " + String(localized: "Version can’t be read")
+                let details = CLIToolPresentation.summaryDetails(unchecked) { status in
+                    CLIToolPresentation.rowWarning(status) ?? String(localized: "Version can’t be read")
                 }
-                SummaryDetailButton(details: reasons.joined(separator: "\n\n")) {
+                SummaryDetailButton(details: details) {
                     Label {
                         Text(verbatim: "\(unchecked.count)")
                     } icon: {
@@ -1346,18 +1345,18 @@ struct WorkbenchWindowView: View {
     /// whole group's, not the search's: a search that matches inside opens the
     /// group, and its rows show what matched.
     private var homebrewSummary: some View {
-        let snapshot = model.brewRowSnapshot
+        let counts = model.brewBatchCounts
         return HomebrewGroupSummary(
             packages: model.brewFormulae.count + model.brewUnchecked.count
                 + model.brewStandaloneCaskLifecycles.count,
-            outdated: snapshot.listedOutdated,
-            batchUpdates: snapshot.outdated,
-            unlistedUpdates: snapshot.unlistedOutdated,
+            outdated: counts.listed,
+            batchUpdates: counts.eligible,
+            unlistedUpdates: counts.unlisted,
             uncheckedDetails: model.brewUnchecked.map(\.uncheckedExplanation),
             // While Upgrade All is on offer, as the popover shows it.
-            upgradeError: snapshot.outdated == 0 ? nil : snapshot.upgradeAllError,
+            upgradeError: counts.eligible == 0 ? nil : model.brewUpgradeError,
             homebrewUpdate: model.homebrewSelfUpdate?.latest,
-            readError: snapshot.readError,
+            readError: model.brewReadError,
             retry: { Task { await model.brewLane.handle(.manual) } })
     }
 

@@ -1356,7 +1356,7 @@ struct WorkbenchWindowView: View {
                 + model.brewStandaloneCaskLifecycles.count,
             outdated: counts.listed,
             batchUpdates: counts.eligible,
-            unlistedUpdates: counts.unlistedNames,
+            unlistedUpdates: counts.unlistedTargets,
             uncheckedDetails: model.brewUnchecked.map(\.uncheckedExplanation),
             // While Upgrade All is on offer, as the popover shows it.
             upgradeError: counts.eligible == 0 ? nil : model.brewUpgradeError,

@@ -5231,11 +5231,11 @@ final class AppListModel {
 
         var unlisted: Int { unlistedKeys.count }
 
-        var unlistedNames: [String] {
+        var unlistedTargets: [BrewOutdatedFormula] {
             var remaining = unlistedKeys
-            return targets.compactMap { target in
+            return targets.filter { target in
                 let key = BrewInstalledFormula.key(kind: target.kind, name: target.name)
-                return remaining.remove(key) == nil ? nil : target.name
+                return remaining.remove(key) != nil
             }
         }
 

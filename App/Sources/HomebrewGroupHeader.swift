@@ -1,4 +1,5 @@
 import SwiftUI
+import DuoUpdaterCore
 
 // The top of the CLI tab's Homebrew group, which is all of the group while it is
 // closed (`HomebrewGroupState`). So it carries what the closed group would
@@ -64,7 +65,7 @@ struct HomebrewGroupSummary: View {
     let packages: Int
     let outdated: Int
     let batchUpdates: Int
-    let unlistedUpdates: [String]
+    let unlistedUpdates: [BrewOutdatedFormula]
     let uncheckedDetails: [String]
     /// Why the last Upgrade All failed (`AppListModel.brewUpgradeError`), or nil.
     let upgradeError: String?
@@ -144,7 +145,12 @@ struct HomebrewGroupSummary: View {
                 ? String(localized: "Homebrew can also upgrade packages such as dependencies that have no row in this list.") : nil,
             caveat: outdated > batchUpdates - unlistedUpdates.count
                 ? String(localized: "Some listed updates aren’t eligible for Upgrade All.") : nil,
-            items: unlistedUpdates
+            items: unlistedUpdates.map { update in
+                // An alias migration can be outdated with the same reported version.
+                guard !update.installedVersion.isEmpty, !update.currentVersion.isEmpty,
+                      update.installedVersion != update.currentVersion else { return update.name }
+                return "\(update.name) · \(update.installedVersion) → \(update.currentVersion)"
+            }
         )
     }
 

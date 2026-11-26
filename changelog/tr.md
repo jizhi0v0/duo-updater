@@ -2,6 +2,10 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.31
+
+**DuoUpdater artık Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo ve SoundSource için resmî güncellemeleri bulup yükleyebiliyor.** Uyumlu Mac’lerde SoundSource 5, 5.x serisinin güncellemelerini alır.
+
 ## 0.5.30
 
 **macOS 27.3 ve sonraki sürümlerde uygulamayı sürüklemeden DuoUpdater’a izin verebilirsiniz.** DuoUpdater, Sistem Ayarları’nı açar ve hangi uygulamayı seçeceğinizi gösterir.

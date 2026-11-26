@@ -187,9 +187,9 @@ enum CLIToolPresentation {
         let names = statuses.map { $0.name ?? $0.kind.displayName }
         let occurrences = Dictionary(names.map { ($0, 1) }, uniquingKeysWith: +)
         return zip(statuses, names).map { status, name in
-            let path = (status.path as NSString).abbreviatingWithTildeInPath
-            let title = occurrences[name, default: 0] > 1 ? "\(name) · \(path)" : name
-            return SummaryDetail(title: title, message: reason(status))
+            let path = occurrences[name, default: 0] > 1
+                ? (status.path as NSString).abbreviatingWithTildeInPath : nil
+            return SummaryDetail(title: name, path: path, message: reason(status))
         }
     }
 

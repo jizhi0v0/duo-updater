@@ -431,7 +431,7 @@ private struct TrafficRow: View {
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                    SummaryDetailButton(details: exactBytes, accessibilityTitle: exactBytes)
+                    SummaryDetailButton(content: .value(exactBytes), accessibilityTitle: exactBytes)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

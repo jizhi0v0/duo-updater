@@ -87,7 +87,7 @@ struct HomebrewGroupSummary: View {
             if let readError {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     let label = String(localized: "Check failed — showing last results")
-                    SummaryDetailButton(details: readError, symbol: "exclamationmark.triangle", accessibilityTitle: label)
+                    SummaryDetailButton(content: .error(readError), symbol: "exclamationmark.triangle", accessibilityTitle: label)
                         .foregroundStyle(.orange)
                     Text(label).foregroundStyle(.orange).lineLimit(2)
                     Spacer(minLength: 0)
@@ -106,13 +106,16 @@ struct HomebrewGroupSummary: View {
             if let upgradeError {
                 HStack(spacing: 4) {
                     Text(verbatim: upgradeError).foregroundStyle(.red).lineLimit(1)
-                    SummaryDetailButton(details: upgradeError).foregroundStyle(.secondary)
+                    SummaryDetailButton(content: .error(upgradeError)).foregroundStyle(.secondary)
                 }
             } else {
                 HStack(spacing: 4) {
                     countsLabel
                     if unlistedUpdates > 0 || batchUpdates != outdated {
-                        SummaryDetailButton(details: batchDetails).foregroundStyle(.secondary)
+                        SummaryDetailButton(
+                            content: batchDetails, accessibilityTitle: "Homebrew · \(String(localized: "Details"))"
+                        )
+                        .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -134,15 +137,14 @@ struct HomebrewGroupSummary: View {
         return unlisted > 0 ? [summary, String(localized: "\(unlisted) unlisted updates")] : [summary]
     }
 
-    private var batchDetails: String {
-        var lines = Self.batchUpdateLines(updates: batchUpdates, unlisted: unlistedUpdates)
-        if unlistedUpdates > 0 {
-            lines.append(String(localized: "Homebrew can also upgrade packages such as dependencies that have no row in this list."))
-        }
-        if outdated > batchUpdates - unlistedUpdates {
-            lines.append(String(localized: "Some listed updates aren’t eligible for Upgrade All."))
-        }
-        return lines.joined(separator: "\n")
+    private var batchDetails: SummaryDetailButton.Content {
+        .counts(
+            Self.batchUpdateLines(updates: batchUpdates, unlisted: unlistedUpdates),
+            explanation: unlistedUpdates > 0
+                ? String(localized: "Homebrew can also upgrade packages such as dependencies that have no row in this list.") : nil,
+            caveat: outdated > batchUpdates - unlistedUpdates
+                ? String(localized: "Some listed updates aren’t eligible for Upgrade All.") : nil
+        )
     }
 
     private var marks: some View {

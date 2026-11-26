@@ -1155,7 +1155,7 @@ struct WorkbenchWindowView: View {
                 }
                 HStack(spacing: 4) {
                     Text(label).foregroundStyle(.secondary).lineLimit(1)
-                    SummaryDetailButton(entries: details, accessibilityTitle: label).foregroundStyle(.secondary)
+                    SummaryDetailButton(content: .tools(details), accessibilityTitle: label).foregroundStyle(.secondary)
                 }
             }
             if !unchecked.isEmpty {
@@ -1164,7 +1164,7 @@ struct WorkbenchWindowView: View {
                 }
                 HStack(spacing: 4) {
                     SummaryDetailButton(
-                        entries: details, symbol: "questionmark.circle",
+                        content: .tools(details), symbol: "questionmark.circle",
                         accessibilityTitle: String(localized: "\(unchecked.count) not checked"))
                     Text(verbatim: "\(unchecked.count)")
                 }

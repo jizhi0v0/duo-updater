@@ -30,8 +30,8 @@ struct CLIToolPresentationTests {
         let name = first.kind.displayName
         let details = CLIToolPresentation.summaryDetails([first, second]) { _ in "Version unavailable" }
         #expect(details == [
-            SummaryDetail(title: "\(name) · \(first.path)", message: "Version unavailable"),
-            SummaryDetail(title: "\(name) · \(second.path)", message: "Version unavailable")
+            SummaryDetail(title: name, path: first.path, message: "Version unavailable"),
+            SummaryDetail(title: name, path: second.path, message: "Version unavailable")
         ])
         #expect(CLIToolPresentation.summaryDetails([first]) { _ in "Version unavailable" }
             == [SummaryDetail(title: name, message: "Version unavailable")])

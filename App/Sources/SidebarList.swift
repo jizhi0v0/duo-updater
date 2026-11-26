@@ -4,23 +4,32 @@ import Carbon.HIToolbox
 import Observation
 
 struct SummaryDetail: Equatable {
-    var title: String? = nil
+    let title: String
+    var path: String? = nil
     let message: String
 }
 
 /// A tips icon that anchors the supporting details beside a count or status.
 struct SummaryDetailButton: View {
-    let entries: [SummaryDetail]
+    enum Content {
+        case message(String)
+        case error(String)
+        case value(String)
+        case tools([SummaryDetail])
+        case counts([String], explanation: String?, caveat: String?)
+    }
+
+    let content: Content
     let symbol: String
     let accessibilityTitle: String
 
     @State private var showing = false
 
     init(
-        entries: [SummaryDetail], symbol: String = "info.circle",
+        content: Content, symbol: String = "info.circle",
         accessibilityTitle: String = String(localized: "Details")
     ) {
-        self.entries = entries
+        self.content = content
         self.symbol = symbol
         self.accessibilityTitle = accessibilityTitle
     }
@@ -29,7 +38,7 @@ struct SummaryDetailButton: View {
         details: String, symbol: String = "info.circle",
         accessibilityTitle: String = String(localized: "Details")
     ) {
-        self.init(entries: [SummaryDetail(message: details)], symbol: symbol, accessibilityTitle: accessibilityTitle)
+        self.init(content: .message(details), symbol: symbol, accessibilityTitle: accessibilityTitle)
     }
 
     var body: some View {
@@ -54,33 +63,93 @@ struct SummaryDetailButton: View {
                         .frame(width: SummaryDetailPopoverLayout.width, height: SummaryDetailPopoverLayout.height)
                     }
                 }
-                .padding(12)
+                .padding(padding)
+                .foregroundStyle(Color(nsColor: .labelColor), Color(nsColor: .secondaryLabelColor))
             }
     }
 
+    private var padding: EdgeInsets {
+        if case .value = content {
+            return EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
+        }
+        return EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+    }
+
     private var detailContent: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            ForEach(entries.indices, id: \.self) { index in
-                let entry = entries[index]
-                VStack(alignment: .leading, spacing: 2) {
-                    if let title = entry.title {
-                        Text(verbatim: title).font(.callout.weight(.semibold))
-                    }
-                    Text(verbatim: entry.message)
-                        .font(entry.title == nil ? .callout : .caption)
-                        .foregroundStyle(entry.title == nil ? .primary : .secondary)
-                }
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 8) {
+            switch content {
+            case .message(let message):
+                Text(verbatim: message).font(.callout).foregroundStyle(.primary)
+            case .error(let message):
+                Text(verbatim: message).font(.caption.monospaced()).foregroundStyle(.secondary)
+            case .value(let value):
+                Text(verbatim: value).font(.footnote.monospacedDigit()).foregroundStyle(.primary)
+            case .tools(let entries):
+                toolDetails(entries)
+            case .counts(let counts, let explanation, let caveat):
+                countDetails(counts, explanation: explanation, caveat: caveat)
             }
         }
+        .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
+    }
+
+    private func toolDetails(_ entries: [SummaryDetail]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(entries.indices, id: \.self) { index in
+                let entry = entries[index]
+                if index > entries.startIndex { Divider() }
+                VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: entry.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        if let path = entry.path {
+                            Text(verbatim: path).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        }
+                    }
+                    Text(verbatim: entry.message)
+                        .font(.footnote).foregroundStyle(.secondary).lineSpacing(2)
+                }
+                .accessibilityElement(children: .contain)
+            }
+        }
+    }
+
+    private func countDetails(_ counts: [String], explanation: String?, caveat: String?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(counts.indices, id: \.self) { index in
+                    Text(verbatim: counts[index])
+                        .font(index == counts.startIndex ? .subheadline.weight(.semibold) : .footnote)
+                        .monospacedDigit()
+                        .foregroundStyle(.primary)
+                }
+            }
+            if explanation != nil || caveat != nil {
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    if let explanation {
+                        Text(verbatim: explanation).foregroundStyle(.secondary)
+                    }
+                    if let caveat {
+                        Text(verbatim: caveat)
+                            .foregroundStyle(.primary)
+                            .padding(.leading, 8)
+                            .overlay(alignment: .leading) {
+                                Rectangle().fill(.orange).frame(width: 2)
+                            }
+                    }
+                }
+                .font(.footnote)
+                .lineSpacing(2)
+            }
+        }
     }
 }
 
 /// Give ViewThatFits a bounded proposal even during the popover's ideal-size pass.
 private struct SummaryDetailPopoverLayout: Layout {
     static let width: CGFloat = 288
-    static let height: CGFloat = 232
+    static let height: CGFloat = 200
     private static let limit = ProposedViewSize(width: width, height: height)
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

@@ -2,6 +2,10 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.31
+
+**DuoUpdater 现在可以检测并安装 Audio Hijack、Airfoil、Airfoil Satellite、Farrago、Fission、Loopback、Piezo 和 SoundSource 的官方更新。** 在兼容的 Mac 上，SoundSource 5 会收到 5.x 系列更新。
+
 ## 0.5.30
 
 **在 macOS 27.3 及更高版本上，授权时无需再拖拽 DuoUpdater。** DuoUpdater 会打开系统设置，并告诉你要选择哪个应用。

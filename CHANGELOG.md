@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.31
+
+**DuoUpdater can now find and install official updates for Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo, and SoundSource.** On compatible Macs, SoundSource 5 gets 5.x updates.
+
 ## 0.5.30
 
 **On macOS 27.3 and later, you can grant DuoUpdater permissions without dragging the app.** DuoUpdater opens System Settings and shows which app to select.

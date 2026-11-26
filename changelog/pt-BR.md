@@ -2,6 +2,10 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.31
+
+**O DuoUpdater agora encontra e instala atualizações oficiais do Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo e SoundSource.** Em Macs compatíveis, o SoundSource 5 recebe atualizações da série 5.x.
+
 ## 0.5.30
 
 **No macOS 27.3 e posteriores, você pode conceder permissões ao DuoUpdater sem arrastar o app.** O DuoUpdater abre os Ajustes do Sistema e indica qual app selecionar.

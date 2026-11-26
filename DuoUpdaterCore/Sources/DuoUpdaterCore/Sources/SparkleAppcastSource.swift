@@ -146,7 +146,7 @@ public struct SparkleAppcastSource: UpdateSource {
         // timeline dedupes by — so the newest item does not double-record.
         let history = Self.releaseHistory(from: usable)
         let bestFields = ReleaseDate.publishedFields(from: best.pubDate)
-        let isAudioHijackFeed = com_rogueamoeba_audiohijack.matchesFeed(
+        let isRogueAmoebaFeed = RogueAmoebaAppcast.matchesFeed(
             bundleID: app.bundleID, feedURL: feedURL)
 
         return RemoteVersion(
@@ -164,8 +164,8 @@ public struct SparkleAppcastSource: UpdateSource {
             sourceName: name,
             minimumAutoupdateVersion: best.minimumAutoupdateVersion,
             sparklePackageEnclosure: best.installationType == "package",
-            requiresMatchingSparkleBuild: isAudioHijackFeed,
-            downloadHeaders: isAudioHijackFeed ? com_rogueamoeba_audiohijack.downloadHeaders : [:],
+            requiresMatchingSparkleBuild: isRogueAmoebaFeed,
+            downloadHeaders: isRogueAmoebaFeed ? RogueAmoebaAppcast.downloadHeaders : [:],
             releaseNotesHTML: best.descriptionHTML,
             structuredChangelog: structured,
             changelogURL: best.releaseNotesLink,
@@ -359,12 +359,22 @@ public struct SparkleAppcastSource: UpdateSource {
 
     /// Shared by live checks and feed verification so both read the same feed metadata.
     static func parsedItems(_ content: Data, feedURL: URL, bundleID: String?) -> [SparkleAppcastItem] {
-        let isAudioHijackFeed = com_rogueamoeba_audiohijack.matchesFeed(bundleID: bundleID, feedURL: feedURL)
-        return SparkleAppcastParser.parse(content, relativeTo: feedURL).map { parsed in
+        let offeredMajor = RogueAmoebaAppcast.offeredMajor(bundleID: bundleID, feedURL: feedURL)
+        let isRogueAmoebaFeed = offeredMajor != nil
+            || com_rogueamoeba_audiohijack.matchesFeed(bundleID: bundleID, feedURL: feedURL)
+        return SparkleAppcastParser.parse(content, relativeTo: feedURL).compactMap { parsed in
             var item = parsed
-            if isAudioHijackFeed {
+            if let offeredMajor {
+                guard RogueAmoebaAppcast.acceptsVersion(item.version, onMajor: offeredMajor) else { return nil }
+                if let maximum = RogueAmoebaAppcast.maximumSystemVersion(bundleID: bundleID, offeredMajor: offeredMajor),
+                   item.maximumSystemVersion.map({ VersionComparator.isNewer($0, than: maximum) }) != false {
+                    item.maximumSystemVersion = maximum
+                }
+            }
+            if isRogueAmoebaFeed {
                 // The stable appcast writes the shared bundle version only once.
                 item.shortVersionString = item.shortVersionString ?? item.version
+                item.descriptionHTML = item.descriptionHTML.map(RogueAmoebaAppcast.releaseNotesBody)
             }
             func relocated(_ url: URL) -> URL {
                 SparkleFeedCatalog.relocatedReleaseURL(url, forBundleID: bundleID, feedURL: feedURL)

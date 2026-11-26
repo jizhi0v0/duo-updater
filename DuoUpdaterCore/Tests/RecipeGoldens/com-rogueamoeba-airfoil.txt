@@ -1,0 +1,46 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-rogueamoeba-airfoil"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 7)
+sparkleFeeds["com.rogueamoeba.airfoil"] = URL("https://rogueamoeba.net/ping/versionCheck.cgi?format=sparkle&bundleid=com.rogueamoeba.Airfoil&platform=osx&arch=arm64&system=__HOST_OS_COMPACT_VERSION__&version=5008000")
+sparkleFeeds["com.rogueamoeba.airfoilspeakers"] = URL("https://rogueamoeba.net/ping/versionCheck.cgi?format=sparkle&bundleid=com.rogueamoeba.AirfoilSpeakers&platform=osx&arch=arm64&system=__HOST_OS_COMPACT_VERSION__&version=5008000")
+sparkleFeeds["com.rogueamoeba.farrago"] = URL("https://rogueamoeba.net/ping/versionCheck.cgi?format=sparkle&bundleid=com.rogueamoeba.farrago&platform=osx&arch=arm64&system=__HOST_OS_COMPACT_VERSION__&version=2008000")
+sparkleFeeds["com.rogueamoeba.fission"] = URL("https://rogueamoeba.net/ping/versionCheck.cgi?format=sparkle&bundleid=com.rogueamoeba.Fission&platform=osx&arch=arm64&system=__HOST_OS_COMPACT_VERSION__&version=2008000")
+sparkleFeeds["com.rogueamoeba.loopback"] = URL("https://rogueamoeba.net/ping/versionCheck.cgi?format=sparkle&bundleid=com.rogueamoeba.Loopback&platform=osx&arch=arm64&system=__HOST_OS_COMPACT_VERSION__&version=2008000")
+sparkleFeeds["com.rogueamoeba.piezo"] = URL("https://rogueamoeba.net/ping/versionCheck.cgi?format=sparkle&bundleid=com.rogueamoeba.Piezo&platform=osx&arch=arm64&system=__HOST_OS_COMPACT_VERSION__&version=1008000")
+sparkleFeeds["com.rogueamoeba.soundsource"] = URL("https://rogueamoeba.net/ping/versionCheck.cgi?format=sparkle&bundleid=com.rogueamoeba.soundsource&platform=osx&arch=arm64&system=__HOST_OS_COMPACT_VERSION__&version=6008000")
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 7)
+changelogPages["com.rogueamoeba.airfoil"] = URL("https://rogueamoeba.com/support/releasenotes/?product=Airfoil+for+Mac")
+changelogPages["com.rogueamoeba.airfoilspeakers"] = URL("https://rogueamoeba.com/support/releasenotes/?product=Airfoil+Satellite+for+Mac")
+changelogPages["com.rogueamoeba.farrago"] = URL("https://rogueamoeba.com/support/releasenotes/?product=Farrago")
+changelogPages["com.rogueamoeba.fission"] = URL("https://rogueamoeba.com/support/releasenotes/?product=Fission")
+changelogPages["com.rogueamoeba.loopback"] = URL("https://rogueamoeba.com/support/releasenotes/?product=Loopback")
+changelogPages["com.rogueamoeba.piezo"] = URL("https://rogueamoeba.com/support/releasenotes/?product=Piezo")
+changelogPages["com.rogueamoeba.soundsource"] = URL("https://rogueamoeba.com/support/releasenotes/?product=SoundSource")
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

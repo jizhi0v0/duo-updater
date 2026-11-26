@@ -55,16 +55,19 @@ public enum ArchiveExtractor {
     /// their own, and `fromDMG` detaches in a `defer`, which also runs when the
     /// copy out was cut short. A DMG left mounted because a cancel landed between
     /// attach and detach is exactly what must not happen.
-    public static func extractApp(from archive: URL, workDir: URL) async throws -> URL {
+    public static func extractApp(
+        from archive: URL, workDir: URL, expectedBundleID: String? = nil
+    ) async throws -> URL {
         let ext = archive.pathExtension.lowercased()
         switch ext {
         case "dmg":
-            return try await fromDMG(archive, workDir: workDir)
+            return try await fromDMG(archive, workDir: workDir, expectedBundleID: expectedBundleID)
         case "zip":
-            return try await fromZip(archive, workDir: workDir)
+            return try await fromZip(archive, workDir: workDir, expectedBundleID: expectedBundleID)
         case "gz", "bz2", "xz", "tar", "tbz", "tgz":
-            return try await fromTar(archive, workDir: workDir)
+            return try await fromTar(archive, workDir: workDir, expectedBundleID: expectedBundleID)
         case "app":
+            guard matchesBundleID(archive, expected: expectedBundleID) else { throw ExtractError.noAppFound }
             return archive  // already an app (rare, but possible)
         default:
             throw ExtractError.unsupported(ext)
@@ -103,7 +106,7 @@ public enum ArchiveExtractor {
 
     // MARK: dmg
 
-    private static func fromDMG(_ dmg: URL, workDir: URL) async throws -> URL {
+    private static func fromDMG(_ dmg: URL, workDir: URL, expectedBundleID: String?) async throws -> URL {
         let mountPoint = workDir.appendingPathComponent("mnt-\(dmg.lastPathComponent)")
         try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
 
@@ -115,11 +118,11 @@ public enum ArchiveExtractor {
         // cancelled (SE-0493), which is why `DiskImageMount.detach` takes its
         // retry pause in a detached task rather than trusting `Task.sleep` here.
         defer { await DiskImageMount.detach(mountPoint, image: dmg) }
-        return try await copyApp(outOf: mountPoint, into: workDir)
+        return try await copyApp(outOf: mountPoint, into: workDir, expectedBundleID: expectedBundleID)
     }
 
-    private static func copyApp(outOf mountPoint: URL, into workDir: URL) async throws -> URL {
-        guard let appInMount = firstApp(in: mountPoint) else {
+    private static func copyApp(outOf mountPoint: URL, into workDir: URL, expectedBundleID: String?) async throws -> URL {
+        guard let appInMount = firstApp(in: mountPoint, expectedBundleID: expectedBundleID) else {
             throw ExtractError.noAppFound
         }
         // Copy the app out of the read-only mount into our work dir.
@@ -135,34 +138,34 @@ public enum ArchiveExtractor {
 
     // MARK: zip
 
-    private static func fromZip(_ zip: URL, workDir: URL) async throws -> URL {
+    private static func fromZip(_ zip: URL, workDir: URL, expectedBundleID: String?) async throws -> URL {
         let dest = workDir.appendingPathComponent("unzipped")
         try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
         let r = try await run("/usr/bin/ditto", ["-x", "-k", zip.path, dest.path])
         guard r.code == 0 else {
             throw ExtractError.toolFailed("ditto -x -k", r.code, r.err)
         }
-        guard let app = firstApp(in: dest) else { throw ExtractError.noAppFound }
+        guard let app = firstApp(in: dest, expectedBundleID: expectedBundleID) else { throw ExtractError.noAppFound }
         return app
     }
 
     // MARK: tar
 
-    private static func fromTar(_ tar: URL, workDir: URL) async throws -> URL {
+    private static func fromTar(_ tar: URL, workDir: URL, expectedBundleID: String?) async throws -> URL {
         let dest = workDir.appendingPathComponent("untarred")
         try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
         let r = try await run("/usr/bin/tar", ["-xf", tar.path, "-C", dest.path])
         guard r.code == 0 else {
             throw ExtractError.toolFailed("tar", r.code, r.err)
         }
-        guard let app = firstApp(in: dest) else { throw ExtractError.noAppFound }
+        guard let app = firstApp(in: dest, expectedBundleID: expectedBundleID) else { throw ExtractError.noAppFound }
         return app
     }
 
     // MARK: helpers
 
-    /// First `.app` at the top level of a directory (recurse one level for the
-    /// occasional archive that nests the app in a subfolder).
+    /// First matching `.app` at the top level or one level down. A caller can
+    /// supply the expected ID when an archive contains multiple applications.
     ///
     /// Selection is deterministic (entries sorted by name, not the unspecified
     /// `contentsOfDirectory` order) and rejects symlinks — a member named
@@ -170,7 +173,7 @@ public enum ArchiveExtractor {
     /// then a privileged swap, at an arbitrary location. We also confirm the
     /// chosen bundle resolves to a path *inside* `dir`, so a `..`/symlink member
     /// that escaped extraction can't be returned as "the app".
-    private static func firstApp(in dir: URL) -> URL? {
+    private static func firstApp(in dir: URL, expectedBundleID: String?) -> URL? {
         let fm = FileManager.default
         let dirBase = dir.resolvingSymlinksInPath().standardizedFileURL.path
 
@@ -182,7 +185,8 @@ public enum ArchiveExtractor {
             if vals?.isDirectory != true { return false }
             // Must resolve to within the extraction dir.
             let resolved = url.resolvingSymlinksInPath().standardizedFileURL.path
-            return resolved == dirBase || resolved.hasPrefix(dirBase + "/")
+            guard resolved == dirBase || resolved.hasPrefix(dirBase + "/") else { return false }
+            return matchesBundleID(url, expected: expectedBundleID)
         }
 
         func sortedEntries(of url: URL) -> [URL] {
@@ -201,6 +205,12 @@ public enum ArchiveExtractor {
             }
         }
         return nil
+    }
+
+    private static func matchesBundleID(_ app: URL, expected: String?) -> Bool {
+        guard let expected else { return true }
+        let found = SignatureVerifier.infoPlist(of: app)["CFBundleIdentifier"] as? String
+        return found?.caseInsensitiveCompare(expected) == .orderedSame
     }
 
     /// Run one extraction tool, capturing both streams, and wait for it.

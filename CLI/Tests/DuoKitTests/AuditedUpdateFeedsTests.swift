@@ -78,7 +78,7 @@ import Testing
     }
 
     @Test func allCatalogURLsArePublicHTTPSWithoutCredentials() {
-        #expect(AuditedUpdateFeeds.entries.count == 76)
+        #expect(AuditedUpdateFeeds.entries.count == 83)
         for entry in AuditedUpdateFeeds.entries {
             let url: URL?
             if case .electron(let config) = entry.source {
@@ -105,6 +105,11 @@ import Testing
                     URLQueryItem(name: "arch", value: "arm64"),
                     URLQueryItem(name: "system", value: HostOS.numericVersion().replacingOccurrences(of: ".", with: "")),
                 ])
+            } else if entry.auditDocument == "docs/app-audits/com-rogueamoeba-airfoil.md" {
+                #expect(url == SparkleFeedCatalog.feed(forBundleID: entry.bundleID))
+                let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+                #expect(items?.first(where: { $0.name == "bundleid" })?.value == entry.bundleID)
+                #expect(items?.first(where: { $0.name == "version" })?.value != nil)
             } else {
                 #expect(url.query == nil, "query in catalog URL: \(entry.recipeID)")
             }
@@ -121,7 +126,7 @@ import Testing
         let excludedDocuments = Set(AuditedUpdateFeeds.uncoveredRows.map(\.auditDocument))
 
         #expect(electronEntries.count == 12)
-        #expect(sparkleEntries.count == 64)
+        #expect(sparkleEntries.count == 71)
         #expect(electronDocuments == electronRows)
         #expect(sparkleDocuments.isDisjoint(with: excludedDocuments))
         #expect(sparkleDocuments.union(excludedDocuments) == sparkleRows)
@@ -260,7 +265,7 @@ import Testing
         let gapBundleIDs = Set(gaps.map(\.bundleID))
 
         #expect(keyedBundleIDs.count == 22)
-        #expect(missingBundleIDs.count == 26)
+        #expect(missingBundleIDs.count == 33)
         #expect(gapBundleIDs == missingBundleIDs)
         #expect(gaps.count == gapBundleIDs.count)
 

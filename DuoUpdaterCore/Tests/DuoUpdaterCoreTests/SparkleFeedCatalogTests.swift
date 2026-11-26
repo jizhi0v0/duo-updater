@@ -85,6 +85,36 @@ struct SparkleFeedCatalogTests {
         #expect(SparkleFeedCatalog.feed(forBundleID: nil) == nil)
     }
 
+    @Test func rogueAmoebaFeedKeepsPaidGenerationsSeparate() throws {
+        let soundSource = "com.rogueamoeba.soundsource"
+        let oldFeed = try #require(SparkleFeedCatalog.feed(forBundleID: soundSource, installedVersion: "5.8.9"))
+        let newFeed = try #require(SparkleFeedCatalog.feed(forBundleID: soundSource, installedVersion: "6.1.4"))
+        #expect(oldFeed.absoluteString.hasSuffix("&version=5008000"))
+        #expect(newFeed.absoluteString.hasSuffix("&version=6008000"))
+        #expect(SparkleFeedCatalog.feed(forBundleID: soundSource, installedVersion: "7.0") == nil)
+        #expect(SparkleFeedCatalog.feed(forBundleID: "com.rogueamoeba.Farrago", installedVersion: "1.6.8") == nil)
+
+        let oldBody = Data("""
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+        <channel><item><sparkle:version>5.9.0</sparkle:version>
+        <sparkle:minimumSystemVersion>14.5</sparkle:minimumSystemVersion>
+        <enclosure url="https://rogueamoeba.com/legacy/downloads/SoundSource-590.zip"/>
+        <description><![CDATA[<!DOCTYPE html>
+        <html><head><link rel="stylesheet" href="release-notes.css"></head>
+        <body><header><h3>Updated in SoundSource 5.9.0:</h3></header>
+        <div ra-version="5.9.0" ra-product="soundsource" class="version-note current">
+        <div class="general"><ul><li><p>ARK Plugin Updated to 13.1.3</p></li></ul></div>
+        </div></body></html>]]></description>
+        </item></channel></rss>
+        """.utf8)
+        let items = SparkleAppcastSource.parsedItems(oldBody, feedURL: oldFeed, bundleID: soundSource)
+        #expect(items.first?.shortVersionString == "5.9.0")
+        #expect(items.first?.maximumSystemVersion == "26.99.99")
+        #expect(SparkleAppcastSource.structuredChangelog(from: items)?.entries.first?.items
+                == ["ARK Plugin Updated to 13.1.3"])
+        #expect(SparkleAppcastSource.parsedItems(oldBody, feedURL: newFeed, bundleID: soundSource).isEmpty)
+    }
+
     /// Derived from the table, so a new entry is covered the day it lands.
     /// `feed(forBundleID:)` lowercases its argument, so a key carrying a capital
     /// is unreachable — `ChangelogCatalog` shipped exactly that bug once

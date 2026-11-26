@@ -488,7 +488,9 @@ if let remote {
 // no harness.
 var chainFeedURL = (info["SUFeedURL"] as? String)
     .flatMap { URL(string: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-if chainFeedURL == nil { chainFeedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
+if chainFeedURL == nil {
+    chainFeedURL = SparkleFeedCatalog.feed(forBundleID: bundleID, installedVersion: shortVersion)
+}
 let supersededFeed = chainFeedURL
 if let live = SparkleFeedCatalog.replacement(
     forBundleID: bundleID, declaredFeed: chainFeedURL) {

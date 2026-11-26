@@ -183,6 +183,16 @@ enum CLIToolPresentation {
         return status.installedVersion ?? String(localized: "Version can’t be read")
     }
 
+    static func summaryDetails(_ statuses: [CLIToolStatus], reason: (CLIToolStatus) -> String) -> [SummaryDetail] {
+        let names = statuses.map { $0.name ?? $0.kind.displayName }
+        let occurrences = Dictionary(names.map { ($0, 1) }, uniquingKeysWith: +)
+        return zip(statuses, names).map { status, name in
+            let path = occurrences[name, default: 0] > 1
+                ? (status.path as NSString).abbreviatingWithTildeInPath : nil
+            return SummaryDetail(title: name, path: path, message: reason(status))
+        }
+    }
+
     /// The one line a row shows instead of versions when the check gave no
     /// verdict. nil when it did.
     static func rowWarning(_ status: CLIToolStatus) -> String? {

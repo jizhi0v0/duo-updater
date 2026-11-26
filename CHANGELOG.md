@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.32
+
+**Homebrew update counts are consistent between the menu bar and Workbench.** Homebrew details now list dependencies that Upgrade All can include, with available versions when reported.
+
+**Update details open from their info icons.** Tool warnings and exact download sizes are easier to read.
+
 ## 0.5.31
 
 **DuoUpdater can now find and install official updates for Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo, and SoundSource.** On compatible Macs, SoundSource 5 gets 5.x updates.

@@ -145,6 +145,33 @@ import Foundation
         #expect(await BrewFormulaService.caskLifecycles(installedInfo: Data(), installsAnApp: { _ in false }).isEmpty)
     }
 
+    @Test func aCaskWithoutAWarningOnAnExistingRowKeepsItsOwnWarning() async throws {
+        let uncheckedGUI = BrewUncheckedPackage(
+            fullName: "org/tap/zzfixture-gui", kind: .cask, installedVersion: "2.1.0", reason: .tapNotTrusted)
+        let casks = await BrewFormulaService.caskLifecycles(
+            installedInfo: Self.caskInfo, installsAnApp: { $0 == "zzfixture-pkg" || $0 == "zzfixture-gui" },
+            uncheckedRows: [uncheckedGUI])
+        let cli = try #require(casks.first { $0.token == "zzfixture-cli" })
+        let gui = try #require(casks.first { $0.token == "zzfixture-gui" })
+        let pkg = try #require(casks.first { $0.token == "zzfixture-pkg" })
+        let qualified = BrewInstalledFormula(
+            name: "org/tap/zzfixture-cli", installedVersion: "152.0", availableVersion: nil,
+            lifecycle: cli.lifecycle, kind: .cask)
+
+        #expect(BrewCaskLifecycle.standaloneWarnings(
+            casks, packageRows: [qualified], uncheckedRows: [], appPaths: Set(gui.appPaths)) == [pkg])
+        #expect(BrewCaskLifecycle.standaloneWarnings(
+            casks, packageRows: [], uncheckedRows: [], appPaths: []) == [cli, gui, pkg])
+        #expect(gui.matchesUncheckedPackage(uncheckedGUI))
+        #expect(BrewCaskLifecycle.standaloneWarnings(
+            casks, packageRows: [qualified], uncheckedRows: [uncheckedGUI], appPaths: []) == [pkg])
+        let oldTapGUI = BrewUncheckedPackage(
+            fullName: "old/tap/zzfixture-gui", kind: .cask, installedVersion: "2.1.0", reason: .tapNotTrusted)
+        #expect(!gui.matchesUncheckedPackage(oldTapGUI))
+        #expect(BrewCaskLifecycle.standaloneWarnings(
+            casks, packageRows: [qualified], uncheckedRows: [oldTapGUI], appPaths: []) == [gui, pkg])
+    }
+
     /// Through the service: the report carries the lifecycles from the same
     /// `info` read the unchecked packages use.
     @Test func serviceReportsLifecycles() async {

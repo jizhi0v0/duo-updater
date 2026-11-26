@@ -2,6 +2,12 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.32
+
+**Il numero di aggiornamenti Homebrew coincide nella barra dei menu e in Workbench.** I dettagli di Homebrew mostrano anche le dipendenze che «Aggiorna tutto» può includere e, quando disponibili, le relative versioni.
+
+**I dettagli degli aggiornamenti si aprono dalle icone delle informazioni.** Gli avvisi degli strumenti e le dimensioni esatte dei download sono più leggibili.
+
 ## 0.5.31
 
 **DuoUpdater ora trova e installa gli aggiornamenti ufficiali di Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo e SoundSource.** Sui Mac compatibili, SoundSource 5 riceve gli aggiornamenti della serie 5.x.

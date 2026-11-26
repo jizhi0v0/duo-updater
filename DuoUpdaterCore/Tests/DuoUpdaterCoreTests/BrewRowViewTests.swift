@@ -427,6 +427,24 @@ import Testing
             expected: BrewPopoverRow(lines: [.updates(2), .notChecked(1), .deprecated(3)], mark: .unchecked,
                                      button: .update(admin: false), isRunning: false)),
         PopoverCase(
+            name: "one listed update and five unlisted batch targets",
+            snapshot: Snapshot(outdated: 6, listedOutdated: 1, unlistedOutdated: 5, deprecated: 2),
+            expected: BrewPopoverRow(lines: [.updates(1), .deprecated(2)], mark: nil,
+                                     button: .update(admin: false), isRunning: false)),
+        PopoverCase(
+            name: "only unlisted batch targets",
+            snapshot: Snapshot(outdated: 5, listedOutdated: 0, unlistedOutdated: 5),
+            expected: BrewPopoverRow(lines: [.unlistedUpdates(5)], mark: nil,
+                                     button: .update(admin: false), isRunning: false)),
+        PopoverCase(
+            name: "a listed update with no batch action",
+            snapshot: Snapshot(listedOutdated: 1),
+            expected: BrewPopoverRow(lines: [.updates(1)], mark: nil, button: .none, isRunning: false)),
+        PopoverCase(
+            name: "a newer cask whose registered app path is missing",
+            snapshot: Snapshot(hasMissingPathUpdate: true),
+            expected: BrewPopoverRow(lines: [.registeredPathMissing], mark: nil, button: .none, isRunning: false)),
+        PopoverCase(
             // The last Upgrade All's failure in place of the count, with the Update.
             name: "upgrade error",
             snapshot: Snapshot(upgradeAllError: "Error: brew", outdated: 2, deprecated: 1),

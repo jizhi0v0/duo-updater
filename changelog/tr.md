@@ -2,6 +2,12 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.32
+
+**Homebrew güncelleme sayıları menü çubuğunda ve Workbench’te artık aynı.** Homebrew ayrıntıları, “Tümünü Güncelle” işlemine dahil olabilecek bağımlılıkları ve bildirilen kullanılabilir sürümlerini gösteriyor.
+
+**Güncelleme ayrıntıları bilgi simgelerinden açılıyor.** Araç uyarılarını ve tam indirme boyutlarını okumak daha kolay.
+
 ## 0.5.31
 
 **DuoUpdater artık Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo ve SoundSource için resmî güncellemeleri bulup yükleyebiliyor.** Uyumlu Mac’lerde SoundSource 5, 5.x serisinin güncellemelerini alır.

@@ -67,6 +67,8 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     /// The version `brew outdated` says is available, or nil when up to date.
     public let availableVersion: String?
     public var hasUpdate: Bool { availableVersion != nil }
+    /// Whether Workbench can show the newer version on this package row.
+    public var hasListedUpdate: Bool { hasUpdate && missingAppPath == nil }
     /// Set when Homebrew has deprecated or disabled it — see `BrewLifecycle`.
     public var lifecycle: BrewLifecycle? = nil
     /// Set when the keg in use was built from HEAD — see `BrewHeadInstall`.
@@ -184,8 +186,8 @@ public struct BrewLifecycle: Sendable, Equatable {
 /// necessarily Homebrew: `HomebrewCaskCatalog` drops disabled casks (#881), so a
 /// disabled cask's app is checked by Sparkle or another source, or by none. So the
 /// notice goes on whatever row has the app's path, matched on the `target` brew
-/// records for each `app` artifact. A cask that installs no app (a CLI, a font)
-/// has no row of its own, and gets one for this.
+/// records for each `app` artifact. Workbench gives the notice its own row
+/// when neither a package row nor an app row can show it.
 public struct BrewCaskLifecycle: Sendable, Identifiable, Equatable {
     public var id: String { token }
     public let token: String
@@ -197,16 +199,34 @@ public struct BrewCaskLifecycle: Sendable, Identifiable, Equatable {
     /// records no path for it).
     public let installsAnApp: Bool
     public let lifecycle: BrewLifecycle
+    let uncheckedPackageID: String?
 
     public init(
         token: String, installedVersion: String, appPaths: [String],
-        installsAnApp: Bool, lifecycle: BrewLifecycle
+        installsAnApp: Bool, lifecycle: BrewLifecycle, uncheckedPackageID: String? = nil
     ) {
         self.token = token
         self.installedVersion = installedVersion
         self.appPaths = appPaths
         self.installsAnApp = installsAnApp
         self.lifecycle = lifecycle
+        self.uncheckedPackageID = uncheckedPackageID
+    }
+
+    public func matchesUncheckedPackage(_ package: BrewUncheckedPackage) -> Bool {
+        uncheckedPackageID == package.id && installedVersion == package.installedVersion
+    }
+
+    public static func standaloneWarnings(
+        _ warnings: [Self], packageRows: [BrewInstalledFormula],
+        uncheckedRows: [BrewUncheckedPackage], appPaths: Set<String>
+    ) -> [Self] {
+        let packageTokens = Set(packageRows.lazy.filter { $0.kind == .cask && $0.lifecycle != nil }
+            .map { BrewFormulaService.shortName($0.name) })
+        return warnings.filter { warning in
+            !packageTokens.contains(warning.token) && appPaths.isDisjoint(with: warning.appPaths)
+                && !uncheckedRows.contains(where: warning.matchesUncheckedPackage)
+        }
     }
 }
 
@@ -665,7 +685,8 @@ public actor BrewFormulaService {
             availableCasks: Self.parseLines(caskNamesRead.output),
             formulaVersions: versions)
         let lifecycles = Self.lifecycles(installedInfo: info)
-        let caskLifecycles = await Self.caskLifecycles(installedInfo: info, installsAnApp: caskInstallsAnApp)
+        let caskLifecycles = await Self.caskLifecycles(
+            installedInfo: info, installsAnApp: caskInstallsAnApp, uncheckedRows: candidates)
         let headInstalls = Self.headInstalls(installedInfo: info)
         var tapRead = true
         var untrustedTaps: Set<String> = []
@@ -841,7 +862,7 @@ public actor BrewFormulaService {
     /// `BrewCaskLifecycle` for every cask `info --json=v2 --installed` flags, by
     /// token. [] for a read that doesn't parse.
     static func caskLifecycles(
-        installedInfo: Data, installsAnApp: (String) async -> Bool
+        installedInfo: Data, installsAnApp: (String) async -> Bool, uncheckedRows: [BrewUncheckedPackage] = []
     ) async -> [BrewCaskLifecycle] {
         guard
             let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
@@ -862,12 +883,15 @@ public actor BrewFormulaService {
             }
             // Not just "has an `app` artifact": its app may be gone (`caskFacts`).
             let hasApp = await installsAnApp(token)
+            // Reuse the receipt-backed identity from this read. The UI may
+            // still have an unchecked row from an earlier read of another tap.
+            let uncheckedID = uncheckedRows.first { $0.kind == .cask && $0.name == token }?.id
             out.append(BrewCaskLifecycle(
                 token: token,
                 installedVersion: (c["installed"] as? String) ?? "—",
                 appPaths: appPaths,
                 installsAnApp: hasApp,
-                lifecycle: lifecycle))
+                lifecycle: lifecycle, uncheckedPackageID: uncheckedID))
         }
         return out.sorted { $0.token.localizedCaseInsensitiveCompare($1.token) == .orderedAscending }
     }

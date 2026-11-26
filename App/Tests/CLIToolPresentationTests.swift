@@ -24,6 +24,19 @@ struct CLIToolPresentationTests {
             detail: .fx(FxInstall(path: path, version: version)))
     }
 
+    @Test func summaryDetailsIdentifyEachCopySharingAToolName() {
+        let first = fx("/tmp/duo-tests/first/bin/fx")
+        let second = fx("/tmp/duo-tests/second/bin/fx")
+        let name = first.kind.displayName
+        let details = CLIToolPresentation.summaryDetails([first, second]) { _ in "Version unavailable" }
+        #expect(details == [
+            SummaryDetail(title: name, path: first.path, message: "Version unavailable"),
+            SummaryDetail(title: name, path: second.path, message: "Version unavailable")
+        ])
+        #expect(CLIToolPresentation.summaryDetails([first]) { _ in "Version unavailable" }
+            == [SummaryDetail(title: name, message: "Version unavailable")])
+    }
+
     /// The command to copy only beside an update withheld because the user turned
     /// the tool's auto-update off. Mutation: dropping the `withheld` check hands it
     /// out beside a running update.

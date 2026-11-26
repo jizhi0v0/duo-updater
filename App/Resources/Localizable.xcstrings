@@ -25324,6 +25324,173 @@
         }
       }
     },
+    "%lld unlisted updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld nicht aufgeführtes Update"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld nicht aufgeführte Updates"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld unlisted update"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld unlisted updates"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld actualización fuera de la lista"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld actualizaciones fuera de la lista"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld mise à jour hors liste"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld mises à jour hors liste"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld aggiornamento fuori elenco"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld aggiornamenti fuori elenco"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件の一覧にないアップデート"
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld atualização fora da lista"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld atualizações fora da lista"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld обновление вне списка"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld обновления вне списка"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld обновлений вне списка"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld обновления вне списка"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld güncelleme liste dışında"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 项更新未列出"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 項更新未列出"
+          }
+        }
+      }
+    },
     "%lld updates": {
       "extractionState": "manual",
       "localizations": {
@@ -48719,6 +48886,77 @@
           "stringUnit": {
             "state": "translated",
             "value": "Homebrew %@ 可供使用"
+          }
+        }
+      }
+    },
+    "Homebrew’s last check reported these updates for packages outside the list, such as dependencies.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die letzte Homebrew-Prüfung meldete diese Updates für Pakete außerhalb der Liste, etwa Abhängigkeiten."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew’s last check reported these updates for packages outside the list, such as dependencies."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La última comprobación de Homebrew detectó estas actualizaciones para paquetes fuera de la lista, como las dependencias."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La dernière vérification de Homebrew a trouvé ces mises à jour pour des paquets hors liste, comme les dépendances."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’ultimo controllo di Homebrew ha rilevato questi aggiornamenti per pacchetti fuori dall’elenco, come le dipendenze."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew の前回の確認で、依存パッケージなど一覧外のパッケージにこれらの更新が見つかりました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A última verificação do Homebrew encontrou estas atualizações de pacotes fora da lista, como dependências."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "При последней проверке Homebrew обнаружил эти обновления для пакетов вне списка, например зависимостей."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son Homebrew denetimi, bağımlılıklar gibi liste dışındaki paketler için bu güncellemeleri buldu."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 上次检查发现，列表之外的包也有这些更新，例如依赖包。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 上次檢查發現，清單之外的套件也有這些更新，例如相依套件。"
           }
         }
       }
@@ -73572,67 +73810,73 @@
         }
       }
     },
-    "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.": {
+    "Runs `brew upgrade --formula`, then upgrades eligible casks by name.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Führt `brew upgrade --formula` aus und aktualisiert anschließend jeden aufgeführten Cask namentlich. Umfasst Kommandozeilen-Formeln sowie Casks, die keine App installieren (CLIs, Schriften) – diese haben keine eigene Zeile. GUI-Casks werden oben pro App verwaltet und nie berührt. Die Anzahl liest deinen lokalen Tap; brew aktualisiert sich während des Upgrades selbst, sodass trotzdem die neueste Version landet."
+            "value": "Führt `brew upgrade --formula` aus und aktualisiert anschließend geeignete Casks anhand ihres Namens."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runs `brew upgrade --formula`, then upgrades eligible casks by name."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ejecuta `brew upgrade --formula` y luego actualiza por nombre cada cask listado. Cubre las fórmulas de línea de comandos y los casks que no instalan ninguna app (CLI, fuentes), que no tienen fila propia. Los casks GUI se gestionan por app arriba y nunca se tocan aquí. El recuento lee tu tap local; brew se actualiza a sí mismo durante el proceso, así que igualmente obtiene la última versión."
+            "value": "Ejecuta `brew upgrade --formula` y luego actualiza los casks aptos por nombre."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Exécute `brew upgrade --formula`, puis met à niveau chaque cask listé par son nom. Couvre les formules en ligne de commande ainsi que les casks qui n'installent aucune application (CLI, polices) — ceux-ci n'ont pas de ligne propre. Les casks GUI sont gérés par application ci-dessus et ne sont jamais touchés. Le nombre lit votre tap local ; brew se rafraîchit lui-même pendant la mise à niveau, donc la dernière version est quand même obtenue."
+            "value": "Exécute `brew upgrade --formula`, puis met à jour par leur nom les casks admissibles."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esegue `brew upgrade --formula`, poi aggiorna per nome ogni cask elencato. Copre le formule da riga di comando e i cask che non installano app (CLI, font), che non hanno una riga propria. I cask con interfaccia grafica si gestiscono per app qui sopra e non vengono mai toccati. Il conteggio legge il tuo tap locale; brew si aggiorna durante l’upgrade, quindi installa comunque l’ultima versione."
+            "value": "Esegue `brew upgrade --formula`, quindi aggiorna per nome i cask idonei."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "`brew upgrade --formula` を実行し、その後リストにある各Caskを名前で個別にアップグレードします。CLIフォーミュラと、アプリをインストールしないCask（CLI、フォントなど、専用の行がないもの）が対象です。GUI Caskは上の各アプリ行で管理され、ここでは決して操作されません。件数はローカルのtapを参照します。アップグレード中にbrew自体も更新されるため、常に最新の状態が反映されます。"
+            "value": "`brew upgrade --formula` を実行し、更新可能な cask を名前で指定してアップグレードします。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Executa `brew upgrade --formula` e depois atualiza pelo nome cada cask listado. Abrange fórmulas de linha de comando e casks que não instalam app (CLIs, fontes) — esses não têm linha própria. Os casks com interface são gerenciados por app acima e nunca são tocados. A contagem lê o seu tap local; o brew se atualiza durante o upgrade, então ainda chega à versão mais recente."
+            "value": "Executa `brew upgrade --formula` e depois atualiza os casks elegíveis pelo nome."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Выполняет `brew upgrade --formula`, затем обновляет по имени каждый указанный cask. Охватывает формулы командной строки и casks, не устанавливающие приложение (CLI, шрифты) — у них нет отдельной строки. GUI-casks управляются построчно выше и никогда не затрагиваются. Счётчик читает ваш локальный tap; brew обновляется сам в процессе, так что всё равно устанавливается последняя версия."
+            "value": "Выполняет `brew upgrade --formula`, а затем обновляет подходящие cask по имени."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "`brew upgrade --formula` çalıştırır, ardından listelenen her cask’i adıyla yükseltir. Komut satırı formüllerini ve uygulama yüklemeyen cask’leri (CLI’lar, fontlar) kapsar — bunların kendi satırı yoktur. GUI cask’leri yukarıda uygulama bazında yönetilir ve asla ellenmez. Sayı yerel tap’inizden okunur; brew yükseltme sırasında kendini yenilediği için yine de en son sürüm yüklenir."
+            "value": "`brew upgrade --formula` komutunu çalıştırır, ardından uygun cask’leri adlarına göre yükseltir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "运行 `brew upgrade --formula`，然后按名称升级所有列出的 cask。涵盖命令行 formula 以及不安装应用的 cask（CLI、字体）— 它们没有自己的行。GUI cask 在上方按应用逐个管理，绝不会被触及。计数读取你本地的 tap；brew 会在升级过程中自我刷新，因此仍会获取最新版本。"
+            "value": "运行 `brew upgrade --formula`，然后按名称升级符合条件的 cask。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "執行 `brew upgrade --formula`，然後依名稱升級列出的每個 cask。涵蓋命令列 formula，以及不安裝 App 的 cask（CLI、字型）——它們沒有自己的列。GUI cask 在上方依 App 個別管理，絕不會被動到。數量讀取自你本機的 tap；brew 會在升級時自行更新，因此仍會裝到最新版本。"
+            "value": "執行 `brew upgrade --formula`，再按名稱升級符合條件的 cask。"
           }
         }
       }
@@ -78467,6 +78711,77 @@
           "stringUnit": {
             "state": "translated",
             "value": "有些備份未能刪除"
+          }
+        }
+      }
+    },
+    "Some listed updates aren’t eligible for Upgrade All.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einige aufgeführte Updates sind von „Alle aktualisieren“ ausgenommen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some listed updates aren’t eligible for Upgrade All."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algunas actualizaciones de la lista no se pueden aplicar con «Actualizar todo»."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Certaines mises à jour de la liste ne sont pas prises en charge par « Tout mettre à jour »."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alcuni aggiornamenti nell’elenco non sono disponibili con «Aggiorna tutto»."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一覧にある一部の更新は「すべてアップグレード」の対象外です。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algumas atualizações da lista ficam fora de “Atualizar tudo”."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Некоторые обновления из списка недоступны через «Обновить всё»."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listedeki bazı güncellemeler “Tümünü yükselt” kapsamına girmez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列表中的部分更新无法通过「全部升级」执行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清單中的部分更新無法透過「全部升級」執行。"
           }
         }
       }

@@ -1302,11 +1302,22 @@ final class AppListModel {
         return brewCaskLifecycles.first { $0.appPaths.contains(path) }
     }
 
-    /// Flagged casks that install no app, so no other row would carry the notice.
-    var brewAppLessCaskLifecycles: [BrewCaskLifecycle] {
-        // A cask with a row of its own in the tree carries its notice there.
-        let listed = Set(brewFormulae.filter { $0.kind == .cask }.map(\.name))
-        return brewCaskLifecycles.filter { !$0.installsAnApp && !listed.contains($0.token) }
+    func brewCaskLifecycle(for package: BrewUncheckedPackage) -> BrewCaskLifecycle? {
+        guard package.kind == .cask else { return nil }
+        return brewCaskLifecycles.first { $0.matchesUncheckedPackage(package) }
+    }
+
+    /// Cask notices that need their own row in the Workbench Homebrew group.
+    var brewStandaloneCaskLifecycles: [BrewCaskLifecycle] {
+        brewStandaloneCaskLifecycles(for: brewFormulae)
+    }
+
+    private func brewStandaloneCaskLifecycles(for packages: [BrewInstalledFormula]) -> [BrewCaskLifecycle] {
+        guard !brewCaskLifecycles.isEmpty else { return [] }
+        let appPaths = Set(results.lazy.filter { !self.prefs.isIgnored($0.app) }
+            .map { $0.app.path.standardizedFileURL.path })
+        return BrewCaskLifecycle.standaloneWarnings(
+            brewCaskLifecycles, packageRows: packages, uncheckedRows: brewUnchecked, appPaths: appPaths)
     }
     /// Whether Homebrew is installed at all (cached once — install state doesn't
     /// change mid-session). Lets the menu reserve the brew row's space from the very
@@ -5144,24 +5155,62 @@ final class AppListModel {
         brewFormula(formula.key, hasUpdate: formula.canUpgrade).row(upgradeAll: upgradeAllPhase)
     }
 
+    struct BrewBatchCounts {
+        let listed: Int
+        let eligible: Int
+        fileprivate let eligibleKeys: Set<String>
+        private let unlistedKeys: Set<String>
+        private let targets: [BrewOutdatedFormula]
+
+        var unlisted: Int { unlistedKeys.count }
+
+        var unlistedTargets: [BrewOutdatedFormula] {
+            var remaining = unlistedKeys
+            return targets.filter { target in
+                let key = BrewInstalledFormula.key(kind: target.kind, name: target.name)
+                return remaining.remove(key) != nil
+            }
+        }
+
+        fileprivate init(packages: [BrewInstalledFormula], targets: [BrewOutdatedFormula]) {
+            let listedUpdates = packages.filter(\.hasListedUpdate)
+            self.targets = targets
+            eligibleKeys = Set(targets.map { BrewInstalledFormula.key(kind: $0.kind, name: $0.name) })
+            listed = listedUpdates.count
+            eligible = targets.count
+            unlistedKeys = eligibleKeys.subtracting(listedUpdates.map(\.key))
+        }
+    }
+
+    /// Counts used by the Workbench summary without observing run progress.
+    var brewBatchCounts: BrewBatchCounts {
+        BrewBatchCounts(packages: brewFormulae, targets: brewOutdatedFormulae)
+    }
+
     /// What the popover's Homebrew row and the workbench's Upgrade All draw
     /// from (`BrewRowSnapshot`).
     var brewRowSnapshot: BrewRowSnapshot {
-        let outdatedKeys = Set(brewOutdatedFormulae.map {
-            BrewInstalledFormula.key(kind: $0.kind, name: $0.name)
-        })
+        let packages = brewFormulae
+        let counts = BrewBatchCounts(packages: packages, targets: brewOutdatedFormulae)
+        let deprecatedPackages = packages.filter { $0.lifecycle != nil }
+        let deprecatedCaskTokens = Set(deprecatedPackages.lazy.filter { $0.kind == .cask }
+            .map { ($0.name as NSString).lastPathComponent })
+        let deprecatedUnchecked = Set(brewUnchecked.compactMap { brewCaskLifecycle(for: $0)?.token })
+        let deprecated = deprecatedPackages.count
+            + deprecatedUnchecked.subtracting(deprecatedCaskTokens).count
+            + brewStandaloneCaskLifecycles(for: packages).count
         return .live(
             upgradeAll: brewRun(Self.upgradeAllJobID, upgradeAllPhase),
             upgradeAllDone: brewUpgradeDone, upgradeAllTotal: brewUpgradeTotal, upgradeAllError: brewUpgradeError,
             // The popover row's: those with an upgrade of their own claimed.
             formulae: upgradingFormulae.sorted().map { name in
-                brewFormula(name, hasUpdate: outdatedKeys.contains(name))
+                brewFormula(name, hasUpdate: counts.eligibleKeys.contains(name))
             },
             installed: brewInstalled, checked: brewChecked,
-            outdated: brewOutdatedFormulae.count, unchecked: brewUnchecked.count,
-            // Casks once: every flagged one is in `brewCaskLifecycles`, rows or not.
-            deprecated: brewFormulae.filter { $0.kind == .formula && $0.lifecycle != nil }.count
-                + brewCaskLifecycles.count,
+            outdated: counts.eligible, listedOutdated: counts.listed,
+            unlistedOutdated: counts.unlisted,
+            hasMissingPathUpdate: packages.contains { $0.hasUpdate && $0.missingAppPath != nil },
+            unchecked: brewUnchecked.count, deprecated: deprecated,
             readError: brewReadError)
     }
 

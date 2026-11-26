@@ -5,6 +5,7 @@ import os
 import shutil
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -202,7 +203,8 @@ class MiniCompilationCache(unittest.TestCase):
                 product = self.slot / "replay-data"
                 product.touch()
                 cache.save_mini_cas("platform")
-                with mock.patch.object(cache, "cas_over_budget", return_value=oversize):
+                size_kib = cache.CAS_MAX_KIB + 1 if oversize else 1
+                with mock.patch.object(cache, "cas_size_kib", return_value=size_kib):
                     self.assertTrue(self.prepare(platform))
                 self.assertFalse(product.exists())
 
@@ -212,7 +214,32 @@ class MiniCompilationCache(unittest.TestCase):
         self.disk.return_value.free = cache.mini.MIN_FREE_BYTES
         self.assertIsNone(self.prepare())
         self.assertFalse(self.slot.exists())
+
+    def test_valid_cas_only_reserves_space_for_remaining_growth(self):
+        self.prepare()
+        entry = self.slot / "replay-data"
+        entry.touch()
+        size_kib = 1536 * 1024
+        with mock.patch.object(cache.mini, "command", return_value=str(size_kib).encode()):
+            cache.save_mini_cas("platform")
+
+            def disk_usage(_path):
+                # Model the space returned to the disk if prepare deletes CAS.
+                free = 11 * 1024**3 + (0 if entry.exists() else size_kib * 1024)
+                return mock.Mock(free=free)
+
+            self.disk.side_effect = disk_usage
+            self.assertIsNotNone(self.prepare())
+            self.assertTrue(entry.is_file(), "a valid warm CAS was deleted and recreated")
+
+    def test_temporary_build_does_not_enable_cas_with_enough_disk(self):
         self.assertIsNone(self.prepare(persistent_build=False))
+        self.assertFalse(self.slot.exists())
+
+    def test_invalid_checkout_path_does_not_enable_cas_with_enough_disk(self):
+        with mock.patch.object(cache, "supports_cas_paths", side_effect=lambda *paths: paths == (self.slot,)):
+            self.assertIsNone(cache.prepare_mini_cas(self.workspace, "platform", cache.mini_slot(self.workspace)))
+        self.assertFalse(self.slot.exists())
 
     def test_invalid_checkout_path_still_evicts_under_disk_pressure(self):
         self.prepare()
@@ -222,6 +249,53 @@ class MiniCompilationCache(unittest.TestCase):
         with mock.patch.object(cache, "supports_cas_paths", side_effect=lambda *paths: paths == (self.slot,)):
             self.assertIsNone(cache.prepare_mini_cas(self.workspace, "platform", cache.mini_slot(self.workspace)))
         self.assertFalse(self.slot.exists())
+
+    def test_prepare_reclaims_interrupted_cas_before_discarding_derived_data(self):
+        subprocess.run(["git", "init", "-q", str(self.workspace)], check=True)
+        env_file = self.root / "env"
+        previous_directory = Path.cwd()
+        os.chdir(self.workspace)
+        self.addCleanup(os.chdir, previous_directory)
+        with mock.patch.dict(os.environ, {"GITHUB_ENV": str(env_file)}), \
+             mock.patch.object(cache, "supports_cas_paths", return_value=True):
+            cache.prepare_mini(self.workspace, "platform")
+            build_slot = cache.mini_slot(self.workspace)
+            product = build_slot / "build-product"
+            product.touch()
+            cache.save_mini(self.workspace, cache.cache_key(self.workspace, "platform"))
+            dirty_cas = self.slot / "interrupted-entry"
+            dirty_cas.touch()
+
+            def disk_usage(_path):
+                return mock.Mock(free=(19 if dirty_cas.exists() else 22) * 1024**3 // 2)
+
+            self.disk.side_effect = disk_usage
+            env_file.write_text("")
+            cache.prepare_mini(self.workspace, "platform")
+        self.assertTrue(product.is_file(), "DerivedData should survive after reclaiming the interrupted CAS")
+        self.assertFalse(dirty_cas.exists())
+        self.assertIn(f"MINI_APP_SCRATCH={build_slot}\n", env_file.read_text())
+        self.assertIn("DUO_CI_XCODE_CAS_CONFIG=\n", env_file.read_text())
+
+    def test_save_reclaims_cas_before_applying_derived_data_disk_floor(self):
+        subprocess.run(["git", "init", "-q", str(self.workspace)], check=True)
+        previous_directory = Path.cwd()
+        os.chdir(self.workspace)
+        self.addCleanup(os.chdir, previous_directory)
+        config = self.prepare()
+        build_slot = cache.mini_slot(self.workspace)
+        build_slot.mkdir()
+        product = build_slot / "build-product"
+        product.touch()
+        self.disk.side_effect = lambda _path: mock.Mock(free=(19 if self.slot.exists() else 22) * 1024**3 // 2)
+        env = {"GITHUB_WORKSPACE": str(self.workspace), "GITHUB_JOB": "app", "MINI_PLATFORM": "platform",
+               "MINI_APP_CACHE_KEY": cache.cache_key(self.workspace, "platform"),
+               "DUO_CI_XCODE_CAS_CONFIG": config}
+        with mock.patch.dict(os.environ, env), mock.patch.object(sys, "argv", ["ci_xcode_cache.py", "save-mini"]):
+            cache.main()
+        self.assertFalse(self.slot.exists())
+        self.assertTrue(product.is_file())
+        self.assertEqual((build_slot / cache.mini.READY).read_text(), env["MINI_APP_CACHE_KEY"])
 
     def test_symlink_slot_cannot_be_used_as_a_cache_or_deleted(self):
         target = self.root / "unrelated"

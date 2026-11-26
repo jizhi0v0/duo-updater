@@ -148,8 +148,12 @@ struct HomebrewGroupSummary: View {
             items: unlistedUpdates.map { update in
                 // An alias migration can be outdated with the same reported version.
                 guard !update.installedVersion.isEmpty, !update.currentVersion.isEmpty,
-                      update.installedVersion != update.currentVersion else { return update.name }
-                return "\(update.name) · \(update.installedVersion) → \(update.currentVersion)"
+                      update.installedVersion != update.currentVersion else { return AttributedString(update.name) }
+                var line = AttributedString("\(update.name) · \(update.installedVersion) → ")
+                var available = AttributedString(update.currentVersion)
+                available.foregroundColor = Color.accentColor
+                line.append(available)
+                return line
             }
         )
     }

@@ -16,7 +16,7 @@ struct SummaryDetailButton: View {
         case error(String)
         case value(String)
         case tools([SummaryDetail])
-        case counts([String], explanation: String?, caveat: String?, items: [String])
+        case counts([String], explanation: String?, caveat: String?, items: [AttributedString])
     }
 
     let content: Content
@@ -111,7 +111,9 @@ struct SummaryDetailButton: View {
         }
     }
 
-    private func countDetails(_ counts: [String], explanation: String?, caveat: String?, items: [String]) -> some View {
+    private func countDetails(
+        _ counts: [String], explanation: String?, caveat: String?, items: [AttributedString]
+    ) -> some View {
         let facts = ForEach(counts.indices, id: \.self) { index in
             Text(verbatim: counts[index])
         }
@@ -138,7 +140,7 @@ struct SummaryDetailButton: View {
             if !items.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(items.indices, id: \.self) { index in
-                        Text(verbatim: items[index])
+                        Text(items[index])
                     }
                 }
                 .font(.footnote.monospacedDigit())

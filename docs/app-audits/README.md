@@ -236,6 +236,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — GitHub Releases
 
+- [x] [**Videoquetsche**](de-aketo-videoquetsche.md) · G + C · stable · 2026-11-27
+
 - [x] [**OpenScreens**](com-burakgon-openscreens.md) · `com.burakgon.openscreens` — G（Stable，universal DMG 一键更新）· 2026-11-23
 - [x] [**Multica**](ai-multica-desktop.md) · `ai.multica.desktop` — G（Stable，arm64 DMG，旧 ID 确认后迁移）· 独立 CLI 验摘要原位更新、Homebrew 公式走 Brew · 2026-11-23
 - [x] [**Trina AX**](com-treesoop-mycel.md) · `com.treesoop.mycel` — G（公开 Stable，universal DMG，一键及旧团队重连 VM 验证）· 2026-11-23

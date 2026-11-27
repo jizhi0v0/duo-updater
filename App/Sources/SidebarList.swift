@@ -58,7 +58,9 @@ struct SummaryDetailButton: View {
                             .frame(width: SummaryDetailPopoverLayout.width, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                         ScrollView {
-                            detailContent.frame(maxWidth: .infinity, alignment: .leading)
+                            detailContent
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.trailing, SummaryDetailPopoverLayout.scrollerInset)
                         }
                         .frame(width: SummaryDetailPopoverLayout.width, height: SummaryDetailPopoverLayout.height)
                     }
@@ -154,6 +156,8 @@ struct SummaryDetailButton: View {
 private struct SummaryDetailPopoverLayout: Layout {
     static let width: CGFloat = 256
     static let height: CGFloat = 222
+    // Overlay scrollers draw over the viewport instead of narrowing it.
+    static let scrollerInset = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)
     private static let limit = ProposedViewSize(width: width, height: height)
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

@@ -17,13 +17,13 @@ enum de_aketo_videoquetsche {
                 tagPattern: stableTag),
         ],
         githubRules: [
-            // The v1.1.0 archive reports 1.0 in its bundle. A newer stable
-            // release still upgrades that copy through the same signed ZIP.
+            // v1.1.0 packages version 1.0. Keep its release notes, but never
+            // offer that archive as an upgrade if newer assets disappear.
             GitHubReleaseRule(
                 bundleID: bundleID,
                 owner: "noestreich",
                 repo: "videoquetsche",
-                versionPattern: stableTag,
+                versionPattern: #"^v(?!1\.1\.0$)([0-9]+(?:\.[0-9]+)+)$"#,
                 installAssetPattern: #"^Videoquetsche\.zip$"#,
                 installerKind: .zip),
         ])

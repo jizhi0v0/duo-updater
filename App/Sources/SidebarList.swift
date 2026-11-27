@@ -157,7 +157,7 @@ private struct SummaryDetailPopoverLayout: Layout {
     static let width: CGFloat = 256
     static let height: CGFloat = 222
     // Overlay scrollers draw over the viewport instead of narrowing it.
-    static let scrollerInset = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)
+    @MainActor static let scrollerInset = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)
     private static let limit = ProposedViewSize(width: width, height: height)
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

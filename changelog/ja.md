@@ -2,6 +2,14 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.5.32
+
+**メニューバーと Workbench で Homebrew の更新件数が一致するようになりました。** Homebrew の詳細では、「すべて更新」の対象になり得る依存パッケージと、取得できた更新先バージョンを確認できます。
+
+**情報アイコンから更新の詳細を開けます。** ツールの警告や正確なダウンロードサイズが読みやすくなりました。
+
+**DuoUpdater で Videoquetsche の公式アップデートを検出してインストールできるようになりました。**
+
 ## 0.5.31
 
 **DuoUpdater で Audio Hijack、Airfoil、Airfoil Satellite、Farrago、Fission、Loopback、Piezo、SoundSource の公式アップデートを検出してインストールできるようになりました。** 対応する Mac では、SoundSource 5 に 5.x 系のアップデートが表示されます。

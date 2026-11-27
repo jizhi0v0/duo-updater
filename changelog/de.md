@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.32
+
+**Die Anzahl der Homebrew-Updates stimmt in Menüleiste und Workbench überein.** Die Homebrew-Details zeigen jetzt auch Abhängigkeiten, die „Alle aktualisieren“ erfassen kann, samt verfügbaren Versionen, sofern gemeldet.
+
+**Update-Details lassen sich über ihre Infosymbole öffnen.** Hinweise zu Tools und genaue Downloadgrößen sind leichter zu lesen.
+
+**DuoUpdater findet und installiert jetzt offizielle Updates für Videoquetsche.**
+
 ## 0.5.31
 
 **DuoUpdater kann jetzt offizielle Updates für Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo und SoundSource finden und installieren.** Auf kompatiblen Macs erhält SoundSource 5 Updates der Reihe 5.x.

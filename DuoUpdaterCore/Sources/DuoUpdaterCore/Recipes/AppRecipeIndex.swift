@@ -283,6 +283,7 @@ public enum AppRecipeIndex {
         com_zeabur_oss_desktop.set,
         com_zettlr_app.set,
         company_thebrowser_Browser.set,
+        de_aketo_videoquetsche.set,
         de_amplussoftware_timescribe.set,
         dev_chekusu_yomado.set,
         dev_commandline_waveterm.set,

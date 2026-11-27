@@ -2,6 +2,14 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.32
+
+**菜单栏与 Workbench 的 Homebrew 更新数量现在一致。** Homebrew 详情会列出「全部升级」可能包含的依赖，以及检测到的可用版本。
+
+**点击信息图标即可查看更新详情。** 工具警告和精确的下载大小更易读。
+
+**DuoUpdater 现在可以检测并安装 Videoquetsche 的官方更新。**
+
 ## 0.5.31
 
 **DuoUpdater 现在可以检测并安装 Audio Hijack、Airfoil、Airfoil Satellite、Farrago、Fission、Loopback、Piezo 和 SoundSource 的官方更新。** 在兼容的 Mac 上，SoundSource 5 会收到 5.x 系列更新。

@@ -247,7 +247,7 @@ struct WorkbenchWindowView: View {
         let allApps = apps
         let allRollbackable = rollbackableApps
         let installedFormulae = model.brewFormulae
-        let lifecycleCasks = model.brewAppLessCaskLifecycles
+        let lifecycleCasks = model.brewStandaloneCaskLifecycles
         let brewTotal = installedFormulae.count + model.brewUnchecked.count
             + lifecycleCasks.count + (model.homebrewSelfUpdate == nil ? 0 : 1)
         let cliTools = CLIToolPresentation.holding(
@@ -288,7 +288,7 @@ struct WorkbenchWindowView: View {
             homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
             rollbackable: rollbackMatches.apps,
             bundleIDOnly: Set(appMatches.bundleIDOnly.map(\.id) + rollbackMatches.bundleIDOnly.map(\.id)),
-            hasCLI: brewTotal > 0 || !cliTools.isEmpty,
+            hasCLI: brewTotal > 0 || !cliTools.isEmpty || !model.brewOutdatedFormulae.isEmpty,
             appsTotal: allApps.count,
             cliTotal: brewTotal + cliTools.count,
             rollbackTotal: allRollbackable.count)
@@ -330,13 +330,13 @@ struct WorkbenchWindowView: View {
         return model.brewUnchecked.first { $0.id == packageID }
     }
 
-    /// The app-less deprecated cask selected, when the selection is one of those
+    /// The standalone deprecated cask selected, when the selection is one of those
     /// rows (tagged `brew:cask:<token>`).
     private var selectedLifecycleCask: BrewCaskLifecycle? {
         let prefix = "brew:cask:"
         guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
         let token = String(id.dropFirst(prefix.count))
-        return model.brewAppLessCaskLifecycles.first { $0.token == token }
+        return model.brewStandaloneCaskLifecycles.first { $0.token == token }
     }
 
     /// The Homebrew self-update row's selection tag. Under `brew:`, so it counts
@@ -374,7 +374,7 @@ struct WorkbenchWindowView: View {
                 FormulaDetailPane(formula: formula, model: model)
                     .id(formula.workbenchRowID)
             } else if let package = selectedUnchecked {
-                BrewUncheckedDetailPane(package: package)
+                BrewUncheckedDetailPane(package: package, lifecycle: model.brewCaskLifecycle(for: package)?.lifecycle)
                     .id(package.workbenchRowID)
             } else if let cask = selectedLifecycleCask {
                 BrewLifecycleCaskDetailPane(cask: cask)
@@ -746,8 +746,8 @@ struct WorkbenchWindowView: View {
     /// Homebrew has anything for the CLI tab to show, before the search.
     private var homebrewHasAnything: Bool {
         !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
-            || !model.brewAppLessCaskLifecycles.isEmpty || model.homebrewSelfUpdate != nil
-            || model.brewReadError != nil
+            || !model.brewStandaloneCaskLifecycles.isEmpty || model.homebrewSelfUpdate != nil
+            || model.brewReadError != nil || !model.brewOutdatedFormulae.isEmpty
     }
 
     /// Rows the Homebrew group shows after the search.
@@ -1125,99 +1125,67 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    /// The row under the "Other tools" header: how many updates the tool groups
-    /// below have, and how many copies went unchecked — the whole set's, not the
-    /// search's, like the Homebrew summary. A click on it opens or closes the
-    /// level, like the Homebrew summary's.
-    private func otherToolsSummary(_ lists: SidebarLists) -> some View {
-        toolsSummary(scope: standaloneScope, trailing: nil, toggleDisabled: otherToolsSearchHits(lists)) {
-            toggleOtherTools(lists)
-        }
-    }
-
-    /// The same row under a manager's level: its items' counts, and on the
-    /// right what its group header said — "mise 2026.10.15", with the root after
-    /// it when the manager has more than one, which tells two roots of one
-    /// manager apart.
-    private func managerLevelSummary(_ level: CLIToolPresentation.Group, _ lists: SidebarLists) -> some View {
-        toolsSummary(scope: scope(of: level), trailing: cliToolHeaderSummary(level),
-                     info: managedHeaderInfo(level),
-                     toggleDisabled: managerLevelSearchHits(level, lists)) {
-            toggleManagerLevel(level, lists)
-        }
-    }
-
-    /// A level's counts over the copies `scope` names.
+    /// Counts for Other tools and for each package manager's group.
     private func toolsSummary(
-        scope: Set<CLIToolID>, trailing: String?, info: ManagedHeaderInfo? = nil, toggleDisabled: Bool,
-        toggle: @escaping () -> Void
+        scope: Set<CLIToolID>, trailing: String? = nil, info: ManagedHeaderInfo? = nil
     ) -> some View {
         let tools = model.cliTools
         let inScope = { (status: CLIToolStatus) in scope.contains(status.toolID) }
-        // What Update All updates; a held-back update is counted apart — counted
-        // with them, "2 updates" sat above one Update button.
         let updates = tools.offered.filter(inScope).count
         let held = tools.heldBack.filter(inScope)
-        let unchecked = tools.unchecked.filter(inScope).count
+        let unchecked = tools.unchecked.filter(inScope)
         let sudoCount = tools.adminOffered.filter(inScope).count
         return HStack(spacing: 8) {
-            Button { inOneFrame(toggle) } label: {
-                HStack(spacing: 8) {
-                    if updates > 0 {
-                        Text(String(localized: "\(updates) updates")).foregroundStyle(.tint).lineLimit(1)
-                    } else if held.isEmpty && unchecked == 0 {
-                        // Not while a copy went unanswered: that would be a claim
-                        // about it too (`CLIToolsModel.unchecked`).
-                        Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    if let sudo = CLIToolPresentation.needSudo(sudoCount) {
-                        Text(sudo)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .help(CLIToolPresentation.sudoBadgeHelp)
-                    }
-                    if !held.isEmpty {
-                        // Why each was held back, on hover: "openclaw 2026.9.8 needs …".
-                        Text(String(localized: "\(held.count) held back"))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .help(held.compactMap { status in
-                                status.withheld.map { CLIToolsModel.reason($0, of: status) }
-                            }.joined(separator: "\n"))
-                    }
-                    if unchecked > 0 {
-                        let help = String(localized: "\(unchecked) not checked")
-                        Label {
-                            Text(verbatim: "\(unchecked)")
-                        } icon: {
-                            Image(systemName: "questionmark.circle")
-                        }
-                        .labelStyle(.titleAndIcon)
-                        .foregroundStyle(.orange)
-                        .help(help)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(help)
-                        .fixedSize()
-                    }
-                    Spacer(minLength: 0)
-                    if let trailing {
-                        Text(verbatim: trailing)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .help(trailing)
-                    }
-                }
-                .font(.caption)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            if updates > 0 {
+                Text(String(localized: "\(updates) updates")).foregroundStyle(.tint).lineLimit(1)
+            } else if held.isEmpty && unchecked.isEmpty {
+                Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
             }
-            .buttonStyle(.plain)
-            .disabled(toggleDisabled)
+            if let sudo = CLIToolPresentation.needSudo(sudoCount) {
+                HStack(spacing: 4) {
+                    Text(sudo).foregroundStyle(.secondary).lineLimit(1)
+                    SummaryDetailButton(details: CLIToolPresentation.sudoBadgeHelp, accessibilityTitle: sudo)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if !held.isEmpty {
+                let label = String(localized: "\(held.count) held back")
+                let details = CLIToolPresentation.summaryDetails(held) { status in
+                    status.withheld.map { CLIToolsModel.reason($0, of: status) } ?? label
+                }
+                HStack(spacing: 4) {
+                    Text(label).foregroundStyle(.secondary).lineLimit(1)
+                    SummaryDetailButton(content: .tools(details), accessibilityTitle: label).foregroundStyle(.secondary)
+                }
+            }
+            if !unchecked.isEmpty {
+                let details = CLIToolPresentation.summaryDetails(unchecked) { status in
+                    CLIToolPresentation.rowWarning(status) ?? String(localized: "Version can’t be read")
+                }
+                HStack(spacing: 4) {
+                    SummaryDetailButton(
+                        content: .tools(details), symbol: "questionmark.circle",
+                        accessibilityTitle: String(localized: "\(unchecked.count) not checked"))
+                    Text(verbatim: "\(unchecked.count)")
+                }
+                .foregroundStyle(.orange)
+                .fixedSize()
+            }
+            Spacer(minLength: 0)
+            if let trailing {
+                Text(verbatim: trailing)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if info == nil {
+                    SummaryDetailButton(details: trailing).foregroundStyle(.secondary)
+                }
+            }
             if let info {
-                ManagedPathsInfoButton(info: info)
+                ManagedPathsInfoButton(info: info, summary: trailing)
             }
         }
+        .font(.caption)
     }
 
     /// The managed group's info affordance: hover shows the abbreviated paths,
@@ -1231,6 +1199,7 @@ struct WorkbenchWindowView: View {
 
     private struct ManagedPathsInfoButton: View {
         let info: ManagedHeaderInfo
+        let summary: String?
         @State private var showing = false
 
         var body: some View {
@@ -1244,6 +1213,9 @@ struct WorkbenchWindowView: View {
             .accessibilityLabel(Text(verbatim: "Manager paths"))
             .popover(isPresented: $showing, arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 10) {
+                    if let summary {
+                        Text(verbatim: summary).font(.callout.weight(.semibold))
+                    }
                     ForEach(Array(info.paths.enumerated()), id: \.offset) { index, paths in
                         if index > 0 { Divider() }
                         if let binary = paths.binary {
@@ -1377,17 +1349,18 @@ struct WorkbenchWindowView: View {
     /// The counts-and-marks row under that header (`HomebrewGroupSummary`). The
     /// whole group's, not the search's: a search that matches inside opens the
     /// group, and its rows show what matched.
-    private func homebrewSummary(_ lists: SidebarLists) -> some View {
-        HomebrewGroupSummary(
+    private var homebrewSummary: some View {
+        let counts = model.brewBatchCounts
+        return HomebrewGroupSummary(
             packages: model.brewFormulae.count + model.brewUnchecked.count
-                + model.brewAppLessCaskLifecycles.count,
-            outdated: model.brewFormulae.filter(\.hasUpdate).count,
-            unchecked: model.brewUnchecked.count,
+                + model.brewStandaloneCaskLifecycles.count,
+            outdated: counts.listed,
+            batchUpdates: counts.eligible,
+            unlistedUpdates: counts.unlistedTargets,
+            uncheckedDetails: model.brewUnchecked.map(\.uncheckedExplanation),
             // While Upgrade All is on offer, as the popover shows it.
-            upgradeError: model.brewOutdatedFormulae.isEmpty ? nil : model.brewUpgradeError,
+            upgradeError: counts.eligible == 0 ? nil : model.brewUpgradeError,
             homebrewUpdate: model.homebrewSelfUpdate?.latest,
-            toggleDisabled: homebrewSearchHits(lists),
-            toggle: { inOneFrame { toggleHomebrewGroup() } },
             readError: model.brewReadError,
             retry: { Task { await model.brewLane.handle(.manual) } })
     }
@@ -1416,7 +1389,7 @@ struct WorkbenchWindowView: View {
             // the name, version and (for a multi-root manager) the root, and the
             // full paths stay out of the way until asked for.
             if let info = managedHeaderInfo(group) {
-                ManagedPathsInfoButton(info: info)
+                ManagedPathsInfoButton(info: info, summary: nil)
             }
             // The node an npm prefix runs has notices: one mark for the node,
             // on its group, not one on each package it runs. A click says them.
@@ -1681,7 +1654,7 @@ struct WorkbenchWindowView: View {
             cliHeaderView(header, lists: lists, isFixed: false)
                 .id(entry.id)
         case .homebrewSummary:
-            homebrewSummary(lists).sidebarStaticRow()
+            homebrewSummary.sidebarStaticRow()
         case .homebrewSelfUpdate(let update):
             HomebrewSelfUpdateSidebarRow(update: update, model: model)
                 .sidebarRow(entry.id, selection: $selection)
@@ -1692,12 +1665,15 @@ struct WorkbenchWindowView: View {
             BrewLifecycleCaskSidebarRow(cask: cask)
                 .sidebarRow(entry.id, selection: $selection)
         case .unchecked(let package):
-            BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
+            BrewUncheckedSidebarRow(
+                package: package, lifecycle: model.brewCaskLifecycle(for: package)?.lifecycle,
+                highlighted: highlightUnchecked)
                 .sidebarRow(entry.id, selection: $selection)
         case .managerSummary(let level):
-            managerLevelSummary(level, lists).sidebarStaticRow()
+            toolsSummary(scope: scope(of: level), trailing: cliToolHeaderSummary(level), info: managedHeaderInfo(level))
+                .sidebarStaticRow()
         case .otherToolsSummary:
-            otherToolsSummary(lists).sidebarStaticRow()
+            toolsSummary(scope: standaloneScope).sidebarStaticRow()
         case .tool(let status):
             CLIToolSidebarRow(status: status, cli: model.cliTools,
                               showsRuntime: model.prefs.showCLIRuntimeTags)
@@ -2420,6 +2396,9 @@ private struct BrewFormulaSidebarRow: View {
                     Text(formula.name).font(.body).lineLimit(1)
                         .foregroundStyle(formula.missingAppPath == nil ? .primary : .secondary)
                     if formula.needsSudo { CLISudoBadge(help: CLIToolPresentation.brewSudoBadgeHelp) }
+                    if formula.kind == .cask, let lifecycle = formula.lifecycle {
+                        BrewCaskLifecycleMark(lifecycle: lifecycle, help: lifecycle.statusText)
+                    }
                 }
                 if let path = formula.missingAppPath {
                     Text("Registered path missing")
@@ -2475,7 +2454,7 @@ private struct BrewFormulaSidebarRow: View {
                 .font(.caption)
                 .foregroundStyle(status.isBehind ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
-        } else if let lifecycle = formula.lifecycle {
+        } else if formula.kind == .formula, let lifecycle = formula.lifecycle {
             // Up to date, but Homebrew is phasing it out: say so in the one
             // line the row has. An update line above outranks it.
             Text("\(formula.installedVersion) · \(lifecycle.statusText)")
@@ -2692,6 +2671,7 @@ private struct HomebrewSelfUpdateDetailPane: View {
 /// (for a formula moved to a cask, the commands that swap it — `fixCommand`).
 private struct BrewUncheckedSidebarRow: View {
     let package: BrewUncheckedPackage
+    let lifecycle: BrewLifecycle?
     /// Set briefly when the popover's tip sends the user here.
     var highlighted = false
 
@@ -2704,7 +2684,12 @@ private struct BrewUncheckedSidebarRow: View {
         HStack(spacing: 8) {
             FormulaIcon(name: package.name, size: 22)
             VStack(alignment: .leading, spacing: 1) {
-                Text(package.name).font(.body).lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(package.name).font(.body).lineLimit(1)
+                    if let lifecycle {
+                        BrewCaskLifecycleMark(lifecycle: lifecycle, help: lifecycle.statusText)
+                    }
+                }
                 Text(status)
                     .font(.caption).foregroundStyle(.orange)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -2766,6 +2751,7 @@ private extension BrewUncheckedPackage {
 /// them from. What it can say is why, and what to run.
 private struct BrewUncheckedDetailPane: View {
     let package: BrewUncheckedPackage
+    let lifecycle: BrewLifecycle?
 
     /// The narrowest a detail-pane block of wrapped, `fixedSize` text is laid out
     /// at — see the frame at the end of `body`.
@@ -2796,6 +2782,9 @@ private struct BrewUncheckedDetailPane: View {
             Divider()
             VStack(alignment: .leading, spacing: 12) {
                 Text(package.uncheckedExplanation)
+                if let lifecycle {
+                    BrewLifecycleNotice(text: AttributedString(lifecycle.statusText))
+                }
                 if let command = package.fixCommand {
                     HStack(spacing: 8) {
                         Text(command)
@@ -3422,6 +3411,7 @@ private struct RuntimeSecurityMarkButton: View {
 /// disabled. Orange like the formula rows' status; the detail pane explains.
 private struct BrewCaskLifecycleMark: View {
     let lifecycle: BrewLifecycle
+    var help: String? = nil
 
     static let width: CGFloat = 13
 
@@ -3430,14 +3420,12 @@ private struct BrewCaskLifecycleMark: View {
             .font(.system(size: 10))
             .foregroundStyle(.orange)
             .frame(width: Self.width)
-            .help(lifecycle.caskHelp)
-            .accessibilityLabel(lifecycle.caskHelp)
+            .help(help ?? lifecycle.caskHelp)
+            .accessibilityLabel(help ?? lifecycle.caskHelp)
     }
 }
 
-/// A Brew-tree row for a cask that installs no app (a CLI, a font) and that
-/// Homebrew deprecated or disabled: without it nothing would say so, since such a
-/// cask has a row only while it's outdated.
+/// A Brew-tree row for a deprecation or disable notice without another row to carry it.
 private struct BrewLifecycleCaskSidebarRow: View {
     let cask: BrewCaskLifecycle
 
@@ -3457,7 +3445,7 @@ private struct BrewLifecycleCaskSidebarRow: View {
     }
 }
 
-/// The detail pane for an app-less deprecated cask: what Homebrew says about it.
+/// The detail pane for a standalone deprecation or disable notice.
 private struct BrewLifecycleCaskDetailPane: View {
     let cask: BrewCaskLifecycle
 

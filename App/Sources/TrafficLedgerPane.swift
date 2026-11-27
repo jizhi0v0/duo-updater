@@ -397,45 +397,54 @@ private struct TrafficRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: toggle) {
-                HStack(spacing: 10) {
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .frame(width: 9)
-                    Image(nsImage: AppIconCache.icon(for: stat.appID))
-                        .resizable().frame(width: 24, height: 24)
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 6) {
-                            Text(stat.appName).font(.system(size: 13)).lineLimit(1)
-                            if isRemoved {
-                                Text(stat.appID)
-                                    .font(.system(size: 10, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
-                                    .lineLimit(1)
-                                    .truncationMode(.head)
+            HStack(spacing: 10) {
+                Button(action: toggle) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                            .frame(width: 9)
+                        Image(nsImage: AppIconCache.icon(for: stat.appID))
+                            .resizable().frame(width: 24, height: 24)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(stat.appName).font(.system(size: 13)).lineLimit(1)
+                                if isRemoved {
+                                    Text(stat.appID)
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                        .truncationMode(.head)
+                                }
                             }
+                            proportionBar
                         }
-                        proportionBar
                     }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                let exactBytes = String(localized: "\(stat.totalBytes) bytes")
+                HStack(spacing: 4) {
                     Text(ByteFormat.string(stat.totalBytes))
                         .font(.system(size: 13, weight: .semibold))
                         .monospacedDigit()
-                        .frame(width: 84, alignment: .trailing)
-                        .help("\(stat.totalBytes) bytes")
-                    Text("\(stat.updateCount)×")
-                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                        .frame(width: 40, alignment: .trailing)
-                    Text(lastUpdatedText)
-                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                        .frame(width: 58, alignment: .trailing)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    SummaryDetailButton(content: .value(exactBytes), accessibilityTitle: exactBytes)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, NetworkPaneMetrics.gutter)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
+                .frame(width: 84, alignment: .trailing)
+                Text("\(stat.updateCount)×")
+                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    .frame(width: 40, alignment: .trailing)
+                Text(lastUpdatedText)
+                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    .frame(width: 58, alignment: .trailing)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, NetworkPaneMetrics.gutter)
+            .padding(.vertical, 6)
             .opacity(isRemoved ? 0.62 : 1)
 
             if isExpanded { events }

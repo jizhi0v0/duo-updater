@@ -3,6 +3,168 @@ import AppKit
 import Carbon.HIToolbox
 import Observation
 
+struct SummaryDetail: Equatable {
+    let title: String
+    var path: String? = nil
+    let message: String
+}
+
+/// A tips icon that anchors the supporting details beside a count or status.
+struct SummaryDetailButton: View {
+    enum Content {
+        case message(String)
+        case error(String)
+        case value(String)
+        case tools([SummaryDetail])
+        case counts([String], explanation: String?, caveat: String?, items: [AttributedString])
+    }
+
+    let content: Content
+    let symbol: String
+    let accessibilityTitle: String
+
+    @State private var showing = false
+
+    init(
+        content: Content, symbol: String = "info.circle",
+        accessibilityTitle: String = String(localized: "Details")
+    ) {
+        self.content = content
+        self.symbol = symbol
+        self.accessibilityTitle = accessibilityTitle
+    }
+
+    init(
+        details: String, symbol: String = "info.circle",
+        accessibilityTitle: String = String(localized: "Details")
+    ) {
+        self.init(content: .message(details), symbol: symbol, accessibilityTitle: accessibilityTitle)
+    }
+
+    var body: some View {
+        Button { showing.toggle() } label: {
+            Image(systemName: symbol)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+            .buttonStyle(.plain)
+            .help(accessibilityTitle)
+            .accessibilityLabel(accessibilityTitle)
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                SummaryDetailPopoverLayout {
+                    ViewThatFits {
+                        detailContent.fixedSize()
+                        detailContent
+                            .frame(width: SummaryDetailPopoverLayout.width, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        ScrollView {
+                            detailContent.frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(width: SummaryDetailPopoverLayout.width, height: SummaryDetailPopoverLayout.height)
+                    }
+                }
+                .padding(padding)
+                .foregroundStyle(Color(nsColor: .labelColor), Color(nsColor: .secondaryLabelColor))
+            }
+    }
+
+    private var padding: EdgeInsets {
+        if case .value = content {
+            return EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
+        }
+        return EdgeInsets(top: 9, leading: 12, bottom: 9, trailing: 12)
+    }
+
+    private var detailContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch content {
+            case .message(let message):
+                Text(verbatim: message).font(.callout).foregroundStyle(.primary)
+            case .error(let message):
+                Text(verbatim: message).font(.caption.monospaced()).foregroundStyle(.primary)
+            case .value(let value):
+                Text(verbatim: value).font(.callout.monospacedDigit()).foregroundStyle(.primary)
+            case .tools(let entries):
+                toolDetails(entries)
+            case .counts(let counts, let explanation, let caveat, let items):
+                countDetails(counts, explanation: explanation, caveat: caveat, items: items)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled)
+    }
+
+    private func toolDetails(_ entries: [SummaryDetail]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(entries.indices, id: \.self) { index in
+                let entry = entries[index]
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: entry.message)
+                        .font(.callout).foregroundStyle(.primary).lineSpacing(2)
+                    Text(verbatim: entry.title).font(.subheadline).foregroundStyle(.secondary)
+                    if let path = entry.path {
+                        Text(verbatim: path).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .contain)
+            }
+        }
+    }
+
+    private func countDetails(
+        _ counts: [String], explanation: String?, caveat: String?, items: [AttributedString]
+    ) -> some View {
+        let facts = ForEach(counts.indices, id: \.self) { index in
+            Text(verbatim: counts[index])
+        }
+        return VStack(alignment: .leading, spacing: 6) {
+            if let explanation {
+                Text(verbatim: explanation).font(.callout).foregroundStyle(.primary).lineSpacing(2)
+            }
+            if let caveat {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .accessibilityHidden(true)
+                    Text(verbatim: caveat).font(.callout).foregroundStyle(.primary).lineSpacing(2)
+                }
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { facts }.fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 2) { facts }
+            }
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .padding(.top, 2)
+            if !items.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(items.indices, id: \.self) { index in
+                        Text(items[index])
+                    }
+                }
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(.primary)
+            }
+        }
+    }
+}
+
+/// Give ViewThatFits a bounded proposal even during the popover's ideal-size pass.
+private struct SummaryDetailPopoverLayout: Layout {
+    static let width: CGFloat = 256
+    static let height: CGFloat = 222
+    private static let limit = ProposedViewSize(width: width, height: height)
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews[0].sizeThatFits(Self.limit)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews[0].place(at: bounds.origin, anchor: .topLeading, proposal: Self.limit)
+    }
+}
+
 /// The workbench's sidebar lists (Apps, CLI, Rollback): a lazily built scroll of
 /// rows that draws its own selection.
 ///

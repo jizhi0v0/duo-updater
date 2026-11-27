@@ -1477,7 +1477,8 @@ private struct CommandLineRow: View {
 
     private var brewHalf: Half? {
         // What it says, its mark and its button: `BrewRowSnapshot.popover`.
-        guard let row = model.brewRowSnapshot.popover else { return nil }
+        let snapshot = model.brewRowSnapshot
+        guard let row = snapshot.popover else { return nil }
         let mark: (any View)? = switch row.mark {
         case .spinner: spinner
         case .seal: seal
@@ -1500,7 +1501,7 @@ private struct CommandLineRow: View {
         let button: (any View)? = switch row.button {
         case .update:
             updateButton(
-                help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
+                help: brewUpdateHelp(upgradeCount: snapshot.outdated, unlistedCount: snapshot.unlistedOutdated)
             ) { await model.upgradeBrewFormulae() }
         // One Cancel where the Update button stood, for Upgrade All and for
         // a formula's own upgrade from the workbench alike, as the Other
@@ -1516,6 +1517,12 @@ private struct CommandLineRow: View {
                     mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: row.isRunning)
     }
 
+    private func brewUpdateHelp(upgradeCount: Int, unlistedCount: Int) -> String {
+        let counts = HomebrewGroupSummary.batchUpdateLines(updates: upgradeCount, unlisted: unlistedCount)
+        let help = String(localized: "Runs `brew upgrade --formula`, then upgrades eligible casks by name.")
+        return counts.joined(separator: "\n") + "\n\n" + help
+    }
+
     /// One part of the Homebrew row's line (`BrewPopoverRow.Line`), worded.
     private func brewLine(_ line: BrewPopoverRow.Line) -> Text {
         switch line {
@@ -1525,6 +1532,8 @@ private struct CommandLineRow: View {
         case .checkFailed: return Text(String(localized: "Check failed")).foregroundStyle(.orange)
         case .error(let error): return Text(error).foregroundStyle(.red)
         case .updates(let count): return Text(String(localized: "\(count) updates"))
+        case .unlistedUpdates(let count): return Text(String(localized: "\(count) unlisted updates"))
+        case .registeredPathMissing: return Text(String(localized: "Registered path missing"))
         // Packages brew wouldn't read: no count here can include them.
         case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
         // Formulae Homebrew is phasing out (`BrewLifecycle`): checked, so not

@@ -284,6 +284,7 @@ import Foundation
         }
         let merged = BrewFormulaService.merge(rows, outdated: updates)
         #expect(merged.first(where: { $0.name == "gui" })?.missingAppPath == oldPath.path)
+        #expect(merged.filter(\.hasListedUpdate).map(\.name) == ["cli"])
         #expect(merged.filter(\.canUpgrade).map(\.name) == ["cli"])
     }
 

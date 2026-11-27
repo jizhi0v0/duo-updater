@@ -45,32 +45,33 @@ struct AppSourceGroupHeader: View {
     static func scrollID(_ group: UpdateSourceGroup) -> String { "app-source:\(group.rawValue)" }
 
     var body: some View {
-        Button {
-            if isFixed { scrollToHeader(Self.scrollID(group)) }
-            toggle()
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.bold))
-                    .rotationEffect(.degrees(expanded ? 90 : 0))
-                    .frame(width: 10)
-                Text(verbatim: group.title)
-                    .lineLimit(1)
-                Spacer(minLength: 6)
-                if updates > 0 {
-                    Text(String(localized: "\(updates) updates"))
-                        .fontWeight(.regular)
-                        .foregroundStyle(.tint)
-                        .lineLimit(1)
+        HStack(spacing: 4) {
+            Button {
+                if isFixed { scrollToHeader(Self.scrollID(group)) }
+                toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        .frame(width: 10)
+                    Text(verbatim: group.title).lineLimit(1)
                 }
-                Text(verbatim: "\(count)")
-                    .fontWeight(.regular)
-                    .monospacedDigit()
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .help(expanded ? String(localized: "Hide apps") : String(localized: "Show apps"))
+            Spacer(minLength: 6)
+            if updates > 0 {
+                Text(String(localized: "\(updates) updates"))
+                    .fontWeight(.regular)
+                    .foregroundStyle(.tint)
+                    .lineLimit(1)
+            }
+            Text(verbatim: "\(count)")
+                .fontWeight(.regular)
+                .monospacedDigit()
         }
-        .buttonStyle(.plain)
-        .help(expanded ? String(localized: "Hide apps") : String(localized: "Show apps"))
     }
 }
 

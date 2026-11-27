@@ -24,6 +24,7 @@ struct SummaryDetailButton: View {
     let accessibilityTitle: String
 
     @State private var showing = false
+    @State private var scrollerStyle = NSScroller.preferredScrollerStyle
 
     init(
         content: Content, symbol: String = "info.circle",
@@ -60,14 +61,24 @@ struct SummaryDetailButton: View {
                         ScrollView {
                             detailContent
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.trailing, SummaryDetailPopoverLayout.scrollerInset)
+                                .padding(.trailing, scrollerInset)
                         }
                         .frame(width: SummaryDetailPopoverLayout.width, height: SummaryDetailPopoverLayout.height)
+                        .onAppear { scrollerStyle = NSScroller.preferredScrollerStyle }
+                        .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
+                            scrollerStyle = NSScroller.preferredScrollerStyle
+                        }
                     }
                 }
                 .padding(padding)
                 .foregroundStyle(Color(nsColor: .labelColor), Color(nsColor: .secondaryLabelColor))
             }
+    }
+
+    private var scrollerInset: CGFloat {
+        // A legacy scroller already narrows the viewport.
+        guard scrollerStyle == .overlay else { return 0 }
+        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)
     }
 
     private var padding: EdgeInsets {
@@ -156,8 +167,6 @@ struct SummaryDetailButton: View {
 private struct SummaryDetailPopoverLayout: Layout {
     static let width: CGFloat = 256
     static let height: CGFloat = 222
-    // Overlay scrollers draw over the viewport instead of narrowing it.
-    @MainActor static let scrollerInset = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)
     private static let limit = ProposedViewSize(width: width, height: height)
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

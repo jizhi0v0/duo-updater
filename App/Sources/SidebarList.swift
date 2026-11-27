@@ -24,6 +24,7 @@ struct SummaryDetailButton: View {
     let accessibilityTitle: String
 
     @State private var showing = false
+    @State private var scrollerStyle = NSScroller.preferredScrollerStyle
 
     init(
         content: Content, symbol: String = "info.circle",
@@ -58,14 +59,26 @@ struct SummaryDetailButton: View {
                             .frame(width: SummaryDetailPopoverLayout.width, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                         ScrollView {
-                            detailContent.frame(maxWidth: .infinity, alignment: .leading)
+                            detailContent
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.trailing, scrollerInset)
                         }
                         .frame(width: SummaryDetailPopoverLayout.width, height: SummaryDetailPopoverLayout.height)
+                        .onAppear { scrollerStyle = NSScroller.preferredScrollerStyle }
+                        .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
+                            scrollerStyle = NSScroller.preferredScrollerStyle
+                        }
                     }
                 }
                 .padding(padding)
                 .foregroundStyle(Color(nsColor: .labelColor), Color(nsColor: .secondaryLabelColor))
             }
+    }
+
+    private var scrollerInset: CGFloat {
+        // A legacy scroller already narrows the viewport.
+        guard scrollerStyle == .overlay else { return 0 }
+        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)
     }
 
     private var padding: EdgeInsets {

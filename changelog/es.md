@@ -8,6 +8,8 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Los detalles de las actualizaciones se abren con sus iconos de información.** Es más fácil leer los avisos de las herramientas y los tamaños exactos de las descargas.
 
+**DuoUpdater ahora detecta e instala las actualizaciones oficiales de Videoquetsche.**
+
 ## 0.5.31
 
 **DuoUpdater ya puede encontrar e instalar actualizaciones oficiales de Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo y SoundSource.** En los Mac compatibles, SoundSource 5 recibe actualizaciones de la serie 5.x.

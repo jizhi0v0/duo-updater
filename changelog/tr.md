@@ -8,6 +8,8 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **Güncelleme ayrıntıları bilgi simgelerinden açılıyor.** Araç uyarılarını ve tam indirme boyutlarını okumak daha kolay.
 
+**DuoUpdater artık Videoquetsche için resmî güncellemeleri bulup yükleyebiliyor.**
+
 ## 0.5.31
 
 **DuoUpdater artık Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo ve SoundSource için resmî güncellemeleri bulup yükleyebiliyor.** Uyumlu Mac’lerde SoundSource 5, 5.x serisinin güncellemelerini alır.

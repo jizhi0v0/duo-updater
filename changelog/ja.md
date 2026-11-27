@@ -8,6 +8,8 @@
 
 **情報アイコンから更新の詳細を開けます。** ツールの警告や正確なダウンロードサイズが読みやすくなりました。
 
+**DuoUpdater で Videoquetsche の公式アップデートを検出してインストールできるようになりました。**
+
 ## 0.5.31
 
 **DuoUpdater で Audio Hijack、Airfoil、Airfoil Satellite、Farrago、Fission、Loopback、Piezo、SoundSource の公式アップデートを検出してインストールできるようになりました。** 対応する Mac では、SoundSource 5 に 5.x 系のアップデートが表示されます。

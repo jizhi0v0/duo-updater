@@ -25,6 +25,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Update details open from their info icons.** Tool warnings and exact download sizes are easier to read.
 
+**DuoUpdater now finds and installs official Videoquetsche updates.**
+
 ## 0.5.31
 
 **DuoUpdater can now find and install official updates for Audio Hijack, Airfoil, Airfoil Satellite, Farrago, Fission, Loopback, Piezo, and SoundSource.** On compatible Macs, SoundSource 5 gets 5.x updates.

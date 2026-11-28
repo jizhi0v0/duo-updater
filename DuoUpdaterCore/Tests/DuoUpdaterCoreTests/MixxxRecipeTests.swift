@@ -93,8 +93,10 @@ struct MixxxRecipeTests {
     @Test func knownLegacyIntelVersionsAreDetectionOnly() throws {
         let recipes = org_mixxx_mixxx.set.probes
         let old = recipes.filter { $0.matchesInstalled(version: "2.2.4") }
+        let oldTagged = recipes.filter { $0.matchesInstalled(version: "2.3.6") }
         let current = recipes.filter { $0.matchesInstalled(version: "2.5.4") }
         #expect(old.count == 1 && old.first?.install == nil)
+        #expect(oldTagged.count == 1 && oldTagged.first?.install == nil)
         #expect(current.count == 1 && current.first?.install?.kind == .dmg)
     }
 
@@ -126,6 +128,7 @@ struct MixxxRecipeTests {
         let scanner = AppScanner(locations: [], testflight: TestFlightInventory(macRows: []))
         let stable = try bundle("2.5.4", gitInfo: "HEAD\0" + "2.5.4", encoding: .utf8)
         let beta = try bundle("2.6.0", gitInfo: "2.6\0" + "2.6-beta-505-g71c5dee15c")
+        let taggedBeta = try bundle("2.4.0", gitInfo: "HEAD\0" + "2.4-beta", encoding: .utf8)
         let alpha = try bundle("2.7.0", gitInfo: "main\0" + "2.7-alpha-450-gf8d7c4e818")
         let conflicting = try bundle(
             "2.6.0", gitInfo: "HEAD\0" + "2.6.0\0" + "2.6-beta-505-g71c5dee15c", encoding: .utf8)
@@ -141,6 +144,7 @@ struct MixxxRecipeTests {
         #expect(unclassifiedCopy.bundleID == MixxxBuild.bundleID)
         #expect(unclassifiedCopy.recipeBundleID == nil)
         #expect(scanner.readApp(at: beta)?.releaseChannel == .beta)
+        #expect(scanner.readApp(at: taggedBeta)?.releaseChannel == .beta)
         #expect(scanner.readApp(at: alpha)?.releaseChannel == .alpha)
         #expect(scanner.readApp(at: conflicting)?.releaseChannel == .beta)
         #expect(scanner.readApp(at: maintenance)?.releaseChannel == .nightly)

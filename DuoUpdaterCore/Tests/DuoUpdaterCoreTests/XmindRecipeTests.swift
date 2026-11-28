@@ -66,6 +66,11 @@ import Testing
         #expect(UpdateChecker.evaluate(installed: installed, remote: remote) == .upToDate)
     }
 
+    @Test func olderPublicBundlesKeepTheirTwelveDigitBuild() {
+        #expect(AppScanner.xmindArchiveBuild(
+            bundleID: net_xmind_vana_app.bundleID, bundleBuild: "202101070049") == "202101070049")
+    }
+
     @Test(arguments: [
         "http://dl3.xmind.app/Xmind-for-macOS-27.01.05089-202611160640.dmg",
         "https://dl3.xmind.app.invalid/Xmind-for-macOS-27.01.05089-202611160640.dmg",

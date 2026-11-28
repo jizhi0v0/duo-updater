@@ -7,12 +7,12 @@ enum net_xmind_vana_app {
     private static let artifactSuffix = #"-[0-9]{12}\.dmg\z"#
     private static let releases = URL(string: "https://xmind.com/changelog")!
 
-    // The DMG names the same minute as CFBundleVersion, without its trailing 0.
+    // The DMG names the same minute as CFBundleVersion. Newer builds add a zero.
     static func archiveBuild(_ bundleBuild: String?) -> String? {
         guard let bundleBuild,
-              bundleBuild.range(of: #"\A[0-9]{12}0\z"#, options: .regularExpression) != nil
+              bundleBuild.range(of: #"\A[0-9]{12}0?\z"#, options: .regularExpression) != nil
         else { return nil }
-        return String(bundleBuild.dropLast())
+        return String(bundleBuild.prefix(12))
     }
 
     static let set = AppRecipeSet(

@@ -28,7 +28,7 @@
 
 正式版 Desktop 页面服务端返回三个版本，页面的响应式副本由现有提取器按版本去重。27.01.05089 和 27.01.05088 各有 6 条，27.01.05087 有 19 条并分成 3 节。Beta 的当前版本和 3 条编号说明来自真实 Beta 包内更新程序所使用的公开 JSON。 [官网正式日志](https://xmind.com/changelog) · [Beta JSON](https://www.xmind.app/xmind/update/beta-latest-mac.json)
 
-官网签名包里的 Electron 更新代码按服务区请求厂商 JSON，并把 ZIP 交给 Squirrel。公开 DMG 的文件名同时包含营销版本和构建时间。两份 26.04.01341 官网 DMG 的包内 build 分别为 2026071207060、2026071300580，末尾的 0 之前是文件名中的时间。检测用这个时间比较同版本重打包。
+官网签名包里的 Electron 更新代码按服务区请求厂商 JSON，并把 ZIP 交给 Squirrel。公开 DMG 的文件名同时包含营销版本和构建时间。两份 26.04.01341 官网 DMG 的包内 build 分别为 2026071207060、2026071300580，末尾的 0 之前是文件名中的时间。历史官网 Intel 版 10.3.1 直接使用 12 位 build `202101070049`。检测用这 12 位比较同版本重打包。
 
 Quick Entry 是包内 `Contents/PlugIns/Xmind QuickEntry.app`（`net.xmind.vana.app.QuickEntry`），可独立随登录启动。若 Quick Entry 仍在运行，DuoUpdater 会先挡住换包。退出该副本的 Quick Entry 后再重试。 [Quick Entry 官方说明](https://xmind.com/user-guide/quick-entry-for-mac-new)
 

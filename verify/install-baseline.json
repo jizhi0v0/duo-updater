@@ -112,6 +112,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:CleanClip\/CleanClipApp:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:CleanClip\/CleanClipApp:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:EpicenterHQ\/epicenter:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -167,6 +179,18 @@
       "sweepsSinceComment" : 0
     },
     "install:github:Kyle-Ye\/SwiftyDownloadManager:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:Losses\/rune:alpha" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:Losses\/rune:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -427,14 +451,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:burakgon\/OpenScreens:stable" : {
-      "consecutiveActionable" : 9,
+      "consecutiveActionable" : 10,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2219,
       "lastCommentedAt" : "2026-11-24T17:02:28Z",
       "lastSignature" : "identityChanged: Sparkle key none → Zah\/",
       "previousSignature" : "identityChanged: Sparkle key none → Zah\/",
-      "sweepsSinceComment" : 7
+      "sweepsSinceComment" : 8
     },
     "install:github:chekusu\/yomado:stable" : {
       "closedAt" : "2026-10-29T03:05:32Z",
@@ -1067,14 +1091,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:ollama\/ollama:stable" : {
-      "consecutiveActionable" : 8,
+      "consecutiveActionable" : 9,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2222,
       "lastCommentedAt" : "2026-11-25T02:21:34Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 6
+      "sweepsSinceComment" : 7
     },
     "install:github:onebadidea\/swiftquit:stable" : {
       "consecutiveActionable" : 0,
@@ -1530,6 +1554,24 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:sparkle:asc.onlyoffice.ONLYOFFICE:stable:arm64" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:asc.onlyoffice.ONLYOFFICE:stable:intel" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:asc.onlyoffice.ONLYOFFICE:stable:legacy-intel" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:sparkle:com.JH.RuntimeViewer:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1542,6 +1584,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:sparkle:com.MagicQuit:stable:ed25519" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:com.MagicQuit:stable:legacy-no-key" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:sparkle:com.aone.keka:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1549,14 +1603,14 @@
       "sweepsSinceComment" : 0
     },
     "install:sparkle:com.cindori.Backdrop:stable" : {
-      "consecutiveActionable" : 8,
+      "consecutiveActionable" : 9,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2221,
       "lastCommentedAt" : "2026-11-25T02:21:32Z",
       "lastSignature" : "identityChanged: architectures arm64+x86",
       "previousSignature" : "identityChanged: architectures arm64+x86",
-      "sweepsSinceComment" : 6
+      "sweepsSinceComment" : 7
     },
     "install:sparkle:com.coconut-flavour.coconutBattery:stable" : {
       "consecutiveActionable" : 0,
@@ -1583,6 +1637,18 @@
       "sweepsSinceComment" : 0
     },
     "install:sparkle:com.dinoki.osaurus:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:com.flyingmeat.Acorn8:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:com.flyingmeat.Acorn8:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1625,6 +1691,18 @@
       "sweepsSinceComment" : 0
     },
     "install:sparkle:com.knollsoft.Rectangle:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:com.lemonmojo.RoyalTSX.App:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:com.lemonmojo.RoyalTSX.App:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1870,6 +1948,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:sparkle:org.sil.ukelele:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:sparkle:plus.yellow.AirBuild:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1901,6 +1985,18 @@
       "sweepsSinceComment" : 0
     },
     "install:sparkle:sb.moe.tamio:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:studio.fireball.OneSwitch:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:studio.fireball.OneSwitch:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1960,21 +2056,33 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:anomaly.opencode-rune:dev" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:app.chatwise:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:app.dataflare.desktop:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 35,
+      "consecutiveActionable" : 36,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-22T14:22:27Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 12
+      "sweepsSinceComment" : 13
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2114,6 +2222,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.cockos.LICEcap:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.code.athas:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2210,6 +2324,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.gitbutler.app:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.github.GitHubClient:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2295,6 +2415,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.hnc.DiscordPTB:ptb" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.hogbaysoftware.TaskPaper3.direct:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -2572,6 +2698,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.sigil-ebook.Sigil.app:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.sogou.inputmethod.sogou:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2653,11 +2785,10 @@
     "install:vendor:com.tencent.workbuddy.mac:stable:arm64" : {
       "closedAt" : "2026-10-14T16:03:36Z",
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-11-28T01:20:11Z",
       "issueNumber" : 1297,
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:vendor:com.tencent.workbuddy.mac:stable:x64" : {
       "closedAt" : "2026-10-14T16:03:37Z",
@@ -2753,10 +2884,9 @@
     },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:arm64" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-11-28T01:20:11Z",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:x64" : {
       "consecutiveActionable" : 0,
@@ -2771,14 +2901,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.youqu.todesk.mac:stable" : {
-      "consecutiveActionable" : 11,
+      "consecutiveActionable" : 12,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2201,
       "lastCommentedAt" : "2026-11-23T17:32:30Z",
       "lastSignature" : "install.content",
       "previousSignature" : "install.content",
-      "sweepsSinceComment" : 9
+      "sweepsSinceComment" : 10
     },
     "install:vendor:com.zarifpour.superconductor:nightly" : {
       "consecutiveActionable" : 0,
@@ -2938,6 +3068,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:net.xmind.vana.app:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:net.xmind.vana.app:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:notion.id:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -3028,6 +3170,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:org.mixxx.mixxx:stable:arm64" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:org.mozilla.firefox:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -3094,6 +3242,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:org.ppsspp.ppsspp:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:org.torproject.torbrowser:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -3113,6 +3267,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:org.whispersystems.signal-desktop:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:org.xbmc.kodi:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -3138,5 +3298,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-28T01:20:17Z"
+  "updatedAt" : "2026-11-28T15:13:24Z"
 }

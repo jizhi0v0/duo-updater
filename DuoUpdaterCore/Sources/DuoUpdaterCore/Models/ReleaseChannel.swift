@@ -477,6 +477,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return stage.hasPrefix("beta") ? .beta : .alpha
         }
 
+        // The TaskPaper preview shares the direct stable bundle ID and name;
+        // its marketing version is the signal (3.9.4 Preview).
+        if bundleID == "com.hogbaysoftware.TaskPaper3.direct",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+           fullyMatches(#"[0-9]+(?:\.[0-9]+)+\s+preview"#, version) {
+            return .preview
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {

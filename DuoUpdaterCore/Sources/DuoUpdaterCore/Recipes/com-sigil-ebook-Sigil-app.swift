@@ -11,14 +11,15 @@ enum com_sigil_ebook_Sigil_app {
     static let set = AppRecipeSet(
         family: "com-sigil-ebook-Sigil-app",
         probes: [
-            // The download page publishes a macOS asset independently of the
-            // source tags. Require its version in both the tag and the filename.
+            // Match the current ARM download button, where the tag and filename
+            // must agree. The source tags can be ahead of the macOS package.
             VendorProbeRecipe(
                 bundleID: bundleID,
                 url: downloads,
                 mode: .responseBody,
                 versionPattern:
-                    #"<a\b[^>]*\shref="https://github\.com/Sigil-Ebook/Sigil/releases/download/(\#(version))/Sigil\.app-\1-Mac-arm64\.txz""#,
+                    #"<a\b[^>]*\shref="https://github\.com/Sigil-Ebook/Sigil/releases/download/(\#(version))/Sigil\.app-\1-Mac-arm64\.txz"[^>]*>"#
+                    + #"\s*Latest\s+MacOS\s+\(Arm64\)\s+download\s*</a>"#,
                 downloadURL: downloads,
                 changelogURL: history,
                 install: VendorInstallSpec(

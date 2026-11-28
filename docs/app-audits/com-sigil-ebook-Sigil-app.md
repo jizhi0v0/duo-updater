@@ -12,7 +12,7 @@
 
 - [官方 2.0.0](https://github.com/Sigil-Ebook/Sigil/releases/tag/2.0.0) 起分发 ARM 和 Intel 包。1.9.30 和 1.5.0 Beta 官方包仅有 Intel slice，需 Rosetta 才能在可运行 DuoUpdater 的 Apple Silicon 主机上运行。两包均实查为上述 bundle ID 和 Team，严格签名检查通过。配方向同 ID 的直装副本提供厂商当前原生 ARM 包。
 - 1.5.0 Beta 实包版本为裸数字，二进制与 1.9.30、2.8.1、2.8.6 一样读取公开 [version.xml](https://raw.githubusercontent.com/Sigil-Ebook/Sigil/master/version.xml)。厂商使用同一个正式版更新提示将这一公开测试过渡到稳定版。2.0 的 [发布说明](https://github.com/Sigil-Ebook/Sigil/releases/tag/2.0.0) 另有面向插件作者的 Qt/PySide6 迁移信息。
-- [旧版源码](https://github.com/Sigil-Ebook/Sigil/blob/0.8.900/src/Resource_Files/mac/MacOSXBundleInfo.plist) 已使用同一 bundle ID。不同 Team 或无可用签名的自行构建副本会被安装身份检查拒绝。独立的 PageEdit 有自己的 [发布仓库](https://github.com/Sigil-Ebook/PageEdit/releases)。
+- [旧版源码](https://github.com/Sigil-Ebook/Sigil/blob/0.8.900/src/Resource_Files/mac/MacOSXBundleInfo.plist) 已使用同一 bundle ID。历史 [0.8.900](https://github.com/Sigil-Ebook/Sigil/blob/0.8.900/src/Misc/UpdateChecker.cpp) 和 [0.9.991](https://github.com/Sigil-Ebook/Sigil/blob/0.9.991/src/Misc/UpdateChecker.cpp) 预发布版也读取仓库的同一 XML。不同 Team 或无可用签名的自行构建副本会被安装身份检查拒绝。独立的 PageEdit 有自己的 [发布仓库](https://github.com/Sigil-Ebook/PageEdit/releases)。
 - Homebrew 管理版继续使用现有 cask 管理路径。官网安装包没有 `SUFeedURL`，厂商的 `version.xml` 提示新版后交由用户下载。
 
 ## 夜扫覆盖

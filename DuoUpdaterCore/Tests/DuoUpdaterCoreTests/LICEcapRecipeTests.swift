@@ -66,6 +66,19 @@ import Testing
         #expect(VendorProbeRecipe.extractVersion(from: html, pattern: recipe.versionPattern) == nil)
     }
 
+    @Test func ignoresTheDMGFromAnEarlierDownloadSectionWithMismatchedVersion() async throws {
+        let recipe = try #require(com_cockos_LICEcap.set.probes.first)
+        let outdated = #"""
+            <B>Download</B><BR><BR>
+            <A href="licecap131.dmg">LICEcap v1.32 for macOS</a> (Jun 8 2022) (876kb DMG)<br>
+            """#
+        let server = try RecipeVerificationTests.StubServer(body: outdated + "\n" + Self.html, contentType: "text/html")
+        defer { server.stop() }
+        let remote = await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url)).remote
+        #expect(remote?.shortVersion == "1.32")
+        #expect(remote?.downloadURL?.absoluteString == "https://www.cockos.com/licecap/licecap132.dmg")
+    }
+
     @Test func macReleaseHistoryPreservesPlatformLabelsAndItems() throws {
         let recipe = try #require(com_cockos_LICEcap.set.changelogs.first)
         let entries = try #require(ChangelogExtractor.extract(from: Self.html, using: recipe)).entries

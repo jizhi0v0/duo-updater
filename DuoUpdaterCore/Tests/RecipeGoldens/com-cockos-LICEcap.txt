@@ -29,7 +29,7 @@ probes[0].displayVersionPattern? = "(?i)<b>Download</b>(?:\\s*<br\\s*/?>){2}\\s*
 probes[0].publishedAtPattern = nil
 probes[0].minimumSystemVersionPattern = nil
 probes[0].maximumSystemVersionPattern = nil
-probes[0].entryStartPattern = nil
+probes[0].entryStartPattern? = "(?i)<b>Download</b>(?:\\s*<br\\s*/?>){2}"
 probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPatternRelative(_:base:)
 probes[0].install?.urlSource.0 = "(?i)<b>Download</b>(?:\\s*<br\\s*/?>){2}\\s*(?:<a\\s+href=\"licecap[0-9]+-install\\.exe\">\\s*LICEcap\\s+v[0-9]+\\.[0-9]+\\s+for\\s+Windows\\s*</a>[^<]*<br\\s*/?>\\s*)?<a\\s+href=\"(licecap[0-9]+\\.dmg)\"\\s*>\\s*LICEcap\\s+v[0-9]+\\.[0-9]+\\s+for\\s+macOS\\s*</a>"

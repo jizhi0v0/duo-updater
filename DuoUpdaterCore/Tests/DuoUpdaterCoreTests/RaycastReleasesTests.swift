@@ -136,7 +136,9 @@ private let raycastChangelogFixture = #"""
             "vendor:com.code.athas:beta",
             // These probes select the vendor's Apple Silicon archive.
             "vendor:anomaly.opencode-rune:dev",
+            "vendor:app.dataflare.desktop:stable",
             "vendor:com.gitbutler.app:stable",
+            "vendor:com.sigil-ebook.Sigil.app:stable",
             "vendor:org.mixxx.mixxx:stable:arm64",
             "vendor:org.mixxx.mixxx:stable:legacy-intel",
             "vendor:org.xbmc.kodi:stable",

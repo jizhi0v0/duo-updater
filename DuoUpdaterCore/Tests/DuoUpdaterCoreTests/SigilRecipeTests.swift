@@ -10,7 +10,9 @@ struct SigilRecipeTests {
 
     @Test func latestOfficialArmLinkSetsBothVersionAndArchive() async throws {
         let recipe = try #require(com_sigil_ebook_Sigil_app.set.probes.first)
-        let server = try RecipeVerificationTests.StubServer(body: Self.downloads, contentType: "text/html")
+        let archived = #"<a href="https://github.com/Sigil-Ebook/Sigil/releases/download/2.8.1/Sigil.app-2.8.1-Mac-arm64.txz">2.8.1 for Arm64</a>"#
+        let server = try RecipeVerificationTests.StubServer(
+            body: archived + "\n" + Self.downloads, contentType: "text/html")
         defer { server.stop() }
         let remote = await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url)).remote
 

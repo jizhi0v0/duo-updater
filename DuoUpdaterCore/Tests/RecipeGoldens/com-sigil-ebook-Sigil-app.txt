@@ -19,7 +19,7 @@ probes[0].url = URL("https://sigil-ebook.com/sigil/download/")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
 probes[0].mode = .responseBody
-probes[0].versionPattern = "<a\\b[^>]*\\shref=\"https://github\\.com/Sigil-Ebook/Sigil/releases/download/([0-9]+(?:\\.[0-9]+){2})/Sigil\\.app-\\1-Mac-arm64\\.txz\""
+probes[0].versionPattern = "<a\\b[^>]*\\shref=\"https://github\\.com/Sigil-Ebook/Sigil/releases/download/([0-9]+(?:\\.[0-9]+){2})/Sigil\\.app-\\1-Mac-arm64\\.txz\"[^>]*>\\s*Latest\\s+MacOS\\s+\\(Arm64\\)\\s+download\\s*</a>"
 probes[0].transientBodyPattern = nil
 probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://sigil-ebook.com/sigil/download/")

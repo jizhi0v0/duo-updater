@@ -6,7 +6,8 @@ enum com_cockos_LICEcap {
     private static let version = #"[0-9]+\.[0-9]+"#
     private static let macLabel = #"\s+for\s+macOS\s*</a>"#
     private static let macLink = #"<a\s+href=""#
-    private static let downloadSection = #"(?i)<b>Download</b>(?:\s*<br\s*/?>){2}\s*"#
+    private static let downloadHeading = #"(?i)<b>Download</b>(?:\s*<br\s*/?>){2}"#
+    private static let downloadSection = downloadHeading + #"\s*"#
         + #"(?:<a\s+href="licecap[0-9]+-install\.exe">\s*LICEcap\s+v\#(version)\s+for\s+Windows\s*</a>[^<]*<br\s*/?>\s*)?"#
         + macLink
     // Capture the dotted label's components and require that the same
@@ -29,6 +30,8 @@ enum com_cockos_LICEcap {
                 changelogURL: downloadPage,
                 versionIsBuild: true,
                 displayVersionPattern: releaseVersion,
+                // Resolve the DMG within the same Download section as its version.
+                entryStartPattern: downloadHeading,
                 install: VendorInstallSpec(
                     urlSource: .bodyPatternRelative(
                         downloadSection

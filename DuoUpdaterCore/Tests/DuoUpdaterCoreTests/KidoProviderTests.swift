@@ -5,7 +5,8 @@ import Testing
 struct KidoProviderTests {
     @Test func scansTheScriptLayoutAndOnlyReadsItsBinary() async throws {
         let fm = FileManager.default
-        let home = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()
+        let temporary = try #require(CLIToolProcesses.realpath(fm.temporaryDirectory.path))
+        let home = URL(fileURLWithPath: temporary, isDirectory: true).appendingPathComponent(UUID().uuidString)
         defer { try? fm.removeItem(at: home) }
         let prefix = home.appendingPathComponent(".local")
         let binary = prefix.appendingPathComponent("bin/kido")
@@ -19,7 +20,7 @@ struct KidoProviderTests {
         }
 
         let provider = KidoProvider(home: home, customPrefix: prefix.path) { url in
-            #expect(url == binary)
+            #expect(url.path == binary.path)
             return .known("0.3.0")
         }
         #expect(await provider.scan().map(\.path) == [binary.path])

@@ -1,0 +1,110 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "anomaly-opencode-rune"
+
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "anomaly.opencode-rune"
+probes[0].channel = .dev
+probes[0].variant = nil
+probes[0].hostRequirement? = struct VendorHostRequirement
+probes[0].hostRequirement?.minimumSystemVersion = nil
+probes[0].hostRequirement?.architectures = Array(count: 1)
+probes[0].hostRequirement?.architectures[0] = .arm64
+probes[0].installedVersionPattern? = "^[0-9]+\\.[0-9]+\\.[0-9]+-dev-[0-9]+$"
+probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
+probes[0].url = URL("https://anoma.ly/release/opencode/desktop-rune/dev.json")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\"release\"\\s*:\\s*\\{(?=[^{}]*\"rollout_percent\"\\s*:\\s*100\\s*[,}])[^{}]*?\"version\"\\s*:\\s*\"([0-9]+\\.[0-9]+\\.[0-9]+-dev-[0-9]+)\""
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern? = "\"release\"\\s*:\\s*\\{[^{}]*?\"rollout_percent\"\\s*:\\s*[0-9]{1,2}\\s*[,}]"
+probes[0].downloadURL? = URL("https://github.com/anomalyco/opencode-rune/blob/dev/docs/trying-opencode-rune.md")
+probes[0].changelogURL? = URL("https://github.com/anomalyco/opencode-rune/releases")
+probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern? = "\"published_at\"\\s*:\\s*\"([^\"]+)\""
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPatternRelative(_:base:)
+probes[0].install?.urlSource.0 = "\"macos-arm64-dmg\"\\s*:\\s*\\{(?=[^{}]*\"sha256\"\\s*:\\s*\"[0-9a-f]{64}\")[^{}]*?\"url\"\\s*:\\s*\"(/release/opencode/files/[0-9a-f]{64}/OpenCode-Rune-[0-9]+\\.[0-9]+\\.[0-9]+-dev-[0-9]+-macos-arm64\\.dmg)\""
+probes[0].install?.urlSource.base = URL("https://anoma.ly")
+probes[0].install?.kind = .dmg
+probes[0].install?.installerApp = nil
+probes[0].install?.checksumPattern? = "\"macos-arm64-dmg\"\\s*:\\s*\\{[^{}]*?\"sha256\"\\s*:\\s*\"([0-9a-f]{64})\""
+probes[0].install?.checksumFormat = .sha256Hex
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
+probes[0].install?.myGoPublicKey = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "anomaly.opencode-rune"
+changelogs[0].source = URL("https://api.github.com/repos/anomalyco/opencode-rune/releases?per_page=20")
+changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .json
+changelogs[0].entryPattern = ""
+changelogs[0].itemPatterns = Array(count: 0)
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 15
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].ordersByPublishedDate = false
+changelogs[0].excludedChannels = Array(count: 0)
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat? = .gitHubReleases
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern? = "^v([0-9]+\\.[0-9]+\\.[0-9]+-dev-[0-9]+)$"
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 1)
+channelProofs[ChannelProofKey(bundleID: "anomaly.opencode-rune", channel: .dev)] = .artifact(_:)
+channelProofs[ChannelProofKey(bundleID: "anomaly.opencode-rune", channel: .dev)].0 = "/OpenCode-Rune-[0-9.]+-dev-[0-9]+-macos-arm64\\.dmg$"
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

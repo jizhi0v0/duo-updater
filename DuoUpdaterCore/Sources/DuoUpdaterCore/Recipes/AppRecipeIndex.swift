@@ -385,6 +385,7 @@ public enum AppRecipeIndex {
         org_krita.set,
         org_libreoffice_script.set,
         org_localsend_localsendApp.set,
+        org_mixxx_mixxx.set,
         org_mozilla_firefox.set,
         org_mozilla_thunderbird.set,
         org_musescore_MuseScore.set,

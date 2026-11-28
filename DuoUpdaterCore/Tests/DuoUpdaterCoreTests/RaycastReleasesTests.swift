@@ -136,6 +136,7 @@ private let raycastChangelogFixture = #"""
             "vendor:com.code.athas:beta",
             // GitButler and Kodi use the vendor's Apple Silicon-only archive paths.
             "vendor:com.gitbutler.app:stable",
+            "vendor:org.mixxx.mixxx:stable",
             "vendor:org.xbmc.kodi:stable",
             // Carbon Copy Cloner: three separately downloadable major-version
             // generations (5/6/7) share one bundle id, each with its own fixed,

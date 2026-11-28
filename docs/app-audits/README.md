@@ -151,6 +151,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — VendorProbe + optional Changelog
 
+- [x] [**Mixxx**](org-mixxx-mixxx.md) · `org.mixxx.mixxx` — P+C · 官网 ARM 正式版 DMG 和手册结构化日志 · 2026-11-28
+
 - [x] [**GitButler**](com-gitbutler-app.md) · `com.gitbutler.app` — P+C · 官网 ARM64 正式轨与版本化 tar.gz · 本机 0.23.4 → 0.23.5 一键和结构化日志通过 · 2026-11-28
 - [x] [**Kodi**](org-xbmc-kodi.md) · `org.xbmc.kodi` — P+C · 官网 ARM64 正式版 DMG 和 RSS 日志 · 本机 21.2 → 21.3 一键和结构化日志通过 · 2026-11-28
 - [x] [**PPSSPP**](org-ppsspp-ppsspp.md) · `org.ppsspp.ppsspp` — P+C · 官网免费正式版 DMG 和结构化日志 · 本机 1.20.3 → 1.20.4 一键和结构化日志通过 · 2026-11-28

@@ -924,6 +924,12 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
+        // Mixxx's snapshot track is in the executable, not the Info.plist.
+        if bundleID == MixxxBuild.bundleID,
+           let channel = MixxxBuild.channel(bundleAt: bundleURL, version: shortVersion) {
+            releaseChannel = channel
+            channelIsAuthoritative = true
+        }
         // The direct and Mac App Store editions of Acorn 8 share an ID. The
         // direct updater's preference is not a channel choice for a store copy.
         let isStoreAcorn = (isMAS || isTestFlight)

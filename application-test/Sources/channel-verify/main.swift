@@ -347,7 +347,9 @@ let blender = bundleID == BlenderBuildInfo.bundleID ? BlenderBuildInfo.read(bund
 // makes. See `LapceBuild`. AppScanner applies a ChannelBinding after it, so a
 // binding wins here too.
 let lapce = bundleID == LapceBuild.bundleID ? LapceBuild.channel(bundleAt: appPath) : nil
-let detected = weChatDevTools?.channel ?? blender?.channel ?? bound?.channel ?? lapce ?? inferred
+let mixxx = bundleID == MixxxBuild.bundleID
+    ? MixxxBuild.channel(bundleAt: appPath, version: shortVersion) : nil
+let detected = weChatDevTools?.channel ?? blender?.channel ?? bound?.channel ?? lapce ?? mixxx ?? inferred
 
 print("""
 

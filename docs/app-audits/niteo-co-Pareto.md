@@ -7,14 +7,17 @@
 | 副本 | 检测 | 一键安装 | 更新日志 |
 |---|---|---|---|
 | 直接发行版，默认设置 | GitHub 正式发布 | 已签名、公证的 universal DMG | 当前正式发布的 GitHub 正文 |
-| 直接发行版，启用 Beta | 接受正式和预发行，按最高版本选择 | 同一 DMG 规则 | 所选发布的 GitHub 正文 |
+| 0.0.22 至 1.21.1 直接发行版，启用 Beta | 仅接受预发行，按最高版本选择 | 当前预发行 DMG | 所选预发行的 GitHub 正文 |
+| 其余有预发行开关的直接发行版，启用 Beta | 接受正式和预发行，按最高版本选择 | 同一 DMG 规则 | 所选发布的 GitHub 正文 |
 | Setapp | 独立 ID `niteo.co.Pareto-setapp`，由 Setapp 管理 | 由 Setapp 更新 | 官网规则仅匹配直接发行版 |
 
 ## 历史与实测
 
 直接发行的 ID 是 `niteo.co.Pareto`，1.49.0、1.49.1 和 1.50.0 的实测 DMG 均无 Sparkle feed。历史标签包括正式版 `v1.22.0` 和预发行 `v1.7.74`，两份对应 DMG 的营销版本也都保留 `v`。两轨按标签原文核对签名包。0.0.19 之前没有预发行开关。0.0.19 至 1.9.0 的更新器读标准偏好 `betaChannel`。这些版本的 `showBeta`（如存在）控制实验界面。1.9.1 起更新器改读 `showBeta`，忽略遗留的 `betaChannel`。两代开关均默认关闭。[引入预发行开关](https://github.com/ParetoSecurity/pareto-mac/commit/179e7b9) · [切换偏好](https://github.com/ParetoSecurity/pareto-mac/commit/43af066)
 
-启用后，即使当前为预发行 1.49.1，也应提示后来的正式版 1.50.0。厂商按 GitHub 的 prerelease 标记过滤，不能只按数字推测历史渠道。Homebrew cask 引用同一个直接发行的 DMG。[厂商偏好设置](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Defaults.swift) · [Setapp 版 ID](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Config/App-SetApp.xcconfig)
+0.0.19–0.0.21 和 1.21.2 起的更新器在开启 Beta 后接受较新的正式版。0.0.22 至 1.21.1 开启后只选 GitHub 标记的预发行。以当前发布为例，开启对应开关的 v1.7.74 副本应提示 1.49.1，开启 Beta 的 1.49.1 则应提示 1.50.0。[早期选择](https://github.com/ParetoSecurity/pareto-mac/commit/9aefd1c) · [恢复合并两类候选](https://github.com/ParetoSecurity/pareto-mac/commit/622a2cf)
+
+厂商按 GitHub 的 prerelease 标记过滤，不能只按数字推测历史渠道。Homebrew cask 引用同一个直接发行的 DMG。[厂商偏好设置](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Defaults.swift) · [Setapp 版 ID](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Config/App-SetApp.xcconfig)
 
 | 官方包 | short / build | 实测或已核实的渠道信息 |
 |---|---|---|
@@ -45,4 +48,4 @@ macOS 27.2 Apple Silicon VM 使用签名 Release CLI，将运行中的官方 1.4
 - `github:ParetoSecurity/pareto-mac:stable` 和 `github:ParetoSecurity/pareto-mac:beta`
 - `install:github:ParetoSecurity/pareto-mac:stable` 和 `install:github:ParetoSecurity/pareto-mac:beta`
 
-Beta 目标可合法地解析到较新的正式包。Setapp 版使用其独立分发机制。
+Beta 夜扫目标按当前更新器策略可解析到较新的正式包。旧版 Beta 与当前 Beta 共用同一个规则 ID；夜扫没有模拟旧副本时，不能单独覆盖预发行 DMG。229 个发布的历史窗口中，旧版 Beta 最深在第 32 行找到目标（1.7.68 至 1.7.5），Beta 规则取 40 行。Setapp 版使用其独立分发机制。

@@ -3,27 +3,41 @@ import Testing
 @testable import DuoUpdaterCore
 
 struct FixedNameGitHubPackageTests {
-    private final class Releases: URLProtocol, @unchecked Sendable {
+    private class Releases: URLProtocol, @unchecked Sendable {
         override class func canInit(with request: URLRequest) -> Bool { true }
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
         override func stopLoading() {}
+
+        class func rows(gray: Bool, list: Bool) -> [(tag: String, prerelease: Bool, file: String)] {
+            [(gray ? "0.17.0" : (list ? "v1.7.74" : "v1.22.0"), list, gray ? "Gray.zip" : "ParetoSecurity.dmg")]
+        }
 
         override func startLoading() {
             let url = request.url!
             let gray = url.path.contains("/zenangst/Gray/")
             let list = url.lastPathComponent != "latest"
             let slug = gray ? "zenangst/Gray" : "ParetoSecurity/pareto-mac"
-            let tag = gray ? "0.17.0" : (list ? "v1.7.74" : "v1.22.0")
-            let file = gray ? "Gray.zip" : "ParetoSecurity.dmg"
-            let release = """
-                {"tag_name":"\(tag)","prerelease":\(list),"draft":false,"assets":[
+            let releases = Self.rows(gray: gray, list: list).map { tag, prerelease, file in
+                """
+                {"tag_name":"\(tag)","prerelease":\(prerelease),"draft":false,"published_at":"2026-11-25T13:00:00Z",
+                 "body":"- Changes for \(tag)","assets":[
                   {"name":"\(file)","browser_download_url":"https://github.com/\(slug)/releases/download/\(tag)/\(file)"}
                 ]}
                 """
+            }
             let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: Data((list ? "[\(release)]" : release).utf8))
+            client?.urlProtocol(self, didLoad: Data((list ? "[\(releases.joined(separator: ","))]" : releases[0]).utf8))
             client?.urlProtocolDidFinishLoading(self)
+        }
+    }
+
+    private final class CurrentParetoReleases: Releases, @unchecked Sendable {
+        override class func rows(gray: Bool, list: Bool) -> [(tag: String, prerelease: Bool, file: String)] {
+            // The forward prerelease has no Mac DMG. Walking back must preserve
+            // the old updater's prerelease filter even past a higher stable.
+            [("1.50.0", false, "ParetoSecurity.dmg"), ("1.50.1", true, "checks.json"),
+             ("1.49.1", true, "ParetoSecurity.dmg")]
         }
     }
 
@@ -65,6 +79,26 @@ struct FixedNameGitHubPackageTests {
                 }
             }
         }
+    }
+
+    @Test(arguments: [
+        ("0.0.19", "1.50.0"), ("0.0.21", "1.50.0"), ("0.0.22", "1.49.1"),
+        ("v1.7.74", "1.49.1"), ("1.21.1", "1.49.1"), ("1.21.2", "1.50.0"), ("1.49.1", "1.50.0"),
+    ])
+    func paretoBetaFollowsTheInstalledUpdatersReleasePolicy(example: (installed: String, target: String)) async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [CurrentParetoReleases.self]
+        let source = GitHubReleasesSource(
+            rules: niteo_co_Pareto.set.githubRules, token: "fixture", session: URLSession(configuration: config))
+        let app = InstalledApp(
+            name: "Pareto Security", bundleID: niteo_co_Pareto.bundleID, shortVersion: example.installed,
+            buildVersion: nil, path: URL(fileURLWithPath: "/Applications/Pareto Security.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .beta)
+        let offer = try #require(try await source.latestVersion(for: app))
+        #expect(offer.shortVersion == example.target)
+        #expect(offer.downloadURL?.path.hasSuffix("/\(example.target)/ParetoSecurity.dmg") == true)
+        #expect(offer.structuredChangelog?.entries.first?.version == example.target)
+        #expect(offer.releaseHistory.map(\.version).contains("1.50.0") == (example.target == "1.50.0"))
     }
 
     @Test func paretoMatchesOnlyWholeReleaseTags() {

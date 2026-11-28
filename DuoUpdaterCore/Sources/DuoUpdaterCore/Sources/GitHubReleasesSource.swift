@@ -1735,6 +1735,11 @@ public struct GitHubReleasesSource: UpdateSource {
         // Drafts are never releases, even when an authenticated token can see
         // them, and no scope should be able to offer one.
         releases = releases.filter { !$0.isDraft }
+        if rule.bundleID == niteo_co_Pareto.bundleID, rule.channel == .beta,
+           niteo_co_Pareto.betaRequiresPrerelease(installedVersion: installedVersion) {
+            // Apply this before history, notes and install-asset walk-back.
+            releases.removeAll { !$0.isPrerelease }
+        }
 
         // A line-anchored rule may not offer anything ABOVE its ceiling. Applied
         // as a ceiling rather than by picking one release so the walk-back below

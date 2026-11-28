@@ -608,6 +608,8 @@ public extension GitHubReleaseRule {
     fileprivate var ranksStableList: Bool {
         bundleID == niteo_co_Pareto.bundleID && channel == .stable
     }
+
+    internal var startsWithReleaseList: Bool { usePrereleases || ranksStableList }
 }
 
 /// Resolves updates for apps distributed through GitHub Releases. Kept separate
@@ -1251,7 +1253,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 // asset's download counter does. A rule WITHOUT `usePrereleases`
                 // reads `/releases/latest` instead — a different endpoint with a
                 // different answer — so it must still fetch its own.
-                if rule.usePrereleases { discovered = discovery.list }
+                if rule.startsWithReleaseList { discovered = discovery.list }
             }
             let resolved = try await resolve(
                 rule, anchoredTo: anchor, preferring: hostArch,
@@ -1628,7 +1630,7 @@ public struct GitHubReleasesSource: UpdateSource {
             if first.remote != nil || first.archIncompatible { return first }
             Log.source.debug("GitHub \(rule.slug, privacy: .public): the newest release could not answer, paying for the full page of \(rule.listPageSize, privacy: .public)")
         }
-        guard let releases = try await fetchReleases(rule, list: rule.usePrereleases || rule.ranksStableList) else {
+        guard let releases = try await fetchReleases(rule, list: rule.startsWithReleaseList) else {
             return Resolution(remote: nil, tags: [], archIncompatible: false)
         }
         return try await settle(

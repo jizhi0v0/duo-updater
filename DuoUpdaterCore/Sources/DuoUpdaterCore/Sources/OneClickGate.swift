@@ -103,11 +103,11 @@ public struct OneClickGate: Sendable {
             return version.range(of: pattern, options: .regularExpression) != nil
         case .migratedMajor(let source, let firstMajor):
             guard let remote, remote.sourceName == source else { return true }
-            if let installed = Self.dottedMajor(app.shortVersion), installed >= firstMajor {
+            if let installed = Self.marketingMajor(app.shortVersion), installed >= firstMajor {
                 return true
             }
             guard remote.marketingMatchesBundle,
-                  let offered = Self.dottedMajor(remote.shortVersion)
+                  let offered = Self.marketingMajor(remote.shortVersion)
             else { return false }
             return offered < firstMajor
         case .asarEntry(let path, let pattern):
@@ -122,9 +122,11 @@ public struct OneClickGate: Sendable {
         }
     }
 
-    private static func dottedMajor(_ version: String?) -> Int? {
+    private static func marketingMajor(_ version: String?) -> Int? {
+        let identifiers = #"[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*"#
+        let pattern = #"\A(?:0|[1-9][0-9]*)(?:\.[0-9]+)+(?:-\#(identifiers))?(?:\+\#(identifiers))?\z"#
         guard let version,
-              version.range(of: #"\A(?:0|[1-9][0-9]*)(?:\.[0-9]+)+\z"#, options: .regularExpression) != nil
+              version.range(of: pattern, options: .regularExpression) != nil
         else { return nil }
         return VersionComparator.majorComponent(version)
     }

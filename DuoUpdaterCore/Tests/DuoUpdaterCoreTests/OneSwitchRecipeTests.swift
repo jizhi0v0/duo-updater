@@ -68,6 +68,9 @@ import Testing
     @Test func eitherKnownSideCanRuleOutCrossingTheMigrationBoundary() {
         for result in [
             offer(from: "2.0.0", to: "2.0.1-beta.1"),
+            offer(from: "2.0.1-beta.1", to: "2.0.1"),
+            offer(from: "2.0-beta.2+build7", to: "2.0.1"),
+            offer(from: "1.35.2", to: "1.35.4-rc.1"),
             offer(from: "2.0", to: "2.1", provenMarketing: false),
             offer(from: nil, to: "1.35.4"),
         ] {

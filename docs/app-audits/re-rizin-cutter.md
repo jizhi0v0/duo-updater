@@ -28,7 +28,7 @@
 
 - **同一个包内版本曾用在两个公开发布轨。** 官方 2.4.0 和 2.4.0-rc1 的 `Info.plist` 字节相同，两个 tag 指向同一个 commit `ec6a6fb`。2.3.4、2.3.0 也各有与正式 tag 同 commit 的公开 RC。2.5.0 的正式 tag 与 RC4 tag 共用 commit，但 GitHub API 对 RC4 的 Release 查询返回 404。[2.4 的 tag refs](https://api.github.com/repos/rizinorg/cutter/git/matching-refs/tags/v2.4) · [2.3 的 tag refs](https://api.github.com/repos/rizinorg/cutter/git/matching-refs/tags/v2.3) · [2.5 的 tag refs](https://api.github.com/repos/rizinorg/cutter/git/matching-refs/tags/v2.5)
 - 上游构建用版本、可选打包后缀、Git 分支与短 commit 生成包内版本。厂商自带更新器查询 GitHub 的 `releases/latest`、比较三段数字并给出正式发布页链接。Duo 若照搬该端点，2.4.0-rc1 会收到后续正式版的提示。现有 GitHub tag 反查和 VendorProbe 安装版本筛选均依赖可区分的本地版本，无法分开这两个包。受测样本的 Team 差异可供安装签名校验使用，未找到厂商为各发布轨承诺这个签名分界的规则。[构建版本逻辑](https://github.com/rizinorg/cutter/blob/v2.5.0/CMakeLists.txt#L30-L61) · [厂商更新器](https://github.com/rizinorg/cutter/blob/v2.5.0/src/common/UpdateWorker.cpp)
-- 用生产来源链的 `channel-verify` 核对 2.4.0、2.4.0-rc1、2.4.1、2.5.0 和 2.5.0-rc1。五份均显示 `detected channel → stable`（默认值）、`winning source <none>`、`status unknown (no source answered)`。两条轨均保留当前覆盖缺口。
+- 在 Apple Silicon macOS 27.2 VM 用生产来源链的 `channel-verify` 核对 2.4.0、2.4.0-rc1、2.4.1、2.5.0 和 2.5.0-rc1。五份均显示 `detected channel → stable`（默认值）、`winning source <none>`、`status unknown (no source answered)`。2.4.0 正式版与 RC 的 `Info.plist` 在 VM 中也通过了逐字节比较。两条轨均保留当前覆盖缺口。
 
 ## 一键安装
 

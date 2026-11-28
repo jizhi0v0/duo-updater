@@ -54,6 +54,18 @@ import Testing
                 (hasUpdate ? .updateAvailable(latest: version) : .upToDate))
     }
 
+    @Test func newerTimestampCannotOfferAnOlderMarketingVersion() throws {
+        let recipe = try #require(net_xmind_vana_app.set.probes.first)
+        let remote = VendorProbeSource.makeRemoteVersion(
+            recipe: recipe, version: "202611170640", install: nil, plan: nil, resolvedDownload: nil,
+            display: "27.01.05088")
+        let installed = InstalledApp(
+            name: "Xmind", bundleID: recipe.bundleID, shortVersion: "27.01.05089",
+            buildVersion: "2026111606400", vendorBuildVersion: "202611160640",
+            path: URL(fileURLWithPath: "/Applications/Xmind.app"), isMASApp: false, sparkleFeedURL: nil)
+        #expect(UpdateChecker.evaluate(installed: installed, remote: remote) == .upToDate)
+    }
+
     @Test(arguments: [
         "http://dl3.xmind.app/Xmind-for-macOS-27.01.05089-202611160640.dmg",
         "https://dl3.xmind.app.invalid/Xmind-for-macOS-27.01.05089-202611160640.dmg",

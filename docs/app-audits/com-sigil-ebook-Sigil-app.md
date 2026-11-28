@@ -20,6 +20,10 @@
 - `duo verify --only com.sigil-ebook.Sigil.app` 选择 `vendor:com.sigil-ebook.Sigil.app:stable` 和 `changelog:com.sigil-ebook.Sigil.app:-`。
 - `duo verify-install --full --only com.sigil-ebook.Sigil.app` 以 `vendor:com.sigil-ebook.Sigil.app:stable` 检查当前官方 ARM TXZ 的实际下载和包身份。
 
+这两项签名 Release CLI 检查均通过。完整下载的 2.8.6 TXZ 解包后为同 ID、同 Team。
+
 ## 历史与实测
 
 2026-11-28，官网 ARM 下载链接、[2.8.6 发布资产](https://github.com/Sigil-Ebook/Sigil/releases/tag/2.8.6) 与官方 XML 都指向 2.8.6。2.8.5 的 GitHub 发布页没有 macOS 资产，官网最新下载按钮直接给出实际发布的 2.8.6 ARM 资产。两份 ARM TXZ 用 macOS 自带的 tar 解包后，`codesign --verify --deep --strict` 通过，Gatekeeper 显示 `Notarized Developer ID`。厂商日志在 2.8.6 下列出 EPUB 3 封面更改可能损坏 OPF 清单的修复。
+
+VM 用签名 Release CLI 检出 2.8.1 → 2.8.6，在应用关闭时下载官网 ARM TXZ 并原地升级。升级后显示已是最新版，严格签名和公证通过，包内容与厂商原包一致。生产日志面板保留 2.8.6 的 Bug Fixes 标题及六条更新。

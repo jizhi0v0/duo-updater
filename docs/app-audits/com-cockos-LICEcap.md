@@ -19,10 +19,12 @@
 - `install:vendor:com.cockos.LICEcap:stable` 监测官网正式版 DMG 的下载和签名身份。
 - `changelog:com.cockos.LICEcap:-` 监测官网有日期的 macOS 发布记录。
 
-动态检查随本批 VM 验收运行 `duo verify --vendor --changelog` 和 `duo verify-install --full`。
+签名 Release CLI 的 `duo verify --vendor --changelog` 和 `duo verify-install --full` 均通过。完整下载的 1.32 DMG 解包后为同 ID、同 Team。
 
 ## 历史与实测
 
 2026-11-28 在 Apple Silicon macOS 27.2 VM 挂载官网 1.31 和 1.32 DMG。镜像均带 GPL 文本，现有 DMG 挂载逻辑通过标准输入处理确认。两包均为 arm64/x86_64，bundle ID 为 `com.cockos.LICEcap`，Team ID 为 `Y3T58622SG`，严格签名及 Gatekeeper 公证均通过。两个版本均无 `CFBundleShortVersionString`，构建字段分别为 `1.31` 和 `1.32`。
 
 实查 1.29 和 1.30 官网包同 ID、同 Team，版本也只有构建字段。1.29 有 x86_64/i386，1.30 只有 x86_64。两个历史包均通过 Gatekeeper 公证，在只读镜像上运行严格签名复查时报告 Finder 信息或资源叉。1.25 和 1.28 同 ID、同 Team，未包含 x86_64 或 arm64。 [官网下载历史](https://www.cockos.com/licecap/#old)
+
+VM 基线的扫描会漏掉 1.31。本批签名 Release CLI 扫到 1.31，并在应用关闭时用官网下载包原地升至 1.32。升级后显示已是最新版，严格签名和公证通过，包内容与厂商原包一致。生产日志面板读取 1.32–1.29 共四版记录。

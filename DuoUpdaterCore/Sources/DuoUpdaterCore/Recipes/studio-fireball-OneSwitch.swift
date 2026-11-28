@@ -19,7 +19,12 @@ enum studio_fireball_OneSwitch {
     static func resolveCurrent(declaredFeed: URL?) -> ResolvedChannel? {
         CFPreferencesAppSynchronize(bundleID as CFString)
         let value = CFPreferencesCopyAppValue("SUUpdaterChecksForBetaUpdates" as CFString, bundleID as CFString)
-        return resolve(includeBeta: (value as? NSNumber)?.boolValue == true, declaredFeed: declaredFeed)
+        return resolve(includeBeta: enablesBeta(value), declaredFeed: declaredFeed)
+    }
+
+    static func enablesBeta(_ value: Any?) -> Bool {
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }
+        return number.boolValue
     }
 
     // History: docs/app-audits/studio-fireball-OneSwitch.md#历史与实测
@@ -46,5 +51,11 @@ enum studio_fireball_OneSwitch {
             ChannelProofKey(bundleID, .beta):
                 .recipeAnchor(#"^https://fireball\.studio/api/release_manager/studio\.fireball\.OneSwitchOfficial\.xml\?beta=1$"#,
                               in: ["feedOverride"]),
+        ],
+        oneClickGates: [
+            OneClickGate(
+                bundleID: bundleID,
+                requirement: .migratedMajor(source: "Sparkle", firstMajor: 2),
+                reason: "open One Switch and use Check for Updates to migrate its Keep Awake helper"),
         ])
 }

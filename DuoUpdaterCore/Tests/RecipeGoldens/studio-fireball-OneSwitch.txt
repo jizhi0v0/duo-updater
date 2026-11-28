@@ -95,7 +95,14 @@ loginWalls = Dictionary(count: 0)
 
 changelogPages = Dictionary(count: 0)
 
-oneClickGates = Array(count: 0)
+oneClickGates = Array(count: 1)
+oneClickGates[0] = struct OneClickGate
+oneClickGates[0].bundleID = "studio.fireball.OneSwitch"
+oneClickGates[0].requirement = .migratedMajor(source:firstMajor:)
+oneClickGates[0].requirement.source = "Sparkle"
+oneClickGates[0].requirement.firstMajor = 2
+oneClickGates[0].reason = "open One Switch and use Check for Updates to migrate its Keep Awake helper"
+oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)
 

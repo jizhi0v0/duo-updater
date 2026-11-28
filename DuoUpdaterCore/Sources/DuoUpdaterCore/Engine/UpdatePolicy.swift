@@ -500,7 +500,8 @@ public enum UpdatePolicy {
             // (EdDSA over the exact enclosure bytes) before PackageInstaller applies
             // its Developer ID Installer + Team-ID gate. An unsigned package stays
             // detection-only: unlike an extracted app, it has no bundle-id gate.
-            guard result.remote?.requiresMatchingSparkleBuild != true,
+            guard result.nativeUpdaterRequirementReason == nil,
+                  result.remote?.requiresMatchingSparkleBuild != true,
                   Self.isSparklePackage(result.remote),
                   result.app.sparkleEdPublicKey?.isEmpty == false,
                   result.remote?.edSignature?.isEmpty == false else { return false }
@@ -607,17 +608,15 @@ public enum UpdatePolicy {
         return sparklePackageExtensions.contains(ext)
     }
 
-    /// Whether, per the user's `vendorInstallPolicy`, this update should be handed
-    /// to the app's OWN updater rather than installed over by us right now. True for
-    /// running self-updating apps when the policy is `.deferWhenRunning`. A
-    /// not-running app (nothing to disturb) or the `.alwaysOverwrite` policy installs
-    /// in place as usual. Detection-only vendor apps (no installable spec) already
-    /// just "Open" their update path, so they're excluded here.
+    /// A recipe may require the app's own updater for a migration. Otherwise
+    /// running self-updating apps defer when the policy is `.deferWhenRunning`.
+    /// Detection-only vendor apps already offer their own update path.
     public static func defersToSelfUpdater(
         _ result: UpdateResult,
         settings: UpdateSettings,
         environment: InstallEnvironment
     ) -> Bool {
+        if result.nativeUpdaterRequirementReason != nil { return true }
         // Handing the update to the app's own updater runs none of our gates, so
         // a copy without a Team ID still defers: its Sparkle accepts an
         // EdDSA-signed update without one. Only our own install is withheld.

@@ -10,6 +10,8 @@
 
 1.x 官网包内有后台登录项 `studio.fireball.OneSwitch.OneSwitchHelper` 和 `studio.fireball.OneSwitch.OneSwitchXPC`。2.0/462 保留该 XPC，包内已经没有旧登录 helper。需要管理员授权的 Keep Awake 功能在 1.x 使用 SMJobBless 安装特权组件，2.0/462 改为使用 `SMAppService` 注册 `studio.fireball.OneSwitch.Daemon`。该组件的授权与迁移由 One Switch 管理，已授权运行态需要单独验证。
 
+1.x → 2.0 或更高版本保留 Sparkle 检测和发布说明，并引导用户打开 One Switch，通过应用自己的 Check for Updates 完成升级。1.x 同代升级和已经是 2.x 的副本继续走通用安装链。夜扫仍下载并检查两轨的实际更新包。
+
 ## Changelog
 
 appcast 为同一条目发布多个带 `xml:lang` 的链接。结构化 recipe 读取当前条目选中的语言和 build 页面，接受官网正式版路径。页面标题是 One Switch Official。单段说明保留为一条，列表之前以冒号结束的独立段落显示为标题。页面可能附带近期版本回顾，版本归属从 appcast 选择的页面确定。

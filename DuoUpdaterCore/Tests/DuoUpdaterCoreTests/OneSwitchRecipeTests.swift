@@ -7,6 +7,76 @@ import Testing
     private let feed = "https://fireball.studio/api/release_manager/studio.fireball.OneSwitchOfficial.xml"
     private let notes = "https://fireball.studio/api/release_manager/releasenotes"
 
+    @Test func onlyARealBooleanTrueEnablesBeta() {
+        #expect(studio_fireball_OneSwitch.enablesBeta(kCFBooleanTrue))
+        #expect(!studio_fireball_OneSwitch.enablesBeta(kCFBooleanFalse))
+        #expect(!studio_fireball_OneSwitch.enablesBeta(nil))
+        #expect(!studio_fireball_OneSwitch.enablesBeta(NSNumber(value: 2)))
+        #expect(!studio_fireball_OneSwitch.enablesBeta("true" as NSString))
+    }
+
+    private func offer(
+        from installed: String?, to offered: String?, source: String = "Sparkle",
+        installedID: String? = nil, provenMarketing: Bool = true, package: Bool = false
+    ) -> UpdateResult {
+        let app = InstalledApp(
+            name: "One Switch", bundleID: installedID ?? bundleID, shortVersion: installed,
+            buildVersion: "429", path: URL(fileURLWithPath: "/Applications/One Switch Fixture.app"),
+            isMASApp: false, sparkleFeedURL: URL(string: feed),
+            sparkleEdPublicKey: "fixture-key")
+        let remote = RemoteVersion(
+            shortVersion: offered, version: "462", marketingMatchesBundle: provenMarketing,
+            downloadURL: URL(string: "https://example.invalid/one-switch.zip"),
+            edSignature: "fixture-signature", sourceName: source, sparklePackageEnclosure: package)
+        return UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: offered ?? "462"))
+    }
+
+    @Test func oneClickGateKeepsOnlyTheProtectedSparkleMigrationWithTheVendor() async throws {
+        let settings = UpdateSettings(appStoreUpdateStrategy: .full, vendorInstallPolicy: .alwaysOverwrite)
+        let environment = InstallEnvironment(isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:])
+        let migration = offer(from: "1.35.2", to: "2.0")
+        let gate = try #require(OneClickGateRegistry.withholding(migration.app, offering: migration.remote))
+        #expect(migration.nativeUpdaterRequirementReason == gate.reason)
+        #expect(migration.remote?.downloadURL != nil)
+        #expect(!UpdatePolicy.canAutoInstall(migration, settings: settings, environment: environment))
+        #expect(UpdatePolicy.defersToSelfUpdater(migration, settings: settings, environment: environment))
+
+        let coordinator = InstallCoordinator(permits: InstallPermits(downloads: 1, applies: 1))
+        await #expect(throws: OneClickGateRegistry.Withheld.self) {
+            _ = try await coordinator.perform(
+                migration, route: .sparkle, installedPopulation: [migration.app],
+                digestOnlyAllowed: false, progress: { _ in })
+        }
+
+        let packageMigration = offer(from: "1.35.2", to: "2.0", package: true)
+        #expect(!UpdatePolicy.requiresInstaller(packageMigration, environment: environment))
+
+        for result in [offer(from: "1.35.2", to: "1.35.4"), offer(from: "2.0", to: "2.1")] {
+            #expect(OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil)
+            #expect(UpdatePolicy.canAutoInstall(result, settings: settings, environment: environment))
+            #expect(!UpdatePolicy.defersToSelfUpdater(result, settings: settings, environment: environment))
+        }
+        for result in [
+            offer(from: "1.35.2", to: "2.0", source: "Homebrew"),
+            offer(from: "1.35.2", to: "2.0", source: "Setapp"),
+            offer(from: "1.35.2", to: "2.0", installedID: bundleID + "-setapp"),
+        ] {
+            #expect(OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil)
+        }
+    }
+
+    @Test func sparkleMigrationGateFailsClosedForUnprovenVersionIdentity() {
+        for result in [
+            offer(from: nil, to: "2.0"),
+            offer(from: "2.0/injected", to: "2.1"),
+            offer(from: "1.35.2", to: nil),
+            offer(from: "1.35.2", to: "2.0\n1.35.4"),
+            offer(from: "2.0", to: "2.1", provenMarketing: false),
+        ] {
+            #expect(OneClickGateRegistry.withholding(result.app, offering: result.remote) != nil)
+        }
+    }
+
     @Test func betaPreferenceAloneCanChooseThePreviewFeed() throws {
         let stable = try #require(studio_fireball_OneSwitch.resolve(includeBeta: false))
         #expect(stable.channel == .stable)

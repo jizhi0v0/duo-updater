@@ -50,6 +50,8 @@ import Foundation
             "feed:com.qvacua.VimR:stable",
             "feed:com.superlogical.rex:nightly",
             "feed:com.superlogical.rex:preview",
+            "feed:studio.fireball.OneSwitch:beta",
+            "feed:studio.fireball.OneSwitch:stable",
         ], "swept: \(ids.sorted())")
         #expect(cases.allSatisfy { $0.kind == .channel && $0.declared == nil })
     }

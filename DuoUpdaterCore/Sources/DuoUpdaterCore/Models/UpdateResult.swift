@@ -1179,6 +1179,14 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
         return remote?.pageURL
     }
 
+    /// Migration instructions for an offer that must use the app's own updater.
+    public var nativeUpdaterRequirementReason: String? {
+        guard case .updateAvailable = status,
+              let gate = OneClickGateRegistry.withholding(app, offering: remote),
+              case .migratedMajor = gate.requirement else { return nil }
+        return gate.reason
+    }
+
     private var requiresSeparateGenerationInstall: Bool {
         guard remote?.pageURL != nil,
               let gate = OneClickGateRegistry.withholding(app, offering: remote),

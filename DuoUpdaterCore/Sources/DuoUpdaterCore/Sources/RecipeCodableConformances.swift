@@ -970,12 +970,15 @@ extension OneClickGate: Codable {
 }
 
 extension OneClickGate.Requirement: Codable {
-    enum CodingKind: String, CaseIterable { case installedVersion, asarEntry, executableContains, executableLacks }
+    enum CodingKind: String, CaseIterable {
+        case installedVersion, migratedMajor, asarEntry, executableContains, executableLacks
+    }
 
     public init(from decoder: Decoder) throws {
         let (kind, c) = try RecipeCoding.taggedObject(CodingKind.self, in: decoder) {
             switch $0 {
             case .installedVersion: return ["pattern"]
+            case .migratedMajor: return ["source", "firstMajor"]
             case .asarEntry: return ["path", "pattern"]
             case .executableContains, .executableLacks: return ["marker"]
             }
@@ -983,6 +986,10 @@ extension OneClickGate.Requirement: Codable {
         switch kind {
         case .installedVersion:
             self = .installedVersion(pattern: try c.decode(String.self, forKey: .init("pattern")))
+        case .migratedMajor:
+            self = .migratedMajor(
+                source: try c.decode(String.self, forKey: .init("source")),
+                firstMajor: try c.decode(Int.self, forKey: .init("firstMajor")))
         case .asarEntry:
             self = .asarEntry(
                 path: try c.decode(String.self, forKey: .init("path")),
@@ -1001,6 +1008,10 @@ extension OneClickGate.Requirement: Codable {
         case .installedVersion(let pattern):
             kind = .installedVersion
             try c.encode(pattern, forKey: .init("pattern"))
+        case .migratedMajor(let source, let firstMajor):
+            kind = .migratedMajor
+            try c.encode(source, forKey: .init("source"))
+            try c.encode(firstMajor, forKey: .init("firstMajor"))
         case .asarEntry(let path, let pattern):
             kind = .asarEntry
             try c.encode(path, forKey: .init("path"))

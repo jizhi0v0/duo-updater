@@ -456,7 +456,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
-- [x] [**One Switch**](studio-fireball-OneSwitch.md) · `studio.fireball.OneSwitch` — S+B（补全官网正式 appcast，按应用自己的偏好切换 Beta）+ C（解析所选版本和语言的发布页）· Setapp 版由其目录托管 · 2026-11-28
+- [x] [**One Switch**](studio-fireball-OneSwitch.md) · `studio.fireball.OneSwitch` — S+B（官网正式版与显式开启的 Beta）+ C（所选版本和语言的发布页）· VM 一键升级 429 → 440 及主进程和 XPC 重启通过 · 1.x → 2.x 由厂商更新器处理 · 2026-11-28
 
 - [x] [**ONLYOFFICE**](asc-onlyoffice-ONLYOFFICE.md) · `asc.onlyoffice.ONLYOFFICE` — S（官网包内 ARM、Intel 和旧 Intel appcast）+ C（官方版本历史与迁移提示）· 2026-11-28
 

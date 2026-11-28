@@ -26,8 +26,10 @@
 
 - VendorProbe 自动枚举 `vendor:com.rawtherapee.RawTherapee:stable` 与 `vendor:com.rawtherapee.rawtherapee5:stable`。两项都读当次验证宿主能运行的最高版本，兼容范围随目录内容变化。
 - 对应日志监控为 `changelog:com.rawtherapee.RawTherapee:stable` 和 `changelog:com.rawtherapee.rawtherapee5:stable`。夜扫按找到的首个正式版本检查对应页面。macOS 26+ 正常发布时检查当前版日志，5.11 与 5.12 的归档日志不各自占一个独立夜扫项。仅检测的 recipe 无 `install` spec，因此安装字节夜扫无目标。滚动开发包不在本次监控覆盖内。
+- Apple Silicon macOS 27.2 VM 联跑 `duo verify --vendor --feed --changelog --only rawtherapee,studio.fireball.OneSwitch` 时，RawTherapee 所选两个版本探针和两条日志检查均通过。`duo verify-install --full --only rawtherapee` 确认没有匹配的安装器目标。
 
 ## 历史与实测
 
 - 2026-11-28。核对 [5.11 官网 ZIP](https://rawtherapee.com/shared/builds/mac/RawTherapee_macOS_12.3_Universal_5.11.zip)、[5.12 GitHub ZIP](https://github.com/RawTherapee/RawTherapee/releases/download/5.12/RawTherapee_macOS_15.4_Universal_5.12.zip)、[5.13 GitHub ZIP](https://github.com/RawTherapee/RawTherapee/releases/download/5.13/RawTherapee_MacOS_26.0_Universal_5.13.zip)。三款通过严格签名与 Gatekeeper 公证检查。官网目录中 5.12 与 5.13 均只列出 ZIP，按同名请求裸 DMG 均返回 404。
 - 2026-11-28。[arm64 开发 ZIP](https://github.com/RawTherapee/RawTherapee/releases/download/nightly-github-actions/RawTherapee_dev_macOS_arm64_Release.zip) 解出的 5.13-42-g3458b9a18 是 arm64 ad-hoc 签名包，macOS 下限为 14.0。
+- 2026-11-28。VM 中的 5.11 与 5.12 实包都提示 5.13，打开下载页指向该版本，5.13 实包显示已是最新版。5.13 英文发布页在 Duo 面板中有 67 条和三个原文标题。开发实包显示 Nightly，未收到正式版提示和日志。签名 CLI 对 5.12 的直接安装请求返回仅检测，包内版本维持 5.12。

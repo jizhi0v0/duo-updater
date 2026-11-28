@@ -12,6 +12,8 @@
 
 1.x → 2.0 或更高版本保留 Sparkle 检测和发布说明，并引导用户打开 One Switch，通过应用自己的 Check for Updates 完成升级。1.x 同代升级和已经是 2.x 的副本继续走通用安装链。夜扫仍下载并检查两轨的实际更新包。
 
+Apple Silicon macOS 27.2 VM 用签名 Release CLI 从 1.35.2/429 原地更新到 1.35.4/440，关闭态和运行态都成功。换包后 `duo restart` 将主进程从 23043 换为 23118，将 XPC 从 23052 换为 23121。旧版登录 helper 启动后自行退出。新版包内的登录 helper 和 XPC 都报告 build 440，严格签名与 Gatekeeper 通过，再检查显示已是最新版。
+
 ## Changelog
 
 appcast 为同一条目发布多个带 `xml:lang` 的链接。结构化 recipe 读取当前条目选中的语言和 build 页面，接受官网正式版路径。页面标题是 One Switch Official。单段说明保留为一条，列表之前以冒号结束的独立段落显示为标题。页面可能附带近期版本回顾，版本归属从 appcast 选择的页面确定。
@@ -20,6 +22,7 @@ appcast 为同一条目发布多个带 `xml:lang` 的链接。结构化 recipe �
 
 - 正式与 Beta feed 分别核对 `feed:studio.fireball.OneSwitch:stable` 和 `feed:studio.fireball.OneSwitch:beta`。两条 changelog 检查是 `changelog:studio.fireball.OneSwitch:stable` 和 `changelog:studio.fireball.OneSwitch:beta`。
 - 公共安装器清单记录 `sparkle:studio.fireball.OneSwitch:stable` 和 `sparkle:studio.fireball.OneSwitch:beta`，报告在各 ID 前加 `install:`。两轨使用官网旧版和当前版共有的 Ed25519 公钥。首次实包验证用于建立观测。
+- VM 联跑 `duo verify --vendor --feed --changelog --only rawtherapee,studio.fireball.OneSwitch` 时，One Switch 所选 feed 与日志检查均通过。`duo verify-install --full --only studio.fireball.OneSwitch` 下载 440 和 462，两个安装包均通过检查。
 - Setapp 版由订阅目录提供更新，官网公开包夜扫不覆盖该版本。
 
 ## 历史与实测
@@ -29,6 +32,8 @@ appcast 为同一条目发布多个带 `xml:lang` 的链接。结构化 recipe �
 同日检查了最早仍列出的 1.15/266 Intel ZIP 和 Beta 首条 2.0/462 通用 ZIP。两者保持同一身份、Team 和公钥，严格签名与 Gatekeeper 公证检查均通过。462 包内的系统下限为 macOS 15，feed 声明为 12.0。Beta feed 历史构建 411、412、427、438 的完整 ZIP，以及 462 的 delta 基底构建 461 的完整 ZIP，均返回 HTTP 404。
 
 VM 中使用 1.35.2/429 自身的检查入口，默认获得 1.35.4。退出后将测试副本的 `SUUpdaterChecksForBetaUpdates` 改为布尔真，重新启动后从同一入口获得 2.0。429、440 和 462 的二进制还包含自身的 Beta 开关提示文本。
+
+最终签名 CLI 中，整数 `2` 仍选正式版 440。布尔真使 440 检测到 Beta 2.0/462，462 实包显示已是最新版。Duo 日志面板将 462 英文发布页呈现为五条，原文没有分段标题。CLI 将 440 到 462 标记为自带更新器路径，直接安装请求被拒绝，副本仍为签名有效的 440。
 
 取样的 440 英语、简体中文和繁体中文发布说明各有一段关于勿扰模式的说明。[440 英语发布说明](https://fireball.studio/api/release_manager/releasenotes/440/en/studio.fireball.OneSwitchOfficial.xml)
 

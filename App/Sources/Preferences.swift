@@ -377,15 +377,15 @@ final class Preferences {
         automaticUpdateObservations[key(for: app)]
     }
 
+    var animateMenuBarIcon: Bool {
+        didSet { defaults.set(animateMenuBarIcon, forKey: Key.animateMenuBarIcon) }
+    }
+
     /// Run without a Dock icon — menu bar only. **On by default**: this is a
     /// menu-bar app, and the popover is how it is actually driven, so the Dock
     /// slot is mostly noise. Turning it off brings back the Dock tile — and with
     /// it the pending-update badge, which needs a tile to sit on. Applied
     /// immediately so the Dock reacts to the toggle, not to the next launch.
-    var animateMenuBarIcon: Bool {
-        didSet { defaults.set(animateMenuBarIcon, forKey: Key.animateMenuBarIcon) }
-    }
-
     var hideDockIcon: Bool {
         didSet {
             defaults.set(hideDockIcon, forKey: Key.hideDockIcon)

@@ -99,8 +99,9 @@ struct DuoUpdaterApp: App {
 /// gets: the label View renders as soon as the status item appears (before any popover
 /// opens), so its `.task` is where we trigger first-run onboarding.
 private struct MenuBarLabel: View {
-    /// Held here so the notification observers outlive the `.task` that starts them.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Held here so the notification observers outlive the `.task` that starts them.
     @State private var backupVolumeWatcher = BackupVolumeWatcher()
 
     @Bindable var model: AppListModel

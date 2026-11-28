@@ -91,6 +91,50 @@ struct SparkleChannelTests {
         #expect(best?.channel == nil)
     }
 
+    @Test func royalTSXBetaOnlyAppcastRecognizesATrimmedBuild() {
+        // The vendor's v26 packages use plain numeric versions. A copy of the
+        // official 26.0.19 package still needs the next beta if 26.0.19 drops
+        // out of the appcast's rolling history.
+        let beta = SparkleAppcastItem(
+            shortVersionString: "26.0.20", version: "26.0.20.0", channel: "beta")
+        let v26Feed = "https://royaltsx-v26.royalapps.com/app/updates"
+        let v26 = InstalledApp(
+            name: "Royal TSX", bundleID: "com.lemonmojo.RoyalTSX.App",
+            shortVersion: "26.0.19", buildVersion: "26.0.19.0",
+            path: URL(fileURLWithPath: "/Applications/Royal TSX.app"),
+            isMASApp: false, sparkleFeedURL: URL(string: v26Feed))
+
+        #expect(SparkleAppcastSource.channel(ofInstalled: v26, in: [beta]) == nil)
+        let update = SparkleAppcastSource.bestItem(for: v26, from: [beta], osVersion: "26.0.0")
+        #expect(update?.version == "26.0.20.0")
+        #expect(update?.channel == "beta")
+
+        let final = SparkleAppcastItem(shortVersionString: "26.0.20", version: "26.0.20.1")
+        #expect(SparkleAppcastSource.allowedChannels(for: v26, in: [final, beta]) == [nil])
+    }
+
+    @Test func royalTSXBetaOnlyAppcastFallbackRespectsFeedIdentityAndExplicitChannel() {
+        let beta = SparkleAppcastItem(
+            shortVersionString: "26.0.20", version: "26.0.20.0", channel: "beta")
+        let bundleID = "com.lemonmojo.RoyalTSX.App"
+        let v26Feed = "https://royaltsx-v26.royalapps.com/app/updates"
+
+        func allowed(for id: String, feed: String, authoritative: Bool = false) -> Set<String?> {
+            let installed = InstalledApp(
+                name: "Royal TSX", bundleID: id,
+                shortVersion: "6.4.4", buildVersion: "6.4.4.1000",
+                path: URL(fileURLWithPath: "/Applications/Royal TSX.app"),
+                isMASApp: false, sparkleFeedURL: URL(string: feed),
+                releaseChannel: .stable, channelIsAuthoritative: authoritative)
+            return SparkleAppcastSource.allowedChannels(for: installed, in: [beta])
+        }
+
+        #expect(allowed(for: bundleID, feed: "https://royaltsx-v6.royalapps.com/updates_stable") == [nil])
+        #expect(allowed(for: "com.example.other", feed: v26Feed) == [nil])
+        #expect(allowed(for: bundleID, feed: v26Feed + "?other=1") == [nil])
+        #expect(allowed(for: bundleID, feed: v26Feed, authoritative: true) == [nil])
+    }
+
     @Test func channelOfInstalledMatchesOnBuildThenShortVersion() {
         #expect(SparkleAppcastSource.channel(ofInstalled: app(short: "x", build: "200"), in: items) == "beta")
         #expect(SparkleAppcastSource.channel(ofInstalled: app(short: "1.5", build: "x"), in: items) == nil)

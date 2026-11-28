@@ -42,7 +42,7 @@ struct AcornFeedTests {
         #expect(app.changelog(for: Self.item("8.8b1", html: malformed + stable), feedURL: app.betaFeed) == nil)
     }
 
-    @Test func historicalAutomationNotesKeepParagraphsAndStandaloneCodeInOrder() throws {
+    @Test func historicalAutomationNotesKeepProseAndReferToOriginalCodeInOrder() throws {
         let html = """
         <div class="releaseT"><div class="releaseInfo">
           <div class="releaseTitleT">Acorn 8.6</div>
@@ -60,8 +60,40 @@ struct AcornFeedTests {
             .heading("Changes"), .note("Redrawing is much faster."),
             .heading("New Automation and JavaScript Things"),
             .note("Lots of interesting JavaScript things this time around."),
-            .note("print(JSON.stringify(documentPaths, null, 2));"),
+            .note("[Code example in the official release notes]"),
             .note("This opens up a whole layer of possibilities for automation."),
+        ])
+    }
+
+    @Test func historicalAutosavingNotesKeepBareTextAroundTheList() throws {
+        let html = """
+        <div class="releaseT"><div class="releaseInfo">
+          <div class="releaseTitleT">Acorn 8.1</div>
+        </div>
+        <h3># Autosaving Changes</h3>
+        There is a new preference in the Settings window for autosave with three options:<br/><br/>
+        <ul>
+        <li><span class="ui">Off</span>: This will disable all autosaving of images.</li>
+        <li><span class="ui">Native Acorn Images</span>: This will enable autosaving and versions support for native Acorn files only (.acorn).</li>
+        <li><span class="ui">All Images</span>: This will autosave all file types, including lossy encoded images such as JPEG or HEIC.</li>
+        </ul>
+        The default is set to <span class="ui">Native Acorn Images</span>.<br/><br/>
+        In Acorn 8.0, when autosave was enabled, non-native files would open without a reference to the original file on disk. This is no longer the case in Acorn 8.1, where non-native files open with a reference to the original file, and pressing ⌘S will save back to the original, regardless of the autosave setting.
+        <h3># Other Improvements</h3>
+        <ul><li>The Smart Layer Export palette now has options to save as WebP and JPEG-XL.</li></ul>
+        </div>
+        """
+        let log = try #require(app.changelog(for: Self.item("8.1", html: html), feedURL: app.stableFeed))
+        #expect(log.entries.first?.content == [
+            .heading("Autosaving Changes"),
+            .note("There is a new preference in the Settings window for autosave with three options:"),
+            .note("Off: This will disable all autosaving of images."),
+            .note("Native Acorn Images: This will enable autosaving and versions support for native Acorn files only (.acorn)."),
+            .note("All Images: This will autosave all file types, including lossy encoded images such as JPEG or HEIC."),
+            .note("The default is set to Native Acorn Images."),
+            .note("In Acorn 8.0, when autosave was enabled, non-native files would open without a reference to the original file on disk. This is no longer the case in Acorn 8.1, where non-native files open with a reference to the original file, and pressing ⌘S will save back to the original, regardless of the autosave setting."),
+            .heading("Other Improvements"),
+            .note("The Smart Layer Export palette now has options to save as WebP and JPEG-XL."),
         ])
     }
 

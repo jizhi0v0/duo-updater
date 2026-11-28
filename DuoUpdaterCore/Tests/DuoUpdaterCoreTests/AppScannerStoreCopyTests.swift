@@ -81,6 +81,21 @@ struct AppScannerStoreCopyTests {
         }
     }
 
+    @Test func acornStoreCopyDoesNotInheritTheDirectFeedBinding() throws {
+        let id = com_flyingmeat_Acorn8.bundleID
+        let direct = try Self.scan(bundleID: id, declaringFeed: nil, storeReceipt: false, version: "8.7.3")
+        let store = try Self.scan(bundleID: id, declaringFeed: nil, storeReceipt: true, version: "8.7.3")
+
+        #expect(!direct.isMASApp)
+        #expect(direct.channelIsAuthoritative)
+        let directFeed = try #require(direct.sparkleFeedURL)
+        #expect(com_flyingmeat_Acorn8.matchesFeed(bundleID: id, feedURL: directFeed))
+        #expect(store.isMASApp)
+        #expect(!store.channelIsAuthoritative)
+        #expect(store.releaseChannel == .stable)
+        #expect(store.sparkleFeedURL == nil)
+    }
+
     /// Mutation: drop `!isMAS,` from the `SparkleFeedCatalog.replacement` guard.
     /// The store half is then redirected off the frozen feed — which reads
     /// harmlessly as up-to-date — and onto a live one that offers a .zip.

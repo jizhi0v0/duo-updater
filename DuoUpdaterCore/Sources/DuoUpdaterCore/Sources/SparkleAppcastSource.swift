@@ -138,6 +138,8 @@ public struct SparkleAppcastSource: UpdateSource {
         // rather than HTML, parse them into a native, multi-version changelog so the
         // detail window renders entries instead of falling back to a web view.
         let isAcornFeed = com_flyingmeat_Acorn8.matchesFeed(bundleID: app.bundleID, feedURL: feedURL)
+        let acornNotes = feedURL == com_flyingmeat_Acorn8.betaFeed
+            ? com_flyingmeat_Acorn8.betaNotes : com_flyingmeat_Acorn8.stableNotes
         let structured = isAcornFeed
             ? com_flyingmeat_Acorn8.changelog(for: best, feedURL: feedURL)
             : Self.structuredChangelog(from: offerable, bundleID: app.bundleID)
@@ -171,7 +173,7 @@ public struct SparkleAppcastSource: UpdateSource {
             downloadHeaders: isRogueAmoebaFeed ? RogueAmoebaAppcast.downloadHeaders : [:],
             releaseNotesHTML: best.descriptionHTML,
             structuredChangelog: structured,
-            changelogURL: best.releaseNotesLink,
+            changelogURL: best.releaseNotesLink ?? (isAcornFeed ? acornNotes : nil),
             publishedAt: bestFields.publishedAt,
             vendorDay: bestFields.vendorDay,
             releaseHistory: history,
@@ -859,7 +861,8 @@ public struct SparkleAppcastSource: UpdateSource {
     ///  2. A `ChannelBinding` that only named the channel: derive the tag from it,
     ///     which is what every binding did before (1) existed and still what
     ///     DuoPaste/Fork/OrbStack/… want.
-    ///  3. No binding: infer from the build the user is actually running.
+    ///  3. No binding: infer from the installed build or the verified
+    ///     beta-only Royal TSX v26 appcast.
     ///
     /// Kept as one function so the "default channel is always allowed" rule can't
     /// drift between the branches.
@@ -868,7 +871,16 @@ public struct SparkleAppcastSource: UpdateSource {
     ) -> Set<String?> {
         var allowed: Set<String?> = [nil]
         guard app.channelIsAuthoritative else {
-            if let inferred = channel(ofInstalled: app, in: items) { allowed.insert(inferred) }
+            if let inferred = channel(ofInstalled: app, in: items) {
+                allowed.insert(inferred)
+            } else if app.bundleID == "com.lemonmojo.RoyalTSX.App",
+                      app.sparkleFeedURL?.absoluteString == "https://royaltsx-v26.royalapps.com/app/updates",
+                      !items.isEmpty,
+                      items.allSatisfy({ normalizeChannel($0.channel) == "beta" }) {
+                // V26 beta bundles declare a separate appcast from v6. Allow its
+                // beta items even after the vendor trims the installed build.
+                allowed.insert("beta")
+            }
             return allowed
         }
         if !app.sparkleChannelNames.isEmpty {

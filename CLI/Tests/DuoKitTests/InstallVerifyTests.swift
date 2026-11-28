@@ -195,6 +195,16 @@ import DuoUpdaterCore
             version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url), previous: previous(recorded: recorded())))
     }
 
+    @Test func aDistinctRequiredSparkleBuildCannotBeSkippedUsingTheDisplayVersion() {
+        let stamp = previous(recorded: recorded())
+        #expect(!InstallVerify.skipsDownload(
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url), previous: stamp,
+            requiredSparkleBuild: "18043"))
+        #expect(InstallVerify.skipsDownload(
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url), previous: stamp,
+            requiredSparkleBuild: "1.0"))
+    }
+
     @Test func noRecordedIdentityIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
             version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url), previous: previous(recorded: nil)))

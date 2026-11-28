@@ -4,6 +4,8 @@ enum com_flyingmeat_Acorn8 {
     static let bundleID = "com.flyingmeat.Acorn8"
     static let stableFeed = URL(string: "https://flyingmeat.com/download/acorn8update.xml")!
     static let betaFeed = URL(string: "https://flyingmeat.com/download/latest/acorn8update.xml")!
+    static let stableNotes = URL(string: "https://flyingmeat.com/acorn/releasenotes.html")!
+    static let betaNotes = URL(string: "https://flyingmeat.com/download/latest/")!
 
     // Acorn registers the stable address by default and writes the selected
     // address into SUFeedURL when the user toggles test releases.
@@ -29,17 +31,32 @@ enum com_flyingmeat_Acorn8 {
     // current release's date; some dates inside the HTML are placeholders.
     private static let notes = ChangelogRecipe(
         bundleID: bundleID,
-        source: URL(string: "https://flyingmeat.com/acorn/releasenotes.html")!,
+        source: stableNotes,
         entryPattern:
             #"<div\s+class="releaseT">\s*<div\s+class="releaseInfo">\s*(?:<a\b[^>]*>\s*)?<div\s+class="releaseTitleT">\s*Acorn\s+(?<version>8(?:\.[0-9]+)*(?:b[0-9]+)?)\s*</div>\s*(?:<div\s+class="releaseDate">[^<]*</div>\s*)?</div>(?<body>.*?)(?=<div\s+class="releaseT">|</body>|\z)"#,
-        itemPatterns: [#"<(li|p|pre)\b[^>]*>(?<item>.*?)</\1\s*>"#],
+        // Older sections mix wrapped notes with bare text and inline spans.
+        // Structural tags and breaks delimit the text. Consume headings here
+        // so the heading pattern alone emits their text as section labels.
+        itemPatterns: [#"""
+            (?x)
+            (?<item>
+                <(li|p)\b[^>]*>.*?</\2\s*>
+                | (?: [^<] | </?(?:a|abbr|b|code|em|i|kbd|s|span|strong|sub|sup|u)\b[^>]*> )+
+            )
+            | <(h3|script|style)\b[^>]*>.*?</\3\s*>
+            | <[^>]*>
+            """#],
         headingPattern: #"<h3\b[^>]*>\s*#?\s*(?<heading>.*?)</h3>"#)
 
     static func changelog(for item: SparkleAppcastItem, feedURL: URL) -> Changelog? {
         guard let html = item.descriptionHTML, let version = item.shortVersionString else { return nil }
-        // The feed carries commented-out draft notes inside the HTML.
+        // The feed carries commented-out draft notes inside the HTML. Let the
+        // official release notes show code samples without folding their lines.
         let publishedHTML = html.replacingOccurrences(
             of: #"(?s)<!--.*?(?:-->|\z)"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"(?is)<pre\b[^>]*>.*?</pre\s*>"#,
+                                  with: "[Code example in the official release notes]",
+                                  options: .regularExpression)
         guard let log = ChangelogExtractor.extract(from: publishedHTML, using: notes),
               let head = log.entries.first
         else { return nil }

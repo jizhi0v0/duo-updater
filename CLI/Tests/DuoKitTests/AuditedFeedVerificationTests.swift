@@ -74,6 +74,34 @@ struct AuditedFeedVerificationTests {
         }
     }
 
+    @Test func aPayloadKeyIsRecordedWithoutChangingTheLegacyMagicQuitAnchor() throws {
+        let legacy = try #require(AuditedUpdateFeeds.entries.first {
+            $0.recipeID == "sparkle:com.MagicQuit:stable:legacy-no-key"
+        })
+        let unobservedKey = try #require(AuditedUpdateFeeds.entries.first {
+            $0.recipeID == "sparkle:ai.openclaw.mac:stable:arm64"
+        })
+        let entries = [legacy, unobservedKey]
+        var store = InstallIdentities()
+        for entry in entries {
+            var item = InstallVerify.Item(recipeID: entry.recipeID, registry: "sparkle",
+                bundleID: entry.bundleID, probeHost: "example.com", status: .ok)
+            item.identity = ArtifactInspection.Identity(
+                signedIdentifier: entry.bundleID, bundleIdentifier: entry.bundleID,
+                teamIdentifier: "FIXTURE001", shortVersion: "2", bundleVersion: "2",
+                architectures: ["arm64"], minimumSystemVersion: nil, sparklePublicKey: "payload-key")
+            InstallVerify.compare(&item, with: &store, at: Date())
+            #expect(store.entries[entry.recipeID]?.sparklePublicKey == "payload-key")
+        }
+
+        let next = InstallVerify.auditedTargets(entries: entries,
+            recordedKeys: store.entries.compactMapValues(\.sparklePublicKey))
+        let oldTarget = try #require(next.first { $0.recipeID == legacy.recipeID })
+        let unknownTarget = try #require(next.first { $0.recipeID == unobservedKey.recipeID })
+        #expect(oldTarget.recordedSparkleKey == nil)
+        #expect(unknownTarget.recordedSparkleKey == "payload-key")
+    }
+
     @Test func downloadedArchiveFormatsIncludeProductionTarVariants() {
         #expect(ArtifactInspection.installerKind(for: URL(string: "https://downloads.vivaldi.com/Vivaldi.tar.xz")!) == .tarGz)
         for suffix in ["tar.bz2", "tar", "tgz", "tbz", "gz", "bz2", "xz"] {

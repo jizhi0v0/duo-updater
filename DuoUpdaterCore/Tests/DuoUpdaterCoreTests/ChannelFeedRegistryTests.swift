@@ -37,6 +37,8 @@ import Foundation
             "feed:com.DanPristupov.Fork:stable",
             "feed:com.colliderli.iina:beta",
             "feed:com.colliderli.iina:stable",
+            "feed:com.flyingmeat.Acorn8:beta",
+            "feed:com.flyingmeat.Acorn8:stable",
             "feed:com.googlecode.iterm2:beta",
             "feed:com.googlecode.iterm2:stable",
             "feed:com.mitchellh.ghostty:stable",

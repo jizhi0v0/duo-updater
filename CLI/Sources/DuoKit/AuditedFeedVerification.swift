@@ -27,7 +27,9 @@ extension InstallVerify {
             case .sparkle(let feed, let publicKey, _):
                 registry = "sparkle"
                 host = feed.host ?? "-"
-                key = recordedKeys[entry.recipeID] ?? publicKey
+                // Keep the downloaded bundle's key in its identity record, but
+                // use it as an update anchor only for the group it represents.
+                key = (entry.usesRecordedSparkleKey ? recordedKeys[entry.recipeID] : nil) ?? publicKey
             }
             return Target(
                 recipeID: entry.recipeID, registry: registry, bundleID: entry.bundleID,

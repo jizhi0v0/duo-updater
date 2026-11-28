@@ -20,6 +20,8 @@ enum AuditedUpdateFeeds {
         /// Douchat's pre-migration and current public feed paths.
         let copyGroup: String?
         let source: Source
+        /// Whether an observed payload's key represents this installed group.
+        let usesRecordedSparkleKey: Bool
         /// Repo-relative source of the feed and track facts.
         let auditDocument: String
 
@@ -187,7 +189,8 @@ enum AuditedUpdateFeeds {
                 copyGroup: "ed25519", audit: "docs/app-audits/com-MagicQuit.md"),
         sparkle("MagicQuit legacy DMG", "com.MagicQuit", .stable,
                 feed: SparkleFeedCatalog.feed(forBundleID: "com.MagicQuit")!.absoluteString,
-                copyGroup: "legacy-no-key", audit: "docs/app-audits/com-MagicQuit.md"),
+                copyGroup: "legacy-no-key", usesRecordedSparkleKey: false,
+                audit: "docs/app-audits/com-MagicQuit.md"),
 
         // Audit: docs/app-audits/com-googlecode-iterm2.md. No query shard is
         // needed: the audit found it does not change the feed response. The
@@ -625,19 +628,22 @@ enum AuditedUpdateFeeds {
             source: .electron(ElectronUpdateConfig(
                 provider: "generic", url: url, owner: nil, repo: nil,
                 channel: manifestChannel)),
+            usesRecordedSparkleKey: true,
             auditDocument: audit)
     }
 
     private static func sparkle(
         _ name: String, _ bundleID: String, _ channel: ReleaseChannel,
         trackID: String? = nil, feed: String, channelNames: Set<String> = [],
-        publicKey: String? = nil, copyGroup: String? = nil, audit: String
+        publicKey: String? = nil, copyGroup: String? = nil,
+        usesRecordedSparkleKey: Bool = true, audit: String
     ) -> Entry {
         Entry(
             name: name, bundleID: bundleID, channel: channel,
             trackID: trackID ?? channel.rawValue, copyGroup: copyGroup,
             source: .sparkle(
                 feed: URL(string: feed)!, publicKey: publicKey, channelNames: channelNames),
+            usesRecordedSparkleKey: usesRecordedSparkleKey,
             auditDocument: audit)
     }
 }

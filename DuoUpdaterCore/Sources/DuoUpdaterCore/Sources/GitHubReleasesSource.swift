@@ -1962,8 +1962,11 @@ public struct GitHubReleasesSource: UpdateSource {
 
                 let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
                 let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
+                // Rune's notes and skipped releases use tags; its bundle
+                // version orders installs, not releases on GitHub.
+                let releaseVersion = isRune ? version : offered
                 let structured = body.flatMap {
-                    GitHubMarkdownParser.parse(body: $0, version: offered, date: release.publishedAt)
+                    GitHubMarkdownParser.parse(body: $0, version: releaseVersion, date: release.publishedAt)
                 }
                 // #300: same day/minute split as the history backfill above —
                 // `release.publishedAt` is normally a full ISO8601 timestamp,
@@ -2022,7 +2025,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 // Only what is newer than the answer: the list is not in version
                 // order (nor reliably in any timestamp's — measured on trycua/cua,
                 // where v0.9.1 sat above v0.10.0), so a backport can sit above it.
-                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: offered) })
+                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: releaseVersion) })
             }
         }
         // Not a recipe failure — the vendor did ship a macOS build for the

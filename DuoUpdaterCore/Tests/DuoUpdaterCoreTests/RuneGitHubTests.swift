@@ -93,11 +93,25 @@ struct RuneGitHubTests {
         #expect(remote.vendorInstallerKind == .dmg)
         #expect(UpdateChecker.evaluate(installed: old, remote: remote) == .updateAvailable(latest: newest))
         #expect(UpdateChecker.evaluate(installed: app(newest), remote: remote) == .upToDate)
-        let headings = remote.structuredChangelog?.entries.first?.content.compactMap { block -> String? in
+        let entry = try #require(remote.structuredChangelog?.entries.first)
+        #expect(entry.version == String(tag.dropFirst()))
+        let headings = entry.content.compactMap { block -> String? in
             if case .heading(let heading) = block { return heading }
             return nil
         }
         #expect(headings == (alpha ? ["Features", "Improvements"] : ["New Features", "Improvements"]))
+    }
+
+    @Test func aSkippedAlphaInstallerIsReportedAgainstTheSelectedTag() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [Feed.self]
+        let source = GitHubReleasesSource(
+            rules: ci_not_rune.set.githubRules, token: nil, session: URLSession(configuration: configuration))
+        let alpha = try #require(ci_not_rune.set.githubRules.first { $0.channel == .alpha })
+        let outcome = await source.resolveDiagnostic(alpha)
+        #expect(outcome.remote?.shortVersion == "2.0.1017")
+        #expect(outcome.warnings == [.installAssetRenamed(
+            release: "v2.0.0-alpha.18", assets: ["Rune-v2.0.0-alpha.17-macOS.dmg"], offered: "2.0.1017")])
     }
 
     @Test func aVersionFromAnotherTrackOrMinorIsRefused() {

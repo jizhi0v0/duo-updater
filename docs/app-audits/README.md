@@ -99,8 +99,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Antigravity CLI**](antigravity-cli.md) · 独立版 `agy` · 官方 manifest、内置一键更新、结构化日志、品牌图标 · 2026-11-21
 - [x] [**fix-storage**](fix-storage.md) · 官方脚本默认安装 · GitHub 稳定版检测、结构化日志、手动更新 · 2026-11-21
 - [x] [**nospeaker**](nospeaker.md) · 官方脚本默认安装 · GitHub 稳定版检测、结构化发布说明、签名校验后原位更新 · 2026-11-23
+- [x] [**kido**](kido.md) · 独立 CLI · GitHub 稳定版检测、结构化发布说明、厂商升级命令 · 2026-11-28
 
 ## Multi-channel families (audit covers all channels)
+
+- [x] [**Rune Player**](ci-not-rune.md) · `ci.not.rune` — G(stable/alpha) C · 官方 universal DMG，按实际 bundle 版本分流 · 2026-11-28
 
 - [x] [**Xmind**](net-xmind-vana-app.md) · `net.xmind.vana.app` — P(stable/beta) C · 官网两轨 versioned DMG 与结构化日志 · 2026-11-28
 
@@ -154,6 +157,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] **Teams** · `com.microsoft.teams2` — P(stable, one-click) · ⏭ pkg/sudo
 
 ## Single-channel — VendorProbe + optional Changelog
+
+- [x] [**OpenCode (Rune)**](anomaly-opencode-rune.md) · `anomaly.opencode-rune` — P+C · 官方 dev 轨，arm64 DMG 和 SHA-256 · 2026-11-28
 
 - [x] [**Mixxx**](org-mixxx-mixxx.md) · `org.mixxx.mixxx` — P+C · 官网 ARM 正式版 DMG 和手册结构化日志 · 2026-11-28
 

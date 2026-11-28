@@ -662,6 +662,12 @@ public struct GitHubReleasesSource: UpdateSource {
         var errorDescription: String? { "Could not read UTM's bundle build for \(tag)" }
     }
 
+    private struct MissingRuneBundleVersion: LocalizedError {
+        let tag: String
+
+        var errorDescription: String? { "Could not read Rune's bundle version for \(tag)" }
+    }
+
     /// Which error a non-2xx status becomes.
     ///
     /// 429 is always the limit. A 403 is the limit only when the response says the
@@ -1085,6 +1091,22 @@ public struct GitHubReleasesSource: UpdateSource {
         guard (200..<300).contains(http.statusCode) else { throw GitHubError.badStatus(http.statusCode) }
         guard let settings = String(data: data, encoding: .utf8) else { return nil }
         return com_utmapp_UTM.build(in: settings, for: version)
+    }
+
+    private func runeBundleVersion(
+        for release: Release, version: String, channel: ReleaseChannel
+    ) async throws -> String? {
+        guard let url = URL(string: "https://raw.githubusercontent.com/\(ci_not_rune.slug)/refs/tags/\(release.tag)/pubspec.yaml")
+        else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
+        let (data, response) = try await session.versionFeedData(for: request, label: "Rune bundle version")
+        guard let http = response as? HTTPURLResponse, http.url == url else { return nil }
+        if http.statusCode == 404 { return nil }
+        guard (200..<300).contains(http.statusCode) else { throw GitHubError.badStatus(http.statusCode) }
+        guard let pubspec = String(data: data, encoding: .utf8) else { return nil }
+        return ci_not_rune.bundleVersion(in: pubspec, release: version, channel: channel)
     }
 
     /// Run one rule and report everything that happened — the counterpart to
@@ -1740,7 +1762,9 @@ public struct GitHubReleasesSource: UpdateSource {
 
         let isZeaburDesktop = rule.bundleID == com_zeabur_oss_desktop.bundleID
         let isCleanClip = rule.bundleID == com_antiless_cleanclip_mac.bundleID
-        let pinsDMGToTag = isZeaburDesktop || isCleanClip || rule.bundleID == com_burakgon_openscreens.bundleID
+        let isRune = rule.bundleID == ci_not_rune.bundleID
+        let pinsDMGToTag = isZeaburDesktop || isCleanClip || isRune
+            || rule.bundleID == com_burakgon_openscreens.bundleID
 
         // These publishers generate exactly one Mac DMG named from the tag.
         // A signed DMG from another release cannot establish this version.
@@ -1748,6 +1772,11 @@ public struct GitHubReleasesSource: UpdateSource {
             guard pinsDMGToTag else { return release.assets }
             if isCleanClip {
                 return release.assets.filter { $0.name == "CleanClip-\(release.tag).dmg" }
+            }
+            if isRune {
+                let file = "Rune-\(release.tag)-macOS.dmg"
+                let url = URL(string: "https://github.com/\(ci_not_rune.slug)/releases/download/\(release.tag)/\(file)")
+                return release.assets.filter { $0.name == file && $0.url == url }
             }
             guard release.tag.hasPrefix("v") else { return [] }
             let name = isZeaburDesktop
@@ -1908,11 +1937,20 @@ public struct GitHubReleasesSource: UpdateSource {
                 }
                 // The version the chosen file installs, for a vendor that respins
                 // under an old tag with a new version (`assetVersionPattern`).
-                let offered = GitHubReleaseRule.offeredVersion(
+                var offered = GitHubReleaseRule.offeredVersion(
                     tagVersion: version, asset: asset.flatMap { chosen in
                         release.assets.first { $0.url == chosen.url }?.name
                     }, pattern: rule.assetVersionPattern)
                 var offeredBuild: String?
+                if isRune {
+                    // Release tags are user-facing SemVer. Both bundle fields
+                    // use Flutter's version and must match the installer.
+                    guard let bundleVersion = try await runeBundleVersion(
+                        for: release, version: version, channel: rule.channel)
+                    else { throw MissingRuneBundleVersion(tag: release.tag) }
+                    offered = bundleVersion
+                    offeredBuild = bundleVersion
+                }
                 if rule.slug == com_utmapp_UTM.slug, release.tag != "v\(version)" {
                     // The tag only identifies the respin. Its number is in the
                     // namespace of tags, so do not use it as CFBundleVersion.
@@ -1924,8 +1962,11 @@ public struct GitHubReleasesSource: UpdateSource {
 
                 let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
                 let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
+                // Rune's notes and skipped releases use tags; its bundle
+                // version orders installs, not releases on GitHub.
+                let releaseVersion = isRune ? version : offered
                 let structured = body.flatMap {
-                    GitHubMarkdownParser.parse(body: $0, version: offered, date: release.publishedAt)
+                    GitHubMarkdownParser.parse(body: $0, version: releaseVersion, date: release.publishedAt)
                 }
                 // #300: same day/minute split as the history backfill above —
                 // `release.publishedAt` is normally a full ISO8601 timestamp,
@@ -1978,13 +2019,14 @@ public struct GitHubReleasesSource: UpdateSource {
                     changelogURL: page,
                     publishedAt: publishedFields.publishedAt,
                     vendorDay: publishedFields.vendorDay,
+                    publisherVersion: isRune ? releaseVersion : nil,
                     releaseHistory: history,
                     releaseChannel: rule.channel
                 ), tags: releases.map(\.tag), archIncompatible: false,
                 // Only what is newer than the answer: the list is not in version
                 // order (nor reliably in any timestamp's — measured on trycua/cua,
                 // where v0.9.1 sat above v0.10.0), so a backport can sit above it.
-                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: offered) })
+                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: releaseVersion) })
             }
         }
         // Not a recipe failure — the vendor did ship a macOS build for the

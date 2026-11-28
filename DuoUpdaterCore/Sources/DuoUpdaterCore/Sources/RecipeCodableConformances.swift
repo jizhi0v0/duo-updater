@@ -138,14 +138,14 @@ extension VendorProbeRecipe: Codable {
 
 extension VendorProbeRecipe.Mode: Codable {
     enum CodingKind: String, CaseIterable {
-        case redirectFilename, responseBody, installedVersionJSONURL, longbridgeManifest, dockerAppcast,
+        case redirectFilename, responseBody, installedVersionJSONURL, longbridgeManifest, opencodeRuneManifest, dockerAppcast,
              jetBrainsIdeaEAP, versionedDirectory, zipEntryPlist, redirectArchiveInfoPlist
     }
 
     public init(from decoder: Decoder) throws {
         let (kind, c) = try RecipeCoding.taggedObject(CodingKind.self, in: decoder) {
             switch $0 {
-            case .redirectFilename, .responseBody, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP: return []
+            case .redirectFilename, .responseBody, .longbridgeManifest, .opencodeRuneManifest, .dockerAppcast, .jetBrainsIdeaEAP: return []
             case .installedVersionJSONURL: return ["queryParameter"]
             case .versionedDirectory: return ["linkPattern"]
             case .zipEntryPlist: return ["entry", "key"]
@@ -159,6 +159,7 @@ extension VendorProbeRecipe.Mode: Codable {
             self = .installedVersionJSONURL(
                 queryParameter: try c.decode(String.self, forKey: .init("queryParameter")))
         case .longbridgeManifest: self = .longbridgeManifest
+        case .opencodeRuneManifest: self = .opencodeRuneManifest
         case .dockerAppcast: self = .dockerAppcast
         case .jetBrainsIdeaEAP: self = .jetBrainsIdeaEAP
         case .versionedDirectory:
@@ -185,6 +186,8 @@ extension VendorProbeRecipe.Mode: Codable {
             try c.encode(queryParameter, forKey: .init("queryParameter"))
         case .longbridgeManifest:
             try c.encode(CodingKind.longbridgeManifest.rawValue, forKey: .init("kind"))
+        case .opencodeRuneManifest:
+            try c.encode(CodingKind.opencodeRuneManifest.rawValue, forKey: .init("kind"))
         case .dockerAppcast:
             try c.encode(CodingKind.dockerAppcast.rawValue, forKey: .init("kind"))
         case .jetBrainsIdeaEAP:

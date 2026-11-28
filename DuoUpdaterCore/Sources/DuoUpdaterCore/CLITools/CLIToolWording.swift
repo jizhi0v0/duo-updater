@@ -36,7 +36,7 @@ public enum CLIToolWording {
         case .mise: return "Jeffrey Dickey"
         case .nospeaker: return "Spoken Systems"
         case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship,
-             .obelus, .biome, .terminalMac, .leaf, .fixStorage, .multica, .pnpm, .yarn: return nil
+             .obelus, .biome, .terminalMac, .leaf, .fixStorage, .multica, .kido, .pnpm, .yarn: return nil
         // A managed row's signer is its manager's (`ManagerDescriptor.signer`),
         // read from the status in `reason(_:of status:)`.
         case .managed: return nil
@@ -77,8 +77,6 @@ public enum CLIToolWording {
         case .unsupportedInstaller:
             return String(localized: "No one-click update for this kind of install")
         case .ownUpgrade:
-            // OpenCode 2: the vendor's `opencode upgrade`, which the detail pane
-            // hands over to copy (`CLIToolStatus.commandToCopy`).
             return String(localized: "\(tool) has its own upgrade command")
         case .noOwnNpm:
             return String(localized: "Can’t tell which npm installed it")

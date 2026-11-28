@@ -2739,7 +2739,7 @@ final class AppListModel {
                     appID: result.app.id,
                     appName: result.app.name,
                     bundleID: result.app.bundleID,
-                    version: remote.displayVersion,
+                    version: remote.publisherVersion ?? remote.displayVersion,
                     sourceName: remote.sourceName,
                     publishedAt: remote.publishedAt,
                     vendorDay: remote.vendorDay
@@ -2775,7 +2775,7 @@ final class AppListModel {
             // cannot be recovered, and re-deriving it would invent dates.
             if remote.publishedAt == nil, remote.vendorDay == nil, remote.releaseHistory.isEmpty,
                case let side = remote.versionSide, !side.isEmpty,
-               case let v = side.text(withBuild: true), !v.isEmpty {
+               case let v = remote.publisherVersion ?? side.text(withBuild: true), !v.isEmpty {
                 await releaseTimelineStore.observeForChange(
                     appID: result.app.id,
                     appName: result.app.name,

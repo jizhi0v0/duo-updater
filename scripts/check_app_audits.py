@@ -76,6 +76,8 @@ NON_APP = {
     "fix-storage.md",
     # The standalone nospeaker executable has a signing identifier but no bundle ID.
     "nospeaker.md",
+    # kido is a standalone executable installed with helpers, without an app bundle.
+    "kido.md",
     # A channel, not an app: Setapp editions of many apps share one audit.
     "com-setapp-managed.md",
 }

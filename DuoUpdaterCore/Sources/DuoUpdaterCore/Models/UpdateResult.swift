@@ -338,6 +338,9 @@ public struct RemoteVersion: Sendable, Hashable {
     /// that don't drive a vendor in-place install.
     public let vendorInstallerKind: VendorInstallerKind?
     public let vendorInstallerApp: VendorInstallerApp?
+    /// The vendor publishes the exact bundle version and authorizes only a
+    /// payload whose signed Info.plist reports that version.
+    public let requiresExactPackageVersion: Bool
 
     /// Sparkle `sparkle:installationType="package"`: the enclosure is an archive
     /// (AdGuard ships a `.dmg`) whose root holds a `.pkg`, not an `.app`, so it
@@ -426,6 +429,11 @@ public struct RemoteVersion: Sendable, Hashable {
     /// ``publishedAt``: a source sets at most one of the two per release. See
     /// `ReleaseDate.parseWithPrecision` and `ReleaseTimelineStore`.
     public let vendorDay: Date?
+
+    /// The publisher's version label for the release timeline, when it differs
+    /// from the version inside the app. Rune's GitHub tag identifies the same
+    /// release when it appears in ``releaseHistory`` on a later check.
+    public let publisherVersion: String?
 
     /// Past releases the source surfaced alongside the latest — every dated entry
     /// in a Sparkle appcast / GitHub releases list, so the timeline can backfill
@@ -535,6 +543,7 @@ public struct RemoteVersion: Sendable, Hashable {
         requiresManualInstaller: Bool = false,
         vendorInstallerKind: VendorInstallerKind? = nil,
         vendorInstallerApp: VendorInstallerApp? = nil,
+        requiresExactPackageVersion: Bool = false,
         sparklePackageEnclosure: Bool = false,
         requiresMatchingSparkleBuild: Bool = false,
         expectedSHA512: String? = nil,
@@ -549,6 +558,7 @@ public struct RemoteVersion: Sendable, Hashable {
         changelogURL: URL? = nil,
         publishedAt: Date? = nil,
         vendorDay: Date? = nil,
+        publisherVersion: String? = nil,
         releaseHistory: [ReleaseHistoryEntry] = [],
         deltas: [DeltaPatch] = [],
         releaseChannel: ReleaseChannel? = nil,
@@ -573,6 +583,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.requiresManualInstaller = requiresManualInstaller
         self.vendorInstallerKind = vendorInstallerKind
         self.vendorInstallerApp = vendorInstallerApp
+        self.requiresExactPackageVersion = requiresExactPackageVersion
         self.sparklePackageEnclosure = sparklePackageEnclosure
         self.requiresMatchingSparkleBuild = requiresMatchingSparkleBuild
         self.expectedSHA512 = expectedSHA512
@@ -587,6 +598,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.changelogURL = changelogURL
         self.publishedAt = publishedAt
         self.vendorDay = vendorDay
+        self.publisherVersion = publisherVersion
         self.releaseHistory = releaseHistory
         self.deltas = deltas
         self.releaseChannel = releaseChannel

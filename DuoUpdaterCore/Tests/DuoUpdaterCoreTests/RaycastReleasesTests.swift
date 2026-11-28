@@ -134,7 +134,8 @@ private let raycastChangelogFixture = #"""
             // Athas reads darwin-aarch64 from the manifest and uses its archive.
             "vendor:com.code.athas:stable",
             "vendor:com.code.athas:beta",
-            // GitButler and Kodi use the vendor's Apple Silicon-only archive paths.
+            // These probes select the vendor's Apple Silicon archive.
+            "vendor:anomaly.opencode-rune:dev",
             "vendor:com.gitbutler.app:stable",
             "vendor:org.mixxx.mixxx:stable:arm64",
             "vendor:org.mixxx.mixxx:stable:legacy-intel",

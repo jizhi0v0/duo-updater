@@ -492,17 +492,19 @@ public actor VendorInstaller {
         let installedApp = result.app.path, finalTrust = trust
         let stagedApp = newApp
         let archiveAlone = try await offCooperativePool {
-            try Self.verifyGitHubPackageVersion(app: stagedApp, remote: remote)
+            try Self.verifyOfferedPackageVersion(app: stagedApp, remote: remote)
             return SignatureVerifier.originRestsOnArchiveAlone(trust: finalTrust, installedApp: installedApp)
         }
         return (newApp, stagedCheck, archiveAlone)
     }
 
-    /// GitHub rules that publish the exact bundle version can check it against
-    /// the signed payload. UTM repacks also publish the build. Run off the
-    /// cooperative pool, after verifying the bundle's seal.
-    static func verifyGitHubPackageVersion(app: URL, remote: RemoteVersion) throws {
-        guard remote.sourceName == "GitHub", remote.marketingMatchesBundle else { return }
+    /// A route that publishes an exact bundle version checks it against the
+    /// signed payload. Routes that publish the build check that field too. Run
+    /// off the cooperative pool, after verifying the bundle's seal.
+    static func verifyOfferedPackageVersion(app: URL, remote: RemoteVersion) throws {
+        guard remote.requiresExactPackageVersion
+                || (remote.sourceName == "GitHub" && remote.marketingMatchesBundle)
+        else { return }
         let expected = remote.versionSide
         let downloaded = StagedRelaunch.diskVersionSide(app)
         guard let marketing = expected.marketing, downloaded.marketing == marketing,

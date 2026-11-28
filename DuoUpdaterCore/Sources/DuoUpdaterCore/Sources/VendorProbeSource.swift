@@ -599,6 +599,10 @@ public struct VendorProbeSource: UpdateSource {
             let release = com_longbridge_app_desktop.releaseBody(from: body, channel: recipe.channel)
             return Scope(text: release ?? "", fellBack: false)
         }
+        if case .opencodeRuneManifest = recipe.mode {
+            let release = anomaly_opencode_rune.releaseBody(from: body)
+            return Scope(text: release?.text ?? "", fellBack: false, isTrackClosed: release?.isTrackClosed ?? false)
+        }
         if case .dockerAppcast = recipe.mode {
             let release = com_docker_docker.releaseBody(
                 from: body, channel: recipe.channel, hostOSVersion: hostOSVersion)
@@ -633,6 +637,7 @@ public struct VendorProbeSource: UpdateSource {
         let text: String
         let fellBack: Bool
         var bundleVersion: VersionSide? = nil
+        var isTrackClosed = false
     }
 
     /// What a mode's fetch step yields on success: the text the version pattern
@@ -794,7 +799,7 @@ public struct VendorProbeSource: UpdateSource {
             //
             // Checked here, after the pattern already failed, so a publishing
             // track can never be talked into looking closed.
-            if recipe.matchesTrackClosed(body.text) {
+            if scoped.isTrackClosed || recipe.matchesTrackClosed(body.text) {
                 Log.source.notice(
                     "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: vendor publishes no current build on this track")
                 return fail(
@@ -1085,7 +1090,7 @@ public struct VendorProbeSource: UpdateSource {
                 }
                 let deltas: [DeltaPatch]
                 switch recipe.mode {
-                case .dockerAppcast, .jetBrainsIdeaEAP:
+                case .dockerAppcast, .jetBrainsIdeaEAP, .opencodeRuneManifest:
                     // These feeds authorize only the full DMG in the scoped
                     // release. Raw JSON fields cannot supply alternate artifacts.
                     deltas = []
@@ -1318,7 +1323,8 @@ public struct VendorProbeSource: UpdateSource {
                     status: http.statusCode))
             }
 
-        case .responseBody, .installedVersionJSONURL, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP:
+        case .responseBody, .installedVersionJSONURL, .longbridgeManifest,
+             .opencodeRuneManifest, .dockerAppcast, .jetBrainsIdeaEAP:
             return await fetchResponseBody(recipe, endpoint: endpoint)
 
         case .versionedDirectory(let pattern):
@@ -1696,7 +1702,8 @@ public struct VendorProbeSource: UpdateSource {
         let shortVersion = bundle.map(\.marketing) ?? (recipe.versionIsBuild ? display : version)
         // The Xmind redirect names both the exact bundle marketing version and
         // the archive timestamp. A later repack cannot demote the marketing version.
-        let marketingMatchesBundle = bundle != nil
+        let requiresExactPackageVersion = if case .opencodeRuneManifest = recipe.mode { true } else { false }
+        let marketingMatchesBundle = bundle != nil || requiresExactPackageVersion
             || (recipe.bundleID == net_xmind_vana_app.bundleID && display != nil)
         // A `headBuildPattern` recipe keeps its marketing version in `shortVersion`
         // and puts the head's build id beside it; that id is the one `lineage`
@@ -1726,6 +1733,7 @@ public struct VendorProbeSource: UpdateSource {
                 requiresManualInstaller: spec.kind == .pkg || spec.installerApp != nil,
                 vendorInstallerKind: spec.kind,
                 vendorInstallerApp: spec.installerApp,
+                requiresExactPackageVersion: requiresExactPackageVersion,
                 expectedSHA512: spec.checksumFormat == .sha512Base64 ? plan.checksum : nil,
                 expectedSHA256: spec.checksumFormat == .sha256Hex ? plan.checksum : nil,
                 myGoSignature: myGoSignature,

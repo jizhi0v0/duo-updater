@@ -28,6 +28,7 @@
 | **Firefox** | dev-edition `org.mozilla.firefoxdeveloperedition`（RemotingName `firefox-dev`）· nightly `org.mozilla.nightly` | VendorProbe |
 | **Thunderbird** | beta `org.mozilla.thunderbirdbeta` · nightly `org.mozilla.thunderbird-daily` | VendorProbe |
 | **Warp** | preview `dev.warp.Warp-Preview` · dev `dev.warp.Warp-Dev` | VendorProbe |
+| **OpenCode (Rune)** | dev `anomaly.opencode-rune`，公开唯一发行轨；版本尾缀 `-dev-N` | VendorProbe，见 [审计](docs/app-audits/anomaly-opencode-rune.md) |
 | **Signal** | beta `org.whispersystems.signal-desktop-beta`（显示名 "Signal Beta"）| VendorProbe |
 | **Element** | nightly `im.riot.nightly`（2026-06-04 修了误写的 `io.element.nightly`）| VendorProbe |
 | **Discord** | ptb `com.hnc.DiscordPTB` · canary `com.hnc.DiscordCanary` | VendorProbe |
@@ -45,6 +46,10 @@
   `io.github.tobi.disktree`（tobi / GPUI）分别使用自己的 stable GitHub 规则。
   两者不是 ID 迁移。NSH 新增检测、结构化日志与 digest-only 原生 arm64 一键，
   VM 0.1.7→0.1.8 通过，见 [审计](docs/app-audits/com-huacnlee-disktree.md)。
+
+### 共享 bundle id，以编译版本分流
+
+- **Rune Player** `ci.not.rune`：Stable 与 2.x Alpha 两轨，按装机版本末段分流。GitHub 有官方 universal DMG 及结构化日志。历史同 ID 的 0.x/1.x 测试线转正到 Stable，Mac App Store 使用独立 ID。最早 `dev.10` 到 `dev.12` 的 Flutter 占位 ID 无法安全分流。见 [审计](docs/app-audits/ci-not-rune.md)。
 
 ### 共享 bundle id，以显示名区分主发布轨与 Nightly
 

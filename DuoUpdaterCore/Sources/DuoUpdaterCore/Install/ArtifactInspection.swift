@@ -212,7 +212,7 @@ public enum ArtifactInspection {
                 } else {
                     try SignatureVerifier.verifyCodeSignature(appAt: app)
                 }
-                try VendorInstaller.verifyGitHubPackageVersion(app: app, remote: remote)
+                try VendorInstaller.verifyOfferedPackageVersion(app: app, remote: remote)
                 try SignatureVerifier.verifyOfferedSparkleBuild(downloadedApp: app, remote: remote)
                 let identity = try identity(of: app)
                 // Attribute map drift only to Anthropic's Apple-anchored Developer ID.

@@ -21,7 +21,7 @@ enum niteo_co_Pareto {
                 usePrereleases: channel == .beta,
                 versionPattern: #"\Av?([0-9]+\.[0-9]+\.[0-9]+)\z"#,
                 candidateScope: .highestVersion,
-                installAssetPattern: #"^ParetoSecurity\.dmg$"#,
+                installAssetPattern: #"\AParetoSecurity\.dmg\z"#,
                 installerKind: .dmg,
                 channel: channel)
         },

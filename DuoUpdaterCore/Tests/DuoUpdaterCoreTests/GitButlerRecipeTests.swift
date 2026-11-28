@@ -56,6 +56,24 @@ struct GitButlerRecipeTests {
         }
     }
 
+    @Test func preservesNestedHeadingsInHistoricalReleaseNotes() throws {
+        let history = """
+            <h3 class="release-version svelte-w1upf4">0.23.0</h3> <span class="release-date svelte-w1upf4">27 Oct 2026</span>
+            <div class="release-notes-content svelte-w1upf4">
+            <h2>CLI</h2><h3>Worktrees</h3><ul><li><code>but status</code> lists worktrees.</li></ul>
+            <h3>New in this release:</h3><ul><li><code>but split</code> moves files.</li></ul></div>
+            """
+        let recipe = try #require(com_gitbutler_app.set.changelogs.first)
+        let entry = try #require(ChangelogExtractor.extract(from: history, using: recipe)?.entries.first)
+        #expect(entry.content == [
+            .heading("CLI"),
+            .heading("Worktrees"),
+            .note("but status lists worktrees."),
+            .heading("New in this release:"),
+            .note("but split moves files."),
+        ])
+    }
+
     @Test func preservesHeadingsAndDoesNotBorrowNotesFromTheNextRelease() throws {
         let recipe = try #require(com_gitbutler_app.set.changelogs.first)
         let missingNotes = """

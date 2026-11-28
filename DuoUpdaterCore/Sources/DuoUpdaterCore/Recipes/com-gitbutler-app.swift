@@ -48,6 +48,6 @@ enum com_gitbutler_app {
                     + #"<span[^>]*>(?<date>[0-9]{1,2} [A-Za-z]+ [0-9]{4})</span>"#
                     + #"(?:(?!</section>|<h3 class="release-version\b).)*?<div class="release-notes-content\b[^"]*">(?<body>.*?)</div>"#,
                 itemPatterns: [#"<(li|p)\b[^>]*>(?<item>.*?)</\1>"#],
-                headingPattern: #"<h2\b[^>]*>(?<heading>.*?)</h2>"#),
+                headingPattern: #"<h([23])\b[^>]*>(?<heading>.*?)</h\1>"#),
         ])
 }

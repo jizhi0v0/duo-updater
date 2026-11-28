@@ -7,7 +7,7 @@ probes = Array(count: 0)
 
 changelogs = Array(count: 2)
 changelogs[0] = struct ChangelogRecipe
-changelogs[0].bundleID = "com.magicquit"
+changelogs[0].bundleID = "com.MagicQuit"
 changelogs[0].source = URL("https://raw.githubusercontent.com/BigBerny/magicquit/v2.0/CHANGELOG.md")
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false
@@ -40,7 +40,7 @@ changelogs[0].requestBody = nil
 changelogs[0].skipSections = Array(count: 0)
 changelogs[0].tagPattern = nil
 changelogs[1] = struct ChangelogRecipe
-changelogs[1].bundleID = "com.magicquit"
+changelogs[1].bundleID = "com.MagicQuit"
 changelogs[1].source = URL("https://raw.githubusercontent.com/BigBerny/magicquit/v2.0/CHANGELOG.md")
 changelogs[1].sourceTemplate? = "https://raw.githubusercontent.com/BigBerny/magicquit/v{version}/CHANGELOG.md"
 changelogs[1].versionFromTemplate = false

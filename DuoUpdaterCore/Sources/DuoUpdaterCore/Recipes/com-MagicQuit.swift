@@ -1,7 +1,7 @@
 import Foundation
 
 enum com_MagicQuit {
-    static let bundleID = "com.magicquit"
+    static let bundleID = "com.MagicQuit"
     static let appcast = URL(string: "https://raw.githubusercontent.com/BigBerny/magicquit/main/appcast.xml")!
 
     static let set = AppRecipeSet(
@@ -15,7 +15,7 @@ enum com_MagicQuit {
         ],
         sparkleFeeds: [
             // The old DMG has no updater feed. The newer ZIP declares this same feed itself.
-            bundleID: appcast,
+            bundleID.lowercased(): appcast,
         ])
 
     private static func changelog(

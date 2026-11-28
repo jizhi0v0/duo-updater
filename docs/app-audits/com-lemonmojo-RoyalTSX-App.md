@@ -7,7 +7,7 @@
 | v6 正式版 | 6.4.4 / 6.4.4.1000、6.4.5 / 6.4.5.1000 | [v6 stable Sparkle](https://royaltsx-v6.royalapps.com/updates_stable) | DMG，厂商使用旧 DSA；DuoUpdater 检查 Developer ID、Team ID 和 bundle ID |
 | v26 测试版 | 26.0.20 / 26.0.20.0 | [v26 Sparkle](https://royaltsx-v26.royalapps.com/app/updates) | DMG，包内有 Ed25519 公钥，feed 提供 `sparkle:edSignature` |
 
-两条轨道使用同一个 bundle ID `com.lemonmojo.RoyalTSX.App`，分别读取各自声明的 feed。v6 两个实测包的 Team ID 都是 `VXP8K9EDP6`。v6 feed 的 14 个条目走默认轨道，v26 feed 的 20 个条目均标为 `beta`。旧 v26 build 被移出 feed 后无法从 build 推断标签，Sparkle 源仅对该 bundle ID 与这个精确地址允许 beta-only feed 的条目。若将来该 feed 新增正式版条目，则走通用推断。厂商还提供应用内的 Include Beta releases 开关，DuoUpdater 沿用包内声明的源，启用开关后的 v6 → v26 迁移尚未验证。 [正式版发布记录](https://community.royalapps.com/t/royal-tsx-v6-release-notes/243) · [测试版开启说明](https://community.royalapps.com/t/royal-tsx-beta-release-notes/2214)
+两条轨道使用同一个 bundle ID `com.lemonmojo.RoyalTSX.App`，分别读取各自声明的 feed。v6 两个实测包的 Team ID 都是 `VXP8K9EDP6`。v6 feed 的 14 个条目走默认轨道，v26 feed 的 20 个条目均标为 `beta`。旧 v26 build 被移出 feed 后无法从 build 推断标签，Sparkle 源仅对该 bundle ID 与这个精确地址允许 beta-only feed 的条目。若将来该 feed 新增正式版条目，则走通用推断。v6 的 Include Beta releases 开关对应包内的 `UpdateURLBeta`。2026-11-28 实查两个 v6 feed 的最新可下载包是同一个 6.4.5.1000。v6 测试 feed 中唯一的 v26 条目没有安装包 URL，只链接到厂商的手动下载页。DuoUpdater 用 v6 包内的默认源检测可安装更新，已有 v26 副本走各自的 beta feed。 [v6 测试 feed](https://royaltsx-v6.royalapps.com/updates_beta) · [正式版发布记录](https://community.royalapps.com/t/royal-tsx-v6-release-notes/243) · [测试版说明](https://community.royalapps.com/t/royal-tsx-beta-release-notes/2214)
 
 ## 更新检测、一键升级和更新日志
 

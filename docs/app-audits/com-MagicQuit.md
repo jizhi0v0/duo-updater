@@ -15,7 +15,7 @@
 - `feed:com.magicquit` 对补全目录中的厂商 appcast 做健康检查。
 - `install:sparkle:com.MagicQuit:stable:legacy-no-key` 检查老副本更新所指的 ZIP 和身份。1.4 没有公钥可供这一组验签。档案中的新包公钥属于验得的包身份，后续仍按旧版的无公钥路径检查。
 - `install:sparkle:com.MagicQuit:stable:ed25519` 额外验证 ZIP 的 EdDSA 签名。公钥从签名 2.0 包取得。
-- `changelog:com.magicquit:-:<2` 检查旧版的固定归档。当前版本的结构化日志模板需要具体版本，无安装副本的夜扫会在日志检查之后才查询 Sparkle feed，因此不会检查当前标签的 Markdown。可在有新版副本的 Mac 上用 `duo verify --changelog --only magicquit` 核对当前标签，或对真实副本执行 `channel-verify`。
+- `changelog:com.MagicQuit:-:<2` 检查旧版的固定归档。当前版本的结构化日志模板需要具体版本，无安装副本的夜扫会在日志检查之后才查询 Sparkle feed，因此不会检查当前标签的 Markdown。可在有新版副本的 Mac 上用 `duo verify --changelog --only magicquit` 核对当前标签，或对真实副本执行 `channel-verify`。
 - 2026-11-28，在本批 `duo verify --feed` 中通过，`duo verify-install --full` 的两个 2.0 目标均为 `ok`。两个目标都核对包身份，有公钥的一组还通过整包 Ed25519 验签。
 
 ## 历史与实测

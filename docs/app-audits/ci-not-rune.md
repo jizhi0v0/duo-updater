@@ -12,22 +12,25 @@
 |---|---|---|---|
 | GitHub Stable | GitHub 正式发布 | 官方 universal DMG，同 Team 且签名通过 | 当前发布的 GitHub 正文 |
 | GitHub 2.x Alpha | GitHub 带 `-alpha.N` 的对应发布 | 官方 universal DMG，同 Team 且签名通过 | 当前发布的 GitHub 正文 |
-| 历史 0.x、1.x 开发或预发布副本 | 归入已转正的 Stable 线 | Stable 较新时用同 ID、同 Team 的 DMG | 当前 Stable 发布正文 |
+| 历史 0.x、1.x 直装副本（`ci.not.rune`） | 归入已转正的 Stable 线 | Stable 较新时用同 ID、同 Team 的 DMG | 当前 Stable 发布正文 |
+| 首批 0.x CI 副本（`com.example.player`） | 未覆盖 | 手动换正式包 | GitHub 发布页 |
 | Mac App Store | 通用 App Store | 通用 App Store | 商店提供的版本说明 |
 
 同 ID 的 2.x Alpha 装机版本以 `2.0.10xx` 这类数字编译号分流。Stable 与它各自查询 GitHub Release，DMG 文件名须含该发布的完整 tag。GitHub 的 tag 是公开版本，直装 bundle 的两个版本字段用 Flutter 的版本，因此读取 GitHub `refs/tags/<tag>/pubspec.yaml` 中顶层 `version:`，再用实际 bundle 版本比较及核对安装包。字段缺失、版本主次段或渠道对不上时不提供更新。
 
-1.x 的 Alpha、Beta、RC 属于各次正式版的开发阶段。两个已转正版本的最终 RC 与各自 Stable 指向同一提交，编译版本相同；同版本副本视为已更新。早期开发包共用 `1.0.0`、build `1`，不能从装机版号还原具体测试 tag。2024 年的测试序列已经结束，后续同签名的 1.x 正式包由 Stable 规则提供。
+1.x 的 Alpha、Beta、RC 属于各次正式版的开发阶段。两个已转正版本的最终 RC 与各自 Stable 指向同一提交，编译版本相同。同版本副本视为已更新。早期开发包共用 `1.0.0`、build `1`，不能从装机版号还原具体测试 tag。2024 年的测试序列已经结束，后续同签名的 1.x 正式包由 Stable 规则提供。
+
+最早带 macOS 资产的 `v0.0.0-dev.10` 到 `dev.12` 包使用 Flutter 通用 ID `com.example.player` 和相同的 `1.0.0`、build `1`，`dev.10` 为 ad-hoc，`dev.11` 和 `dev.12` 为 Apple Development 签名。Duo 的 ID 迁移会先按旧 ID 和版本匹配 recipe，再在安装时看 Team，无法用这些通用字段区分其他 Flutter 开发副本。手动换成由 Inkwire 公证的正式包后即可检测。从 `dev.13` 开始的已测包使用直装 ID 和 Developer ID。
 
 ## 安装与日志
 
-两轨验证的旧版及新版均由 Inkwire 签名，支持 arm64 和 x86_64，四份应用通过严格签名检查及公证评估。较旧的 Stable 原包早于 GitHub 资产摘要，走 Developer ID 验证；Alpha 的 DMG 还带 GitHub SHA-256 摘要。GitHub Markdown 的功能、改进、修复等分节复用现有结构化解析器。[Alpha 发布说明](https://github.com/Losses/rune/releases/tag/v2.0.0-alpha.17)提醒不要混用测试版和正式版，测试版可能升级数据库及配置格式。
+两轨验证的旧版及新版均由 Inkwire 签名，支持 arm64 和 x86_64，四份应用通过严格签名检查及公证评估。较旧的 Stable 原包早于 GitHub 资产摘要，走 Developer ID 验证。Alpha 的 DMG 还带 GitHub SHA-256 摘要。GitHub Markdown 的功能、改进、修复等分节复用现有结构化解析器。[Alpha 发布说明](https://github.com/Losses/rune/releases/tag/v2.0.0-alpha.17)提醒不要混用测试版和正式版，测试版可能升级数据库及配置格式。
 
 ## 夜扫覆盖
 
 - 版本：`github:Losses/rune:stable` 和 `github:Losses/rune:alpha` 由 GitHub recipe 注册表枚举。
 - 安装包：`install:github:Losses/rune:stable` 和 `install:github:Losses/rune:alpha` 由 `verify-install` 检查同一条规则选择的 DMG。
-- App Store 更新由商店通用源负责，GitHub 安装扫描不检查商店字节。历史已转正副本共用 Stable 的当前包，无独立存续发布轨。
+- App Store 更新由商店通用源负责，GitHub 安装扫描不检查商店字节。历史已转正的同 ID 副本共用 Stable 的当前包，无独立存续发布轨。通用 Flutter ID 的 CI 副本没有单独的可监测渠道。
 
 ## 历史与实测
 

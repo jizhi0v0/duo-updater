@@ -95,6 +95,10 @@ struct RuneGitHubTests {
         #expect(UpdateChecker.evaluate(installed: app(newest), remote: remote) == .upToDate)
         let entry = try #require(remote.structuredChangelog?.entries.first)
         #expect(entry.version == String(tag.dropFirst()))
+        #expect(remote.publisherVersion == entry.version)
+        let timelineEntry = try #require(remote.releaseHistory.first { $0.version == remote.publisherVersion })
+        #expect(timelineEntry.publishedAt == remote.publishedAt)
+        #expect(timelineEntry.vendorDay == remote.vendorDay)
         let headings = entry.content.compactMap { block -> String? in
             if case .heading(let heading) = block { return heading }
             return nil

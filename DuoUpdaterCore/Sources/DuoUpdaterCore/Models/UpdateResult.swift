@@ -427,6 +427,11 @@ public struct RemoteVersion: Sendable, Hashable {
     /// `ReleaseDate.parseWithPrecision` and `ReleaseTimelineStore`.
     public let vendorDay: Date?
 
+    /// The publisher's version label for the release timeline, when it differs
+    /// from the version inside the app. Rune's GitHub tag identifies the same
+    /// release when it appears in ``releaseHistory`` on a later check.
+    public let publisherVersion: String?
+
     /// Past releases the source surfaced alongside the latest — every dated entry
     /// in a Sparkle appcast / GitHub releases list, so the timeline can backfill
     /// an app's whole visible history at once (the latest is included too; the
@@ -549,6 +554,7 @@ public struct RemoteVersion: Sendable, Hashable {
         changelogURL: URL? = nil,
         publishedAt: Date? = nil,
         vendorDay: Date? = nil,
+        publisherVersion: String? = nil,
         releaseHistory: [ReleaseHistoryEntry] = [],
         deltas: [DeltaPatch] = [],
         releaseChannel: ReleaseChannel? = nil,
@@ -587,6 +593,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.changelogURL = changelogURL
         self.publishedAt = publishedAt
         self.vendorDay = vendorDay
+        self.publisherVersion = publisherVersion
         self.releaseHistory = releaseHistory
         self.deltas = deltas
         self.releaseChannel = releaseChannel

@@ -2019,6 +2019,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     changelogURL: page,
                     publishedAt: publishedFields.publishedAt,
                     vendorDay: publishedFields.vendorDay,
+                    publisherVersion: isRune ? releaseVersion : nil,
                     releaseHistory: history,
                     releaseChannel: rule.channel
                 ), tags: releases.map(\.tag), archIncompatible: false,

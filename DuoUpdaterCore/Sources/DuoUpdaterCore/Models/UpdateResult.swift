@@ -338,8 +338,8 @@ public struct RemoteVersion: Sendable, Hashable {
     /// that don't drive a vendor in-place install.
     public let vendorInstallerKind: VendorInstallerKind?
     public let vendorInstallerApp: VendorInstallerApp?
-    /// The vendor publishes the exact bundle version and authorizes only a
-    /// payload whose signed Info.plist reports that version.
+    /// The package must match the offered release in its signed Info.plist.
+    /// Cutter's bundle appends build metadata to the published version.
     public let requiresExactPackageVersion: Bool
 
     /// Sparkle `sparkle:installationType="package"`: the enclosure is an archive

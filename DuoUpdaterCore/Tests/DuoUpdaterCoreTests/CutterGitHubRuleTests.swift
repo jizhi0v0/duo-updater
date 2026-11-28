@@ -16,9 +16,15 @@ struct CutterGitHubRuleTests {
             let body: String
             switch url.path {
             case latest:
-                body = stable
+                body = Self.release("v2.6.0", prerelease: false, hasArm64: false)
             case list:
-                body = "[\(Self.release("v5.0.0-rc1", prerelease: true)),\(stable)]"
+                body = """
+                [
+                  \(Self.release("v5.0.0-rc1", prerelease: true)),
+                  \(Self.release("v2.4.1", prerelease: false)),
+                  \(stable)
+                ]
+                """
             default:
                 Issue.record("unexpected URL \(url)")
                 body = "{}"
@@ -29,10 +35,13 @@ struct CutterGitHubRuleTests {
             client?.urlProtocolDidFinishLoading(self)
         }
 
-        // Trimmed from the vendor's v2.5.0 response. The hypothetical v5 RC
-        // checks that a higher number on the releases list is never offered.
-        private static func release(_ tag: String, prerelease: Bool) -> String {
+        // Trimmed from the vendor's v2.5.0 response. Fallback carries an RC
+        // and lists a lower stable version first.
+        private static func release(_ tag: String, prerelease: Bool, hasArm64: Bool = true) -> String {
             let base = "https://github.com/rizinorg/cutter/releases/download/\(tag)/Cutter-\(tag)-macOS"
+            let arm64 = hasArm64 ? """
+                ,{ "name": "Cutter-\(tag)-macOS-arm64.dmg", "browser_download_url": "\(base)-arm64.dmg" }
+                """ : ""
             return """
             {
               "tag_name": "\(tag)", "prerelease": \(prerelease), "draft": false,
@@ -40,8 +49,8 @@ struct CutterGitHubRuleTests {
               "assets": [
                 { "name": "Cutter-\(tag)-macOS-x86_64.dmg", "browser_download_url": "\(base)-x86_64.dmg" },
                 { "name": "Cutter-v9.0.0-macOS-arm64.dmg", "browser_download_url": "https://github.com/rizinorg/cutter/releases/download/\(tag)/Cutter-v9.0.0-macOS-arm64.dmg" },
-                { "name": "Cutter-\(tag)-macOS-arm64.dmg", "browser_download_url": "https://github.com/rizinorg/cutter/releases/download/v2.4.1/Cutter-v2.4.1-macOS-arm64.dmg" },
-                { "name": "Cutter-\(tag)-macOS-arm64.dmg", "browser_download_url": "\(base)-arm64.dmg" }
+                { "name": "Cutter-\(tag)-macOS-arm64.dmg", "browser_download_url": "https://github.com/rizinorg/cutter/releases/download/v2.3.4/Cutter-v2.3.4-macOS-arm64.dmg" }
+                \(arm64)
               ]
             }
             """
@@ -75,6 +84,7 @@ struct CutterGitHubRuleTests {
         #expect(remote.downloadURL?.absoluteString ==
             "https://github.com/rizinorg/cutter/releases/download/v2.5.0/Cutter-v2.5.0-macOS-arm64.dmg")
         #expect(remote.vendorInstallerKind == .dmg && remote.installTrust == .developerID)
+        #expect(remote.requiresExactPackageVersion)
         #expect(remote.structuredChangelog?.entries.first?.version == "2.5.0")
         #expect(UpdateChecker.evaluate(installed: older, remote: remote) == .updateAvailable(latest: "2.5.0"))
 

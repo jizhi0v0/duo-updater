@@ -12,6 +12,7 @@ enum re_rizin_cutter {
                 bundleID: bundleID,
                 owner: "rizinorg", repo: "cutter",
                 versionPattern: #"\Av(\#(triplet))\z"#,
+                candidateScope: .highestVersion,
                 installAssetPattern: #"\ACutter-v\#(triplet)-macOS-arm64\.dmg\z"#,
                 installerKind: .dmg),
         ])

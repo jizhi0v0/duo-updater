@@ -35,7 +35,7 @@
 
 ## 一键安装
 
-GitHub 规则只选择文件名和下载 URL 与正式 tag 对应的 ARM64 DMG。已安装副本需有可验证的 Developer ID，且安装包通过现有签名和 Team ID 校验。已测正式版的 Team 为 `7C89959B9X`。受测 RC 是无 Team ID 的 ad-hoc 包，更新时需手动安装。签名用于安装信任校验。
+GitHub 规则只选择文件名和下载 URL 与正式 tag 对应的 ARM64 DMG。最新正式发布缺少这样的 DMG 时，在 GitHub 正式发布列表中选可用的最高版本。已安装副本需有可验证的 Developer ID。安装包通过现有签名和 Team ID 校验，签名包内的三段数字也必须等于发布版本。已测正式版的 Team 为 `7C89959B9X`。受测 RC 是无 Team ID 的 ad-hoc 包，更新时需手动安装。
 
 2026-11-28 在 Apple Silicon macOS 27.2（26B123）VM 用签名版 `duo` 将 2.4.1 原地升级到 2.5.0，下载安装了官方 120,445,928 字节的 DMG。落盘版本为 `2.5.0-HEAD-a6f6ad7`、Team 为 `7C89959B9X`，严格代码签名验证和 Gatekeeper 公证检查通过。2.4.0-rc1 对同一正式版的安装请求被无 Team ID 闸拒绝，原副本保持 `2.4.0-HEAD-ec6a6fb`。VM 的匿名 GitHub API 配额已用完，测试通过 Duo 的开发验证入口重放宿主机捕获的正式发布响应。安装器字节从 GitHub 下载。
 

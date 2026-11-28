@@ -169,6 +169,12 @@ struct GitHubListPageSizeTests {
         // 2026-11-11, the highest was at most at index 2 (1.1.0-RC under
         // v1.0.2 and v1.0.1), so 3. The rule keeps the default 20.
         "com.maestro.app/beta": 3,
+        // Across 229 public releases, 1.7.68 begins a 32-row window before
+        // the highest eligible prerelease DMG (1.7.5) for legacy Beta users.
+        "niteo.co.Pareto/beta": 32,
+        // Starting at 1.10.6, the highest stable DMG (1.9.16) was the
+        // twentieth row. Pareto reads the vendor's default 30 on this track.
+        "niteo.co.Pareto/stable": 20,
         // CleanClip Beta: among 59 public releases, the highest beta is at
         // index 7. The older beta at index 58 does not affect the offer.
         "com.antiless.cleanclip.mac/beta": 8,
@@ -184,7 +190,7 @@ struct GitHubListPageSizeTests {
     /// `tagRefPrefix`, which never reads the list page at all.
     private static var depthCheckedListRules: [GitHubReleaseRule] {
         GitHubReleaseRegistry.rules.filter {
-            $0.usePrereleases && $0.candidateScope != .installedMajorLineOrNewestStable
+            $0.startsWithReleaseList && $0.candidateScope != .installedMajorLineOrNewestStable
                 && $0.tagRefPrefix == nil
         }
     }
@@ -242,7 +248,7 @@ struct GitHubListPageSizeTests {
         #expect(Self.measuredMinimumDepth[Self.key(utmBeta!)] == nil)
     }
 
-    /// A rule that reads `/releases/latest` (`usePrereleases == false`) has no
+    /// A rule that starts from `/releases/latest` has no
     /// measured depth on record, so its `listPageSize` should stay at the
     /// untouched default. **Not because it never reads it** — an earlier version
     /// of this comment said that and it is wrong: `resolve()`'s
@@ -250,7 +256,7 @@ struct GitHubListPageSizeTests {
     /// rules. It stays at 20 because nobody has measured what it needs there — carrying a non-default value there would
     /// mean nothing and would be a sign the field was set on the wrong rule.
     @Test func nonListRulesKeepTheUntouchedDefault() {
-        for rule in GitHubReleaseRegistry.rules where !rule.usePrereleases {
+        for rule in GitHubReleaseRegistry.rules where !rule.startsWithReleaseList {
             #expect(rule.listPageSize == 20,
                     "\(rule.bundleID)/\(rule.channel.rawValue) doesn't use the list endpoint, so listPageSize should be the untouched default")
         }

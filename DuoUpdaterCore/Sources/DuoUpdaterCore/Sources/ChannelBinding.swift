@@ -214,6 +214,7 @@ public enum ChannelBinding {
         VimRChannel.bundleID.lowercased(),
         TextMateChannel.bundleID.lowercased(),
         MaestroChannel.bundleID.lowercased(),
+        niteo_co_Pareto.bundleID.lowercased(),
         ClaudeDesktopChannel.bundleID,
     ]
 
@@ -577,6 +578,8 @@ public enum ChannelBinding {
         case VimRChannel.bundleID.lowercased():    return { _, _ in VimRChannel.resolveCurrent() }
         case TextMateChannel.bundleID.lowercased(): return { _, _ in TextMateChannel.resolveCurrent() }
         case MaestroChannel.bundleID.lowercased(): return { _, _ in MaestroChannel.resolveCurrent() }
+        case niteo_co_Pareto.bundleID.lowercased():
+            return { _, strings in niteo_co_Pareto.resolveCurrent(installedVersion: strings["CFBundleShortVersionString"]) }
         case ClaudeDesktopChannel.bundleID:
             return { _, strings in ClaudeDesktopChannel.resolveCurrent(bundleStrings: strings) }
         default:                       return nil
@@ -778,6 +781,7 @@ public enum ChannelBinding {
         OpenScreenSharingChannel.bundleID.lowercased(),
         TextMateChannel.bundleID.lowercased(),
         MaestroChannel.bundleID.lowercased(),
+        niteo_co_Pareto.bundleID.lowercased(),
         ClaudeDesktopChannel.bundleID,
     ]
 

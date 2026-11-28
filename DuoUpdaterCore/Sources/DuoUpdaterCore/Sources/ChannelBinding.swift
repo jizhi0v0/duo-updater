@@ -206,6 +206,7 @@ public enum ChannelBinding {
         ITerm2Channel.bundleID.lowercased(),
         MonitorControlChannel.bundleID.lowercased(),
         ZettlrChannel.bundleID.lowercased(),
+        com_flyingmeat_Acorn8.bundleID.lowercased(),
         OpenScreenSharingChannel.bundleID.lowercased(),
         RuntimeViewerChannel.bundleID.lowercased(),
         AirBuildChannel.bundleID.lowercased(),
@@ -556,6 +557,11 @@ public enum ChannelBinding {
             return { _, _ in MonitorControlChannel.resolveCurrent() }
         case ZettlrChannel.bundleID.lowercased():
             return { _, strings in ZettlrChannel.resolveCurrent(bundleStrings: strings) }
+        case com_flyingmeat_Acorn8.bundleID.lowercased():
+            return { feeds, _ in
+                guard feeds["SUFeedURL"] == nil else { return nil }
+                return com_flyingmeat_Acorn8.resolveCurrent()
+            }
         case SwiftVMChannel.bundleID.lowercased(): return { feeds, _ in SwiftVMChannel.resolve(bundleFeeds: feeds) }
         case AdGuardChannel.bundleID.lowercased():
             return { _, strings in AdGuardChannel.resolve(bundleStrings: strings) }
@@ -622,6 +628,9 @@ public enum ChannelBinding {
         (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: true)),
         (VimRChannel.bundleID, VimRChannel.resolve(useSnapshot: false)),
         (VimRChannel.bundleID, VimRChannel.resolve(useSnapshot: true)),
+        (com_flyingmeat_Acorn8.bundleID, com_flyingmeat_Acorn8.resolve(feedPreference: nil)),
+        (com_flyingmeat_Acorn8.bundleID, com_flyingmeat_Acorn8.resolve(
+            feedPreference: com_flyingmeat_Acorn8.betaFeed.absoluteString)),
         // A copy that declares its feed stands in for the bundle; the older ones
         // that do not are handed the same address (see the type).
         (AirBuildChannel.bundleID, AirBuildChannel.resolve(receiveBetaVersions: false)),

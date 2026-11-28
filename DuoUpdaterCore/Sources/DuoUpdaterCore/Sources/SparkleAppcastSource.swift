@@ -137,7 +137,12 @@ public struct SparkleAppcastSource: UpdateSource {
         // When the feed inlines Markdown notes (e.g. Surge's `<markdownDescription>`)
         // rather than HTML, parse them into a native, multi-version changelog so the
         // detail window renders entries instead of falling back to a web view.
-        let structured = Self.structuredChangelog(from: offerable, bundleID: app.bundleID)
+        let isAcornFeed = com_flyingmeat_Acorn8.matchesFeed(bundleID: app.bundleID, feedURL: feedURL)
+        let acornNotes = feedURL == com_flyingmeat_Acorn8.betaFeed
+            ? com_flyingmeat_Acorn8.betaNotes : com_flyingmeat_Acorn8.stableNotes
+        let structured = isAcornFeed
+            ? com_flyingmeat_Acorn8.changelog(for: best, feedURL: feedURL)
+            : Self.structuredChangelog(from: offerable, bundleID: app.bundleID)
 
         // Every in-channel item that carries a date — the appcast usually keeps the
         // last N releases, so this backfills the app's whole visible history into
@@ -164,11 +169,11 @@ public struct SparkleAppcastSource: UpdateSource {
             sourceName: name,
             minimumAutoupdateVersion: best.minimumAutoupdateVersion,
             sparklePackageEnclosure: best.installationType == "package",
-            requiresMatchingSparkleBuild: isRogueAmoebaFeed,
+            requiresMatchingSparkleBuild: isRogueAmoebaFeed || isAcornFeed,
             downloadHeaders: isRogueAmoebaFeed ? RogueAmoebaAppcast.downloadHeaders : [:],
             releaseNotesHTML: best.descriptionHTML,
             structuredChangelog: structured,
-            changelogURL: best.releaseNotesLink,
+            changelogURL: best.releaseNotesLink ?? (isAcornFeed ? acornNotes : nil),
             publishedAt: bestFields.publishedAt,
             vendorDay: bestFields.vendorDay,
             releaseHistory: history,
@@ -362,6 +367,7 @@ public struct SparkleAppcastSource: UpdateSource {
         let offeredMajor = RogueAmoebaAppcast.offeredMajor(bundleID: bundleID, feedURL: feedURL)
         let isRogueAmoebaFeed = offeredMajor != nil
             || com_rogueamoeba_audiohijack.matchesFeed(bundleID: bundleID, feedURL: feedURL)
+        let isUkeleleFeed = org_sil_ukelele.matchesFeed(bundleID: bundleID, feedURL: feedURL)
         return SparkleAppcastParser.parse(content, relativeTo: feedURL).compactMap { parsed in
             var item = parsed
             if let offeredMajor {
@@ -375,6 +381,12 @@ public struct SparkleAppcastSource: UpdateSource {
                 // The stable appcast writes the shared bundle version only once.
                 item.shortVersionString = item.shortVersionString ?? item.version
                 item.descriptionHTML = item.descriptionHTML.map(RogueAmoebaAppcast.releaseNotesBody)
+            }
+            // SIL mixes stable and beta history in one feed without tags. Give
+            // untagged betas the same marker the installed-build filter expects.
+            if isUkeleleFeed, normalizeChannel(item.channel) == nil,
+               org_sil_ukelele.betaVersion(item.shortVersionString) {
+                item.channel = ReleaseChannel.beta.rawValue
             }
             func relocated(_ url: URL) -> URL {
                 SparkleFeedCatalog.relocatedReleaseURL(url, forBundleID: bundleID, feedURL: feedURL)
@@ -422,6 +434,8 @@ public struct SparkleAppcastSource: UpdateSource {
     static func structuredChangelog(from usable: [SparkleAppcastItem], bundleID: String? = nil) -> Changelog? {
         let maxEntries = 40
         let isRex = bundleID?.lowercased() == RexChannel.bundleID
+        // Royal TSX publishes a single explicit Bugfixes heading in many releases.
+        let isRoyalTSX = bundleID?.lowercased() == "com.lemonmojo.royaltsx.app"
         var kept: [(item: SparkleAppcastItem, entry: Changelog.Entry)] = []
         // Several <item>s can share a marketing version, for two reasons:
         // - One release, several items. TablePro publishes 0.67.0 once per
@@ -444,7 +458,8 @@ public struct SparkleAppcastSource: UpdateSource {
             if let md = item.markdownDescription {
                 entry = AppcastMarkdownParser.entry(from: md, version: version, date: date)
             } else if let html = item.descriptionHTML {
-                entry = AppcastHTMLChangelogParser.entry(html: html, version: version, date: date)
+                entry = AppcastHTMLChangelogParser.entry(
+                    html: html, version: version, date: date, preserveSingleHeading: isRoyalTSX)
             } else {
                 entry = nil
             }
@@ -846,7 +861,8 @@ public struct SparkleAppcastSource: UpdateSource {
     ///  2. A `ChannelBinding` that only named the channel: derive the tag from it,
     ///     which is what every binding did before (1) existed and still what
     ///     DuoPaste/Fork/OrbStack/… want.
-    ///  3. No binding: infer from the build the user is actually running.
+    ///  3. No binding: infer from the installed build or the verified
+    ///     beta-only Royal TSX v26 appcast.
     ///
     /// Kept as one function so the "default channel is always allowed" rule can't
     /// drift between the branches.
@@ -855,7 +871,16 @@ public struct SparkleAppcastSource: UpdateSource {
     ) -> Set<String?> {
         var allowed: Set<String?> = [nil]
         guard app.channelIsAuthoritative else {
-            if let inferred = channel(ofInstalled: app, in: items) { allowed.insert(inferred) }
+            if let inferred = channel(ofInstalled: app, in: items) {
+                allowed.insert(inferred)
+            } else if app.bundleID == "com.lemonmojo.RoyalTSX.App",
+                      app.sparkleFeedURL?.absoluteString == "https://royaltsx-v26.royalapps.com/app/updates",
+                      !items.isEmpty,
+                      items.allSatisfy({ normalizeChannel($0.channel) == "beta" }) {
+                // V26 beta bundles declare a separate appcast from v6. Allow its
+                // beta items even after the vendor trims the installed build.
+                allowed.insert("beta")
+            }
             return allowed
         }
         if !app.sparkleChannelNames.isEmpty {

@@ -20,6 +20,8 @@ enum AuditedUpdateFeeds {
         /// Douchat's pre-migration and current public feed paths.
         let copyGroup: String?
         let source: Source
+        /// Whether an observed payload's key represents this installed group.
+        let usesRecordedSparkleKey: Bool
         /// Repo-relative source of the feed and track facts.
         let auditDocument: String
 
@@ -97,6 +99,20 @@ enum AuditedUpdateFeeds {
     /// Sparkle-covered sections, represented only where an exact public feed
     /// and track are established by that row's linked audit.
     static let entries: [Entry] = ([
+        sparkle("Acorn 8", "com.flyingmeat.Acorn8", .stable,
+                feed: "https://flyingmeat.com/download/acorn8update.xml",
+                audit: "docs/app-audits/com-flyingmeat-Acorn8.md"),
+        sparkle("Acorn 8 Test Releases", "com.flyingmeat.Acorn8", .beta,
+                feed: "https://flyingmeat.com/download/latest/acorn8update.xml",
+                audit: "docs/app-audits/com-flyingmeat-Acorn8.md"),
+        // The v6 and v26 packages share an ID but declare different appcasts.
+        sparkle("Royal TSX v6", "com.lemonmojo.RoyalTSX.App", .stable,
+                feed: "https://royaltsx-v6.royalapps.com/updates_stable",
+                audit: "docs/app-audits/com-lemonmojo-RoyalTSX-App.md"),
+        sparkle("Royal TSX v26 Beta", "com.lemonmojo.RoyalTSX.App", .beta,
+                feed: "https://royaltsx-v26.royalapps.com/app/updates",
+                channelNames: ["beta"], publicKey: "48ZqGC3v4p507RvAi3q5V02dh3GyoLF7VAuFqN1qTdA=",
+                audit: "docs/app-audits/com-lemonmojo-RoyalTSX-App.md"),
         sparkle("Audio Hijack", "com.rogueamoeba.audiohijack", .stable,
                 feed: SparkleFeedCatalog.feed(forBundleID: "com.rogueamoeba.audiohijack")!.absoluteString,
                 audit: "docs/app-audits/com-rogueamoeba-audiohijack.md"),
@@ -159,6 +175,22 @@ enum AuditedUpdateFeeds {
         sparkle("Paw / RapidAPI for Mac", "com.luckymarmot.Paw", .stable,
                 feed: "https://paw.cloud/api/v2/updates/appcast",
                 copyGroup: "legacy-dsa", audit: "docs/app-audits/com-luckymarmot-Paw.md"),
+        // Audit: docs/app-audits/org-sil-ukelele.md. The signed bundle's
+        // literal quotation marks make its declared URL unusable.
+        sparkle("Ukelele", "org.sil.ukelele", .stable,
+                feed: SparkleFeedCatalog.feed(forBundleID: "org.sil.ukelele")!.absoluteString,
+                publicKey: "akGj2v0tJZhSIxt8IgV4Xx5lr7paN6sIshhWKJLPkVw=",
+                audit: "docs/app-audits/org-sil-ukelele.md"),
+        // Audit: docs/app-audits/com-MagicQuit.md. Both groups use the same
+        // appcast, but only the newer ZIP installs ship its Ed25519 key.
+        sparkle("MagicQuit", "com.MagicQuit", .stable,
+                feed: SparkleFeedCatalog.feed(forBundleID: "com.MagicQuit")!.absoluteString,
+                publicKey: "wFrCgZt+qwG6/UbxYscLbW9m2ttAS5AvQMC9ROCZr7g=",
+                copyGroup: "ed25519", audit: "docs/app-audits/com-MagicQuit.md"),
+        sparkle("MagicQuit legacy DMG", "com.MagicQuit", .stable,
+                feed: SparkleFeedCatalog.feed(forBundleID: "com.MagicQuit")!.absoluteString,
+                copyGroup: "legacy-no-key", usesRecordedSparkleKey: false,
+                audit: "docs/app-audits/com-MagicQuit.md"),
 
         // Audit: docs/app-audits/com-googlecode-iterm2.md. No query shard is
         // needed: the audit found it does not change the feed response. The
@@ -465,6 +497,10 @@ enum AuditedUpdateFeeds {
     /// entries because the public feed or the track itself is not established.
     static let uncoveredTracks: [Gap] = [
         Gap(
+            bundleID: "org.sil.ukelele", trackID: "beta",
+            auditDocument: "docs/app-audits/org-sil-ukelele.md",
+            reason: "The shared appcast retains historical beta items whose enclosures all returned 404. Beta copies can graduate to the current stable release, which is monitored."),
+        Gap(
             bundleID: "com.rogueamoeba.soundsource", trackID: "legacy-5",
             auditDocument: rogueAmoebaAudit,
             reason: "SoundSource 5 is retired and its last signed app excludes macOS 27 onward. Its version-qualified public feed is available on supported older hosts."),
@@ -514,6 +550,15 @@ enum AuditedUpdateFeeds {
     /// value stays nil in `Source.sparkle`; these records make that limitation
     /// explicit for archive-verification consumers.
     static let unavailablePublicKeys: [PublicKeyGap] = [
+        PublicKeyGap(bundleID: "com.flyingmeat.Acorn8",
+                     auditDocument: "docs/app-audits/com-flyingmeat-Acorn8.md",
+                     reason: "The verified stable and test release archives use a legacy DSA key and carry no SUPublicEDKey."),
+        PublicKeyGap(bundleID: "com.MagicQuit",
+                     auditDocument: "docs/app-audits/com-MagicQuit.md",
+                     reason: "The legacy 1.4 DMG predates Sparkle and ships no SUPublicEDKey. The 2.0 ZIP matches the independently recorded Ed25519 key."),
+        PublicKeyGap(bundleID: "com.lemonmojo.RoyalTSX.App",
+                     auditDocument: "docs/app-audits/com-lemonmojo-RoyalTSX-App.md",
+                     reason: "Royal TSX v6 uses legacy DSA only. The v26 beta has a separately recorded Ed25519 key."),
         PublicKeyGap(bundleID: "com.rogueamoeba.audiohijack",
                      auditDocument: "docs/app-audits/com-rogueamoeba-audiohijack.md",
                      reason: "Both verified direct bundles have no SUPublicEDKey. The Sparkle install uses the Developer ID and Team ID checks."),
@@ -583,19 +628,22 @@ enum AuditedUpdateFeeds {
             source: .electron(ElectronUpdateConfig(
                 provider: "generic", url: url, owner: nil, repo: nil,
                 channel: manifestChannel)),
+            usesRecordedSparkleKey: true,
             auditDocument: audit)
     }
 
     private static func sparkle(
         _ name: String, _ bundleID: String, _ channel: ReleaseChannel,
         trackID: String? = nil, feed: String, channelNames: Set<String> = [],
-        publicKey: String? = nil, copyGroup: String? = nil, audit: String
+        publicKey: String? = nil, copyGroup: String? = nil,
+        usesRecordedSparkleKey: Bool = true, audit: String
     ) -> Entry {
         Entry(
             name: name, bundleID: bundleID, channel: channel,
             trackID: trackID ?? channel.rawValue, copyGroup: copyGroup,
             source: .sparkle(
                 feed: URL(string: feed)!, publicKey: publicKey, channelNames: channelNames),
+            usesRecordedSparkleKey: usesRecordedSparkleKey,
             auditDocument: audit)
     }
 }

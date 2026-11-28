@@ -434,6 +434,10 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
+- [x] [**Royal TSX**](com-lemonmojo-RoyalTSX-App.md) · `com.lemonmojo.RoyalTSX.App` — S（v6 stable、v26 beta 各用包内 feed）· v6 一键 DMG 实测 · Sparkle HTML 日志保留标题和首条 · 2026-11-28
+- [x] [**Ukelele**](org-sil-ukelele.md) · `org.sil.ukelele` — S（补全厂商 feed，隔离 beta 条目）+ C（厂商版本历史）· 2026-11-28
+- [x] [**MagicQuit**](com-MagicQuit.md) · `com.MagicQuit` — S（旧 DMG 补全官方 feed）+ C（发布标签内的 Markdown）· 2026-11-28
+- [x] [**Acorn 8**](com-flyingmeat-Acorn8.md) · `com.flyingmeat.Acorn8` — S+B（stable/beta 官方 feed）· feed 内联结构化日志 · 2026-11-28
 - [x] [**Audio Hijack**](com-rogueamoeba-audiohijack.md) · `com.rogueamoeba.audiohijack` — S（官网 stable feed 补全）· 2026-11-26
 - [x] [**Rogue Amoeba**](com-rogueamoeba-airfoil.md) · Airfoil、Airfoil Satellite、Farrago、Fission、Loopback、Piezo、SoundSource — S（官网正式版 feed 补全）· 2026-11-26
 

@@ -135,7 +135,13 @@ public enum InstallVerify {
     /// The full pass owed every `fullPassInterval` (or forced with `--full`) is
     /// what still catches an installer replaced under an unchanged version and
     /// URL.
-    static func skipsDownload(version: String?, urlSHA256: String, previous: Previous) -> Bool {
+    static func skipsDownload(
+        version: String?, urlSHA256: String, previous: Previous, requiredSparkleBuild: String? = nil
+    ) -> Bool {
+        // A rolling archive can move to a new build while keeping its URL and
+        // marketing version. The inventory only remembers the display version,
+        // so it cannot establish continuity for a distinct offered build.
+        if let requiredSparkleBuild, requiredSparkleBuild != version { return false }
         guard let recorded = previous.recorded, let entry = previous.baseline,
               let version, recorded.lastSeenVersion == version,
               recorded.lastSeenURLSHA256 == urlSHA256
@@ -398,7 +404,8 @@ public enum InstallVerify {
         item.urlSHA256 = InstallIdentities.digest(ofURL: url.absoluteString)
         if let previous = target.previous,
            skipsDownload(version: item.version, urlSHA256: InstallIdentities.digest(ofURL: url.absoluteString),
-                         previous: previous) {
+                         previous: previous,
+                         requiredSparkleBuild: remote.requiresMatchingSparkleBuild ? (remote.version ?? "") : nil) {
             item.status = .skipped
             item.detail = "unchanged since "
                 + (previous.recorded?.lastSeenAt.formatted(.iso8601.year().month().day()) ?? "?")

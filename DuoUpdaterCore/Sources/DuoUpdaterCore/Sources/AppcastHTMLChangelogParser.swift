@@ -88,7 +88,9 @@ enum AppcastHTMLChangelogParser {
     /// Returns nil (never throws) when `isStructured` is false, `version` is
     /// empty, or no `<li>` survives cleaning — the caller falls back to the raw
     /// HTML path in every one of those cases.
-    static func entry(html: String, version: String, date: String?) -> Changelog.Entry? {
+    static func entry(
+        html: String, version: String, date: String?, preserveSingleHeading: Bool = false
+    ) -> Changelog.Entry? {
         guard !version.isEmpty, isStructured(html) else { return nil }
 
         // `</h\1>` — a BACKREFERENCE, so the closing level must match the opening
@@ -98,7 +100,9 @@ enum AppcastHTMLChangelogParser {
         // glued blob. Requiring the same level means a mistyped closer simply
         // doesn't match: the heading is dropped and its items survive, which is the
         // right way to fail.
-        let pattern = #"<h([234])[^>]*>(.*?)</h\1>|<li[^>]*>(.*?)</li>"#
+        // The list tag must end at its name boundary. Royal TSX includes a
+        // stylesheet <link> above its notes, before the real list begins.
+        let pattern = #"<h([234])[^>]*>(.*?)</h\1>|<li\b[^>]*>(.*?)</li\s*>"#
         guard let regex = try? NSRegularExpression(
             pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive])
         else { return nil }
@@ -179,7 +183,7 @@ enum AppcastHTMLChangelogParser {
         for piece in pieces {
             switch piece {
             case .heading(let text):
-                pendingHeading = (text, styled && piece.isSectionLabel)
+                pendingHeading = (text, (styled || preserveSingleHeading) && piece.isSectionLabel)
             case .text(let text, _):
                 if styled && piece.isSectionLabel {
                     pendingHeading = (text, true)
@@ -229,10 +233,10 @@ enum AppcastHTMLChangelogParser {
     // MARK: - Internals
 
     /// Block-level tags a gap (the HTML between two heading/`<li>` matches) is cut
-    /// into paragraphs on. `<br>` is deliberately absent: a line break inside one
-    /// paragraph joins with a space, as it does inside an `<li>`.
+    /// into paragraphs on. A stylesheet `<link>` is metadata at a gap boundary.
+    /// `<br>` stays inside its paragraph, where it joins with a space.
     private static let gapBlockRegex = try? NSRegularExpression(
-        pattern: #"<\s*/?\s*(?:p|div|ul|ol|li|h[1-6]|hr|blockquote|section|table|tr|pre)\b[^>]*>"#,
+        pattern: #"<\s*/?\s*(?:p|div|ul|ol|li|link|h[1-6]|hr|blockquote|section|table|tr|pre)\b[^>]*>"#,
         options: [.caseInsensitive])
 
     /// The readable paragraphs in a gap, in order. Dropped, because they are

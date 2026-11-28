@@ -924,7 +924,11 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
-        if let bound = channelBinding(
+        // The direct and Mac App Store editions of Acorn 8 share an ID. The
+        // direct updater's preference is not a channel choice for a store copy.
+        let isStoreAcorn = (isMAS || isTestFlight)
+            && bundleID?.caseInsensitiveCompare(com_flyingmeat_Acorn8.bundleID) == .orderedSame
+        if !isStoreAcorn, let bound = channelBinding(
             bundleID, ChannelBinding.bundleFeeds(fromInfoPlist: plist),
             ChannelBinding.bundleStrings(fromInfoPlist: plist)) {
             releaseChannel = bound.channel

@@ -1076,17 +1076,22 @@ public enum Verify {
             // use the one this run's probe just read, so the sweep checks the
             // page the app would actually open.
             let version = changelogVersion(for: recipe, versions: versions)
-            // With no version at all, `resolvedSource` silently falls back to the
-            // untemplated `source` — which for these vendors is a generic landing
-            // page that has never parsed. Reporting that as breakage would be a
-            // pure artifact of how the sweep was invoked, so say so instead —
-            // and say which of the two reasons it is (`templatedSkipDetail`).
-            if recipe.sourceTemplate != nil, version == nil {
-                return Finding(
-                    recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
-                    channel: recipe.channel?.rawValue ?? "-", status: .skipped,
-                    failureDetail: templatedSkipDetail(for: recipe, versionSources: versionSources),
-                    endpointHost: host)
+            // A template needs a version it covers. Without one, the fallback
+            // source or a URL for another train could report false breakage.
+            if recipe.sourceTemplate != nil {
+                let skipDetail: String?
+                if let version {
+                    skipDetail = recipe.covers(appVersion: version) ? nil
+                        : "version-templated: \(version) is outside the recipe's version window"
+                } else {
+                    skipDetail = templatedSkipDetail(for: recipe, versionSources: versionSources)
+                }
+                if let skipDetail {
+                    return Finding(
+                        recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
+                        channel: recipe.channel?.rawValue ?? "-", status: .skipped,
+                        failureDetail: skipDetail, endpointHost: host)
+                }
             }
             let started = Date()
             // No update result here, so a `feedPagePattern` recipe resolves its

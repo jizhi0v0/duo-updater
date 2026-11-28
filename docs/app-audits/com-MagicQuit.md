@@ -15,11 +15,11 @@
 - `feed:com.magicquit` 对补全目录中的厂商 appcast 做健康检查。
 - `install:sparkle:com.MagicQuit:stable:legacy-no-key` 检查老副本更新所指的 ZIP 和身份。1.4 没有公钥可供这一组验签。档案中的新包公钥属于验得的包身份，后续仍按旧版的无公钥路径检查。
 - `install:sparkle:com.MagicQuit:stable:ed25519` 额外验证 ZIP 的 EdDSA 签名。公钥从签名 2.0 包取得。
-- `changelog:com.MagicQuit:-:<2` 检查旧版的固定归档。当前版本的结构化日志模板需要具体版本，无安装副本的夜扫会在日志检查之后才查询 Sparkle feed，因此不会检查当前标签的 Markdown。可在有新版副本的 Mac 上用 `duo verify --changelog --only magicquit` 核对当前标签，或对真实副本执行 `channel-verify`。
+- `changelog:com.MagicQuit:-:<2` 检查旧版的固定归档。`changelog:com.MagicQuit:-:2+` 按可用版本检查相应标签的 Markdown。只安装 1.x 时会跳过 2.x 的标签检查。无安装副本的夜扫在日志检查之后才查询 Sparkle feed，因此也会跳过该标签检查。
 - 2026-11-28，在本批 `duo verify --feed` 中通过，`duo verify-install --full` 的两个 2.0 目标均为 `ok`。两个目标都核对包身份，有公钥的一组还通过整包 Ed25519 验签。
 
 ## 历史与实测
 
 2026-11-28，核对官网 1.4 DMG 与 GitHub 2.0 ZIP。两包均通过严格代码签名和公证检查，Team ID 均为 `4HMNGH59W8`。同日，appcast 的稳定条目是 2.0（16），enclosure 指向 2.0 发布 ZIP。发布标签内的 [Markdown](https://github.com/BigBerny/magicquit/blob/v2.0/CHANGELOG.md) 分列 2.0、1.4 和 1.3.1，2.0 标题下有 New 与 Improvements 两节。开发分支同日已出现 2.0.1 说明，appcast 尚未发布该版本。
 
-同日 Apple Silicon、macOS 27.3 上用 Developer ID 签名 Release CLI 检测到 1.4 → 2.0。经现有大版本确认后，停用副本一键原地升级成功，下载 2,834,274 字节。安装后核对 build 16、原厂 Team、严格签名和公证，状态为最新。最终生产日志路径读出 3 个发布条目，2.0 有 10 条说明并保留 New 和 Improvements 标题。
+同日 Apple Silicon、macOS 27.3 上用 Developer ID 签名 Release CLI 检测到 1.4 → 2.0。经现有大版本确认后，停用副本一键原地升级成功，下载 2,834,274 字节。安装后核对 build 16、原厂 Team、严格签名和公证，状态为最新。生产日志路径从 2.0 的发布标签读出 10 条说明并保留 New 和 Improvements 标题。1.x 副本仍可读取旧版归档。

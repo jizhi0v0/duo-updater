@@ -28,8 +28,8 @@ struct MagicQuitChangelogRecipeTests {
             == "https://raw.githubusercontent.com/BigBerny/magicquit/v2.11.3/CHANGELOG.md")
 
         let history = try #require(ChangelogExtractor.extract(from: Self.markdown, using: recipe))
-        #expect(history.entries.map(\.version) == ["2.0", "1.4"])
-        #expect(history.entries.map(\.date) == ["2026-07-20", "2023-12-21"])
+        #expect(history.entries.map(\.version) == ["2.0"])
+        #expect(history.entries.map(\.date) == ["2026-07-20"])
         let release = try #require(history.entries.first)
         #expect(release.content == [
             .heading("New"),
@@ -37,7 +37,6 @@ struct MagicQuitChangelogRecipeTests {
             .heading("Improvements"),
             .note("Requires macOS 14 or later."),
         ])
-        #expect(history.entries.last?.items.count == 1)
     }
 
     @Test func aLegacyCopyUsesThePublishedSnapshotUntilItReceivesAnOffer() throws {
@@ -52,6 +51,7 @@ struct MagicQuitChangelogRecipeTests {
             == "https://raw.githubusercontent.com/BigBerny/magicquit/v2.0/CHANGELOG.md")
         let history = try #require(ChangelogExtractor.extract(from: Self.markdown, using: legacy))
         #expect(history.entries.map(\.version) == ["1.4"])
+        #expect(history.entries.last?.items.count == 1)
 
         let offer = RemoteVersion(shortVersion: "2.1", version: "17",
                                   downloadURL: nil, sourceName: "Sparkle")

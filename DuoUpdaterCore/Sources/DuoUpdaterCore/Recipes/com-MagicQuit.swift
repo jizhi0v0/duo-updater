@@ -8,10 +8,12 @@ enum com_MagicQuit {
         family: "com-MagicQuit",
         changelogs: [
             // History: docs/app-audits/com-MagicQuit.md#历史与实测
-            // The first release tag includes the older website releases.
+            // Each 2.x or newer tag pins that release series before later draft entries.
+            changelog(
+                majorPattern: #"(?:[2-9]|[1-9][0-9]+)"#, minimumAppVersion: "2",
+                sourceTemplate: "https://raw.githubusercontent.com/BigBerny/magicquit/v{version}/CHANGELOG.md"),
+            // The first release tag also includes the older website releases.
             changelog(majorPattern: #"[01]"#, belowAppVersion: "2"),
-            // Each newer tag pins the cumulative file before later draft entries.
-            changelog(sourceTemplate: "https://raw.githubusercontent.com/BigBerny/magicquit/v{version}/CHANGELOG.md"),
         ],
         sparkleFeeds: [
             // The old DMG has no updater feed. The newer ZIP declares this same feed itself.
@@ -19,7 +21,7 @@ enum com_MagicQuit {
         ])
 
     private static func changelog(
-        majorPattern: String = #"[0-9]+"#, belowAppVersion: String? = nil,
+        majorPattern: String, minimumAppVersion: String? = nil, belowAppVersion: String? = nil,
         sourceTemplate: String? = nil
     ) -> ChangelogRecipe {
         ChangelogRecipe(
@@ -31,6 +33,7 @@ enum com_MagicQuit {
             markdownSource: true,
             sourceTemplate: sourceTemplate,
             headingPattern: #"(?m)^###[ \t]+(?<heading>[^\r\n]+)"#,
+            minimumAppVersion: minimumAppVersion,
             belowAppVersion: belowAppVersion)
     }
 }

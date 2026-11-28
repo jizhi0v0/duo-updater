@@ -257,6 +257,32 @@ import DuoUpdaterCore
             inkscape.recipeID, now: start.addingTimeInterval(Baseline.infraWindow * 2)))
     }
 
+    @Test(arguments: ["1.4", "2.0"])
+    func aTemplatedChangelogUsesOnlyVersionsInItsWindow(version: String) async throws {
+        let recipe = ChangelogRecipe(
+            bundleID: "com.example.templated-window",
+            source: URL(string: "https://stub.invalid/fixed/")!,
+            entryPattern: #"<h1>(?<version>[0-9.]+)</h1>(?<body>.*?)(?=</body>)"#,
+            itemPatterns: [#"<p>(?<item>.*?)</p>"#],
+            sourceTemplate: "https://stub.invalid/match/{version}/",
+            minimumAppVersion: "2")
+        var options = VerifyOptions()
+        options.perHostDelay = .zero
+
+        let findings = await Verify.sweepChangelog(
+            [recipe], options: options, versions: [recipe.bundleID: version],
+            versionSources: [], session: HeadedPageStub.session)
+        let finding = try #require(findings.first)
+        if version == "1.4" {
+            #expect(finding.status == .skipped)
+            #expect(finding.failureDetail?.contains("outside the recipe's version window") == true)
+        } else {
+            #expect(finding.status == .ok)
+            #expect(finding.version == version)
+            #expect(finding.headingMatchesPage == true)
+        }
+    }
+
     // MARK: - what the sweep records
 
     /// Through the real success path of `sweepChangelog`, against a stub that

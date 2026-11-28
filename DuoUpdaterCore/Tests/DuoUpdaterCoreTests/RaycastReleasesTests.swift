@@ -134,6 +134,9 @@ private let raycastChangelogFixture = #"""
             // Athas reads darwin-aarch64 from the manifest and uses its archive.
             "vendor:com.code.athas:stable",
             "vendor:com.code.athas:beta",
+            // GitButler and Kodi use the vendor's Apple Silicon-only archive paths.
+            "vendor:com.gitbutler.app:stable",
+            "vendor:org.xbmc.kodi:stable",
             // Carbon Copy Cloner: three separately downloadable major-version
             // generations (5/6/7) share one bundle id, each with its own fixed,
             // vendor-documented minimum OS floor (10.10/10.15/13.1) that has held

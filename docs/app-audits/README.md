@@ -151,6 +151,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — VendorProbe + optional Changelog
 
+- [x] [**GitButler**](com-gitbutler-app.md) · `com.gitbutler.app` — P+C · 官网 ARM64 正式轨与版本化 tar.gz · 本机 0.23.4 → 0.23.5 一键和结构化日志通过 · 2026-11-28
+- [x] [**Kodi**](org-xbmc-kodi.md) · `org.xbmc.kodi` — P+C · 官网 ARM64 正式版 DMG 和 RSS 日志 · 本机 21.2 → 21.3 一键和结构化日志通过 · 2026-11-28
+- [x] [**PPSSPP**](org-ppsspp-ppsspp.md) · `org.ppsspp.ppsspp` — P+C · 官网免费正式版 DMG 和结构化日志 · 本机 1.20.3 → 1.20.4 一键和结构化日志通过 · 2026-11-28
+- [x] [**TaskPaper**](com-hogbaysoftware-TaskPaper3-direct.md) · `com.hogbaysoftware.TaskPaper3.direct` — P+C · 官网正式版 DMG 与发布记录 · 本机 3.9.3 → 3.9.4 一键和结构化日志通过 · 2026-11-28
+
 - [x] [**Backblaze Computer Backup**](com-backblaze-Backblaze.md) · `com.backblaze.Backblaze` — P · 验证版本化 DMG 后以灰色 Update 打开厂商安装器 · 2026-11-22
 - [x] [**小麥注音 McBopomofo**](org-openvanilla-inputmethod-McBopomofo.md) · `org.openvanilla.inputmethod.McBopomofo` — P · 用户级副本以灰色 Update 打开官方安装器 · 2026-11-22
 - [x] [**BlockBlock**](com-objective-see-blockblock-helper.md) · `com.objective-see.blockblock.helper` — P · 官网 ZIP 摘要校验后从灰色 Update 打开厂商安装器 · 2026-11-22

@@ -7,6 +7,14 @@ enum net_xmind_vana_app {
     private static let artifactSuffix = #"-[0-9]{12}\.dmg\z"#
     private static let releases = URL(string: "https://xmind.com/changelog")!
 
+    // The DMG names the same minute as CFBundleVersion, without its trailing 0.
+    static func archiveBuild(_ bundleBuild: String?) -> String? {
+        guard let bundleBuild,
+              bundleBuild.range(of: #"\A[0-9]{12}0\z"#, options: .regularExpression) != nil
+        else { return nil }
+        return String(bundleBuild.dropLast())
+    }
+
     static let set = AppRecipeSet(
         family: "net-xmind-vana-app",
         probes: [
@@ -60,17 +68,19 @@ enum net_xmind_vana_app {
     private static func probe(
         url: URL, channel: ReleaseChannel, version: String, changelogURL: URL? = nil
     ) -> VendorProbeRecipe {
-        // The public downloads return versioned DMGs in Location. The date
-        // suffix identifies the archive, while the preceding version matches
-        // CFBundleShortVersionString. Keep the complete Location so detection
-        // and install refer to the same release.
-        VendorProbeRecipe(
+        // The download timestamp distinguishes repacks of the same marketing
+        // version. Both values and the installer come from this one Location.
+        let prefix = #"\Ahttps://dl3\.xmind\.app/Xmind-for-macOS-"#
+        return VendorProbeRecipe(
             bundleID: bundleID,
             url: url,
             mode: .redirectFilename,
-            versionPattern: #"\Ahttps://dl3\.xmind\.app/Xmind-for-macOS-(\#(version))"# + artifactSuffix,
+            versionPattern: prefix + #"\#(version)-([0-9]{12})\.dmg\z"#,
             downloadURL: url,
             changelogURL: changelogURL,
+            versionIsBuild: true,
+            buildNamespace: .vendor,
+            displayVersionPattern: prefix + #"(\#(version))"# + artifactSuffix,
             install: VendorInstallSpec(urlSource: .bodyPattern(#"\A(.+)\z"#), kind: .dmg),
             followRedirects: false,
             channel: channel,

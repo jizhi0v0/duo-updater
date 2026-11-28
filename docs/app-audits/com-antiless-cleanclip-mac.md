@@ -10,7 +10,7 @@
 | Homebrew `cleanclip` | cask 标为 `auto_updates true`，由 Homebrew 默认管理 | 默认经 Homebrew 升级，允许非 Homebrew 来源后可按现有回退策略使用 GitHub | 按安装副本渠道选日志 |
 | Mac App Store | App Store ID `6463153747`，与官网包共用 bundle ID；以商店收据区分 | 商店副本使用现有 App Store 路由 | 使用商店副本的更新信息 |
 
-官网与 Homebrew 指向厂商同一发布序列。Homebrew 用的 appcast 提供 GitHub ZIP 链接，实际 2.4.6 与 2.4.7 官网包没有 Sparkle framework 或 feed，GitHub 发布同时提供经验证的 DMG 和摘要。只认可与标签版本完全相同的 DMG 文件名，防止用旧资产建立新版本。日志中的 Download 链接可能嵌在最后一条修改里，提取保留修改文本，省去下载控件。
+官网与 Homebrew 指向厂商同一发布序列。旧官网包 1.5.12 和 2.0.0 声明 `https://cleanclip.cc/appcast.xml`，包内 Sparkle build 分别为 10512、20000，而该 feed 将 2.4.7 同时写成营销版本和 build。DuoUpdater 对该地址上的直装副本跳过 Sparkle 比较，交给官方 GitHub 标签。Homebrew 自己使用的 appcast 提供 GitHub ZIP 链接，2.4.6 与 2.4.7 官网包没有 Sparkle framework 或 feed。GitHub 规则只认可与标签版本完全相同的 DMG 文件名。日志中的 Download 链接可能嵌在最后一条修改里，提取保留修改文本。
 
 公开 beta 包自己的版本足以区分渠道。GitHub 发布列表共 59 项，版本最高的 beta 排在第 8 项，较早一版排在第 59 项。配方在默认 20 项窗口内按版本排序。官网的 2.4.1-beta.1 下载别名返回 404，GitHub Releases 的原始 DMG 可下载。2.4.6 二进制还含自带更新器的 beta 选项线索，尚无该偏好在磁盘上的实际字段和更新语义证据。装着正式版且启用厂商 beta 选项的副本在 DuoUpdater 仍使用正式轨，厂商更新器可继续处理它的 beta 选项。
 

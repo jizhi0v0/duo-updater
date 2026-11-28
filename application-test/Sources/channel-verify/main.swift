@@ -286,6 +286,7 @@ let remotingName = mozillaINI.remotingName
 // Same production helper and bundle ids as `AppScanner`.
 let hyperFramesBuild = bundleID.map(AppScanner.hyperFramesBundleIDs.contains) == true
     ? AppScanner.hyperFramesBuildNumber(info) : nil
+let xmindBuild = AppScanner.xmindArchiveBuild(bundleID: bundleID, bundleBuild: buildVersion)
 
 // WeChat DevTools keeps its real version and channel in its own `package.json`;
 // since 2.02 the Info.plist read above is Electron's stock one (`com.github.Electron`
@@ -385,12 +386,13 @@ let app = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
-    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
+    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild ?? xmindBuild,
     vendorBuildDate: blender?.builtAt,
     path: appPath,
     isMASApp: false,
     sparkleFeedURL: nil,
-    releaseChannel: detected
+    releaseChannel: detected,
+    channelIsAuthoritative: mixxx != nil
 )
 
 let probe = VendorProbeSource()
@@ -505,7 +507,7 @@ let chainApp = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
-    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
+    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild ?? xmindBuild,
     vendorBuildDate: blender?.builtAt,
     path: appPath,
     isMASApp: false,

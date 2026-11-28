@@ -8,6 +8,14 @@ enum com_antiless_cleanclip_mac {
     private static let anchor = #"<a\b[^>]*\sclass="header-anchor"[^>]*>\s*#\s*</a>\s*"#
     private static let download = #"<a\b[^>]*\shref="https://cleanclip\.cc/releases/download/"#
 
+    static func usesObsoleteAppcast(_ app: InstalledApp, feedURL: URL) -> Bool {
+        // It publishes 2.4.7 as the Sparkle build while legacy copies report
+        // numeric builds such as 10512. Use the official GitHub release tags.
+        app.bundleID?.caseInsensitiveCompare(bundleID) == .orderedSame
+            && !app.isMASApp && !app.isTestFlightApp
+            && feedURL.absoluteString == "https://cleanclip.cc/appcast.xml"
+    }
+
     // History: docs/app-audits/com-antiless-cleanclip-mac.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-antiless-cleanclip-mac",

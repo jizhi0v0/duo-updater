@@ -829,6 +829,7 @@ public struct AppScanner: Sendable {
 
         let hyperFramesBuild = bundleID.map(Self.hyperFramesBundleIDs.contains) == true
             ? Self.hyperFramesBuildNumber(plist) : nil
+        let xmindBuild = Self.xmindArchiveBuild(bundleID: bundleID, bundleBuild: buildVersion)
 
         let toolboxTool = toolbox.tool(forApp: bundleURL)
         let displayShortVersion: String = {
@@ -974,7 +975,7 @@ public struct AppScanner: Sendable {
             bundleID: bundleID,
             shortVersion: displayShortVersion,
             buildVersion: effectiveBuildVersion,
-            vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
+            vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild ?? xmindBuild,
             vendorBuildDate: blender?.builtAt,
             path: bundleURL,
             isMASApp: isMAS,
@@ -1092,6 +1093,12 @@ public struct AppScanner: Sendable {
               !build.isEmpty, build.allSatisfy(\.isNumber)
         else { return nil }
         return build
+    }
+
+    /// Xmind's DMG filenames name the timestamp portion of the bundle build.
+    public static func xmindArchiveBuild(bundleID: String?, bundleBuild: String?) -> String? {
+        guard bundleID == net_xmind_vana_app.bundleID else { return nil }
+        return net_xmind_vana_app.archiveBuild(bundleBuild)
     }
 
     /// HyperFrames' build number, from the custom `HFBuildLabel` key in its

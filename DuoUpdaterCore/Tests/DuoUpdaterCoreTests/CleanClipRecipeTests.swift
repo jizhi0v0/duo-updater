@@ -50,12 +50,32 @@ import Testing
         #expect(betaEntries.first?.items == ["Support for Core Data data backup"])
     }
 
-    private static func installed(_ version: String, isMASApp: Bool = false) -> InstalledApp {
+    @Test func ignoresTheObsoleteFeedOnlyForDirectCleanClipCopies() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ReleaseFixture.self]
+        let source = SparkleAppcastSource(session: URLSession(configuration: configuration))
+        let feed = URL(string: "https://cleanclip.cc/appcast.xml")!
+        let legacy = Self.installed("1.5.12", build: "10512", feed: feed)
+        #expect(try await source.latestVersion(for: legacy) == nil)
+
+        // The fixture rejects a network request. Neither control should skip it.
+        await #expect(throws: URLError.self) {
+            try await source.latestVersion(for: Self.installed("1.5.12", isMASApp: true, feed: feed))
+        }
+        let otherFeed = URL(string: "https://cleanclip.cc/future-appcast.xml")!
+        await #expect(throws: URLError.self) {
+            try await source.latestVersion(for: Self.installed("1.5.12", feed: otherFeed))
+        }
+    }
+
+    private static func installed(
+        _ version: String, isMASApp: Bool = false, build: String? = nil, feed: URL? = nil
+    ) -> InstalledApp {
         InstalledApp(
             name: "CleanClip", bundleID: bundleID,
-            shortVersion: version, buildVersion: nil,
+            shortVersion: version, buildVersion: build,
             path: URL(fileURLWithPath: "/Applications/ZZFixture-CleanClip.app"),
-            isMASApp: isMASApp, sparkleFeedURL: nil,
+            isMASApp: isMASApp, sparkleFeedURL: feed,
             releaseChannel: .detect(name: "CleanClip", bundleID: bundleID, keystoneChannel: nil, version: version))
     }
 

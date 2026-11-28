@@ -90,6 +90,14 @@ struct MixxxRecipeTests {
         }
     }
 
+    @Test func knownLegacyIntelVersionsAreDetectionOnly() throws {
+        let recipes = org_mixxx_mixxx.set.probes
+        let old = recipes.filter { $0.matchesInstalled(version: "2.2.4") }
+        let current = recipes.filter { $0.matchesInstalled(version: "2.5.4") }
+        #expect(old.count == 1 && old.first?.install == nil)
+        #expect(current.count == 1 && current.first?.install?.kind == .dmg)
+    }
+
     @Test func scannerSeparatesUtf16BuildDescriptionsFromSharedDatabaseKeys() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MixxxRecipeTests-\(UUID().uuidString)")
@@ -119,6 +127,8 @@ struct MixxxRecipeTests {
         let stable = try bundle("2.5.4", gitInfo: "HEAD\0" + "2.5.4", encoding: .utf8)
         let beta = try bundle("2.6.0", gitInfo: "2.6\0" + "2.6-beta-505-g71c5dee15c")
         let alpha = try bundle("2.7.0", gitInfo: "main\0" + "2.7-alpha-450-gf8d7c4e818")
+        let conflicting = try bundle(
+            "2.6.0", gitInfo: "HEAD\0" + "2.6.0\0" + "2.6-beta-505-g71c5dee15c", encoding: .utf8)
         let maintenance = try bundle("2.5.4", gitInfo: "2.5\0" + "2.5.4-1-g08b6aeb3ee", encoding: .utf8)
         let unfamiliar = try bundle("2.6.0", gitInfo: "2.6\0" + "unrecognised-layout")
         let unrelated = try bundle("2.6.0", gitInfo: "2.6-beta-505-g71c5dee15c", bundleID: "org.example.other")
@@ -132,6 +142,7 @@ struct MixxxRecipeTests {
         #expect(unclassifiedCopy.recipeBundleID == nil)
         #expect(scanner.readApp(at: beta)?.releaseChannel == .beta)
         #expect(scanner.readApp(at: alpha)?.releaseChannel == .alpha)
+        #expect(scanner.readApp(at: conflicting)?.releaseChannel == .beta)
         #expect(scanner.readApp(at: maintenance)?.releaseChannel == .nightly)
         #expect(try #require(scanner.readApp(at: unfamiliar)).recipeBundleID == nil)
         #expect(scanner.readApp(at: unrelated)?.releaseChannel == .stable)

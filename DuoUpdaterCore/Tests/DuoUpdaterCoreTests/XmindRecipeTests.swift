@@ -15,6 +15,7 @@ import Testing
         let isStable = channel == .stable
         let location = isStable ? Self.stableAsset : Self.betaAsset
         let version = isStable ? "27.01.05089" : "25.10.03031-beta"
+        let build = isStable ? "202611160640" : "202506290704"
         let otherTrack = isStable ? Self.betaAsset : Self.stableAsset
         let otherVersion = isStable ? "25.10.03031-beta" : "27.01.05089"
 
@@ -22,7 +23,11 @@ import Testing
         #expect(recipe.matchesInstalled(version: version))
         #expect(!recipe.matchesInstalled(version: otherVersion))
         #expect(!recipe.matchesInstalled(version: nil))
-        #expect(VendorProbeRecipe.extractVersion(from: location, pattern: recipe.versionPattern) == version)
+        #expect(recipe.versionIsBuild)
+        #expect(recipe.buildNamespace == .vendor)
+        #expect(VendorProbeRecipe.extractVersion(from: location, pattern: recipe.versionPattern) == build)
+        let displayPattern = try #require(recipe.displayVersionPattern)
+        #expect(VendorProbeRecipe.extractVersion(from: location, pattern: displayPattern) == version)
         #expect(VendorProbeRecipe.extractVersion(from: otherTrack, pattern: recipe.versionPattern) == nil)
         #expect(recipe.install?.kind == .dmg)
         guard case let .bodyPattern(pattern) = recipe.install?.urlSource else {
@@ -30,6 +35,23 @@ import Testing
             return
         }
         #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == location)
+    }
+
+    @Test(arguments: [("2026071207060", true), ("2026071300580", false), ("2026071301000", false)])
+    func datesDistinguishRepacksOfTheSameMarketingVersion(rawBuild: String, hasUpdate: Bool) throws {
+        let recipe = try #require(net_xmind_vana_app.set.probes.first)
+        let version = "26.04.01341"
+        let location = "https://dl3.xmind.app/Xmind-for-macOS-\(version)-202607130058.dmg"
+        let build = try #require(VendorProbeRecipe.extractVersion(from: location, pattern: recipe.versionPattern))
+        let remote = VendorProbeSource.makeRemoteVersion(
+            recipe: recipe, version: build, install: nil, plan: nil, resolvedDownload: nil, display: version)
+        let vendorBuild = AppScanner.xmindArchiveBuild(bundleID: recipe.bundleID, bundleBuild: rawBuild)
+        let installed = InstalledApp(
+            name: "Xmind", bundleID: recipe.bundleID, shortVersion: version, buildVersion: rawBuild,
+            vendorBuildVersion: vendorBuild, path: URL(fileURLWithPath: "/Applications/Xmind.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        #expect(UpdateChecker.evaluate(installed: installed, remote: remote) ==
+                (hasUpdate ? .updateAvailable(latest: version) : .upToDate))
     }
 
     @Test(arguments: [

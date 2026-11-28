@@ -28,6 +28,7 @@
 | **Firefox** | dev-edition `org.mozilla.firefoxdeveloperedition`（RemotingName `firefox-dev`）· nightly `org.mozilla.nightly` | VendorProbe |
 | **Thunderbird** | beta `org.mozilla.thunderbirdbeta` · nightly `org.mozilla.thunderbird-daily` | VendorProbe |
 | **Warp** | preview `dev.warp.Warp-Preview` · dev `dev.warp.Warp-Dev` | VendorProbe |
+| **OpenCode (Rune)** | dev `anomaly.opencode-rune`，公开唯一发行轨；版本尾缀 `-dev-N` | VendorProbe，见 [审计](docs/app-audits/anomaly-opencode-rune.md) |
 | **Signal** | beta `org.whispersystems.signal-desktop-beta`（显示名 "Signal Beta"）| VendorProbe |
 | **Element** | nightly `im.riot.nightly`（2026-06-04 修了误写的 `io.element.nightly`）| VendorProbe |
 | **Discord** | ptb `com.hnc.DiscordPTB` · canary `com.hnc.DiscordCanary` | VendorProbe |

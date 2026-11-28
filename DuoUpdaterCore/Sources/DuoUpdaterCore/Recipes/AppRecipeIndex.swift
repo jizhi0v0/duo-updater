@@ -22,6 +22,7 @@ public enum AppRecipeIndex {
         ai_storyteller_pdfcraft.set,
         ai_storyteller_photocraft.set,
         ai_storyteller_vectorcraft.set,
+        anomaly_opencode_rune.set,
         app_chatwise.set,
         app_cyan_markedit.set,
         app_freelens_Freelens.set,

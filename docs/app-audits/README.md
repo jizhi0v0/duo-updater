@@ -158,6 +158,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — VendorProbe + optional Changelog
 
+- [x] [**OpenCode (Rune)**](anomaly-opencode-rune.md) · `anomaly.opencode-rune` — P+C · 官方 dev 轨，arm64 DMG 和 SHA-256 · 2026-11-28
+
 - [x] [**Mixxx**](org-mixxx-mixxx.md) · `org.mixxx.mixxx` — P+C · 官网 ARM 正式版 DMG 和手册结构化日志 · 2026-11-28
 
 - [x] [**GitButler**](com-gitbutler-app.md) · `com.gitbutler.app` — P+C · 官网 ARM64 正式轨与版本化 tar.gz · 本机 0.23.4 → 0.23.5 一键和结构化日志通过 · 2026-11-28

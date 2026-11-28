@@ -45,3 +45,5 @@
 | [v2.0.0-alpha.17](https://github.com/Losses/rune/releases/tag/v2.0.0-alpha.17) | 2.0.1017 | 12.0 |
 
 另读取 `v0.0.0-dev.23`、`v0.0.0-alpha.23`、`v1.1.0-beta.3` 与 `v1.1.0-rc.2` 的实际 DMG，均为同 ID、同 Team 的 universal app。2026-11-28 检查到 17 个 2.x Alpha 发布连续排列，只有 `alpha.6` 缺少 macOS 包，前一项 `alpha.5` 有包。
+
+2026-11-28，Developer ID 签名的 Release CLI 在 Apple Silicon macOS 27.2 VM 上分别从 Stable 的 1.0.4002 升到 1.1.4002、从 Alpha 的 2.0.1016 升到 2.0.1017。两个更新均为原地安装，保留 bundle ID 和签名团队，通过深度签名及 Gatekeeper 校验，复查均显示为最新版。`duo verify` 和 `duo verify-install` 均通过两条 GitHub 规则。

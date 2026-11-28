@@ -19,3 +19,5 @@
 2026-11-28，检查 GitHub 发布的 v0.1.0、v0.1.1、v0.2.0、v0.3.0、v0.4.0 五份 Darwin arm64 档案。均包含 `bin/kido`、`kido-agent` 和 `kido-vmm`。主程序是 arm64 Mach-O，ad-hoc 签名标识均为 `sh.kido.kido`，没有 Developer ID Team。v0.1.1 起 Go build info 与发布 tag 一致，v0.1.0 的档案经 GitHub asset 摘要比对后提取首发主程序指纹。
 
 可在隔离 macOS VM 用 [v0.3.0 官方脚本](https://github.com/kido-sh/kido/blob/v0.3.0/install.sh) 的 `--version 0.3.0 --no-setup` 安装测试副本，无需下载 Darwin 客体镜像。用 `duo check kido --all --json` 检测，再运行该副本的 `kido upgrade`，重查版本并检查 helper。
+
+2026-11-28，在 Apple Silicon macOS 27.2 VM 上，Developer ID 签名的 Release CLI 对官方脚本安装的 0.3.0 提示升级到 0.4.0，并给出该副本的绝对路径命令。执行厂商的 `kido upgrade` 后，官方包签名和摘要校验通过，主程序和两个 helper 均已更新。复查 0.4.0 显示为最新版。

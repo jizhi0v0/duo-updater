@@ -35,3 +35,4 @@ VendorProbe 的枚举注册项为 `vendor:anomaly.opencode-rune:dev`，可用 `d
 
 - 2026-11-28，挂载 GitHub 当前、相邻和最早公开发布的 arm64 DMG，检查 `0.0.0-dev-503`、`0.0.0-dev-502` 和 `0.0.0-dev-488` 均使用 `anomaly.opencode-rune`、Team ID `5NZ4Q7NXJ4` 和与版本尾缀相同的数字构建号。502 和 503 的深度签名校验、Gatekeeper 与公证票据校验均通过。
 - 2026-11-28，dev manifest 回答 `0.0.0-dev-503`。503 的 GitHub 镜像 DMG 的 SHA-256 与同一版本的厂商 manifest 记录一致。
+- 2026-11-28，Developer ID 签名的 Release CLI 在 Apple Silicon macOS 27.2 VM 上通过厂商源将 dev-502 原地升到 dev-503，保留 bundle ID 和签名团队。更新后通过深度签名和 Gatekeeper 校验，复查显示为最新版。`duo verify` 的版本与结构化日志均通过，`duo verify-install` 下载并校验了厂商的 arm64 DMG。

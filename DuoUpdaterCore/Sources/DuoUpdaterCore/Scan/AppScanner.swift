@@ -548,7 +548,7 @@ public struct AppScanner: Sendable {
     /// readable Info.plist.
     /// Whether `readApp` would make `bundleURL` a row by the rules that drop a
     /// bundle outright: a readable Info.plist (the wrapped iOS layout's
-    /// included) with a marketing version. For Homebrew's cask surface, which
+    /// included) with a version the app can display. For Homebrew's cask surface, which
     /// must list a cask whose app gets no row (`BrewFormulaService.caskFacts`)
     /// — one that is gone, or that has no version — without running a scan.
     static func hasRow(_ bundleURL: URL) -> Bool {
@@ -557,7 +557,16 @@ public struct AppScanner: Sendable {
             let data = try? Data(contentsOf: infoURL),
             let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         else { return false }
-        return VersionSide.plistVersionField(plist["CFBundleShortVersionString"]) != nil
+        return visibleVersion(in: plist) != nil
+    }
+
+    private static func visibleVersion(in plist: [String: Any]) -> String? {
+        if let marketing = VersionSide.plistVersionField(plist["CFBundleShortVersionString"]) {
+            return marketing
+        }
+        // Cockos uses CFBundleVersion for LICEcap's public release number.
+        guard plist["CFBundleIdentifier"] as? String == com_cockos_LICEcap.bundleID else { return nil }
+        return VersionSide.plistVersionField(plist["CFBundleVersion"])
     }
 
     func readApp(at bundleURL: URL) -> InstalledApp? {
@@ -579,13 +588,9 @@ public struct AppScanner: Sendable {
             ) as? [String: Any]
         else { return nil }
 
-        // An app with no marketing version can't be update-checked — these are
-        // helper/background bundles (URL handlers, login items) that would only
-        // ever show as permanent "unknown" noise. Exclude them.
-        guard let rawShortVersion = VersionSide.plistVersionField(
-            plist["CFBundleShortVersionString"])
-        else { return nil }
-        var shortVersion = rawShortVersion
+        // Exclude versionless helper/background bundles (URL handlers, login
+        // items) that would only ever show as permanent "unknown" noise.
+        guard var shortVersion = Self.visibleVersion(in: plist) else { return nil }
 
         // Some bundles wrap their display name in invisible bidi/zero-width marks —
         // WhatsApp's `CFBundleDisplayName` is "\u{200E}WhatsApp" (a leading LEFT-TO-RIGHT

@@ -466,6 +466,17 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .alpha
         }
 
+        // Kodi's previews use a dot before the stage (22.0.rc2), while stable
+        // packages can end with a bare dot (21.3.). Scope the stage to Kodi so
+        // this does not reinterpret another app's version format.
+        if bundleID == "org.xbmc.kodi",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+           fullyMatches(#"[0-9]+(?:\.[0-9]+)+\.(?:alpha|beta|rc)[0-9]+"#, version),
+           let stage = version.split(separator: ".").last {
+            if stage.hasPrefix("rc") { return .rc }
+            return stage.hasPrefix("beta") ? .beta : .alpha
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {

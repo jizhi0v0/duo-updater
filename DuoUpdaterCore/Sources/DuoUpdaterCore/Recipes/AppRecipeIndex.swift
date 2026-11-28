@@ -403,6 +403,7 @@ public enum AppRecipeIndex {
         org_videolan_vlc.set,
         org_whispersystems_signal_desktop.set,
         org_winehq_wine_staging_wine.set,
+        org_xbmc_kodi.set,
         org_xquartz_X11.set,
         org_zaproxy_zap_ZAP.set,
         org_zotero_zotero.set,

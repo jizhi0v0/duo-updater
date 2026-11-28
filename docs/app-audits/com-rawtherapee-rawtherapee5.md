@@ -12,7 +12,7 @@
 
 官网稳定包无 `SUFeedURL`。VendorProbe 从[官网 macOS 下载目录](https://rawtherapee.com/shared/builds/mac/)选版本号最大的正式 Universal ZIP，包名中的系统下限按 Apple Silicon 解释。页面按文件名排序，版本和系统下限在同一个链接内读取。两代正式版都参与检测。旧 ID 在 macOS 15.0–15.3 上采用仍列出的 5.11，在 15.4–15.x 上优先采用仍列出的 5.12。26.0 以上可检测 5.13。兼容包链接从目录消失后，探针不会拿校验文件或被系统门槛拒绝的新包填充。
 
-[Automated Builds](https://github.com/RawTherapee/RawTherapee/releases/tag/nightly-github-actions) 的 arm64 开发包也使用旧 ID。两份版本字段都带 `-42-g3458b9a18` 这样的 Git 后缀，因此正式版 recipe 只接收纯数字点分版本。开发包使用滚动 GitHub release 和提交版本，未接入该轨的更新。GitHub 上 5.12 和 5.13 的 RC 条目没有 macOS 安装资产。
+[Automated Builds](https://github.com/RawTherapee/RawTherapee/releases/tag/nightly-github-actions) 的 arm64 开发包也使用旧 ID。两份版本字段都带 `-42-g3458b9a18` 这样的 Git 后缀。在旧 ID 上识别为 Nightly，跳过正式版检测和日志。正式版探针另外要求纯数字点分版本。开发包使用滚动 GitHub release 和提交版本，未接入该轨的更新。GitHub 上 5.12 和 5.13 的 RC 条目没有 macOS 安装资产。
 
 ## 一键安装
 

@@ -301,6 +301,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .nightly
         }
 
+        // RawTherapee's automated Mac builds use the legacy stable bundle ID
+        // and a git-describe version. Official stable bundles use dotted numbers.
+        if bundleID == com_rawtherapee_rawtherapee5.legacyID,
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(?:\.[0-9]+)+-[0-9]+-g[0-9a-f]{7,40}"#, version) {
+            return .nightly
+        }
+
         // 0.95 Arc and Dia (The Browser Company) — each ships its release
         //     candidate, the build its Early Birds program runs, under the stable
         //     bundle id, the stable `CFBundleName` and a plain version

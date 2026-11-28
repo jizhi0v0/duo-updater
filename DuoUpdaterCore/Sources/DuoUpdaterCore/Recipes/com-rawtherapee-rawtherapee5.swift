@@ -1,7 +1,7 @@
 import Foundation
 
 enum com_rawtherapee_rawtherapee5 {
-    private static let legacyID = "com.rawtherapee.RawTherapee"
+    static let legacyID = "com.rawtherapee.RawTherapee"
     private static let currentID = "com.rawtherapee.rawtherapee5"
     private static let archives = URL(string: "https://rawtherapee.com/shared/builds/mac/")!
     private static let downloads = URL(string: "https://rawtherapee.com/downloads/")!
@@ -64,6 +64,7 @@ enum com_rawtherapee_rawtherapee5 {
                 + #".*?(?<body><h2 id="new-features">.*?)(?=<h2 id="(?:installation-instructions|sha-256)")"#,
             itemPatterns: [#"<(?:li|p)\b[^>]*>(?<item>.*?)(?=</(?:li|p)>|<[uo]l\b)"#],
             channel: .stable,
+            excludedChannels: [.nightly],
             sourceTemplate: "https://rawtherapee.com/downloads/{version}/",
             headingPattern: #"<h2\b[^>]*>\s*<a\b[^>]*\baria-label="Permalink to (?<heading>[^"]+)""#)
     }

@@ -23,10 +23,13 @@ struct RawTherapeeRecipeTests {
         return UpdateChecker(sources: [VendorProbeSource(recipes: recipes, hostOSVersion: os)])
     }
 
-    private static func copy(_ version: String, id: String = legacyID) -> InstalledApp {
+    private static func copy(
+        _ version: String, id: String = legacyID, channel: ReleaseChannel = .stable
+    ) -> InstalledApp {
         InstalledApp(
             name: "RawTherapee", bundleID: id, shortVersion: version, buildVersion: version,
-            path: URL(fileURLWithPath: "/Fixture/RawTherapee.app"), isMASApp: false, sparkleFeedURL: nil)
+            path: URL(fileURLWithPath: "/Fixture/RawTherapee.app"), isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: channel)
     }
 
     @Test(arguments: ["15.0", "15.3.2", "15.4", "15.7.9", "26.0", "27.2"])
@@ -60,7 +63,20 @@ struct RawTherapeeRecipeTests {
         let previous = await checker.check(Self.copy("5.12"))
         #expect(previous.status == .updateAvailable(latest: "5.13"))
         #expect(await checker.check(Self.copy("5.13", id: Self.currentID)).status == .upToDate)
-        #expect(await checker.check(Self.copy("5.13-42-g3458b9a18")).status == .unknown)
+        let nightlyVersion = "5.13-42-g3458b9a18"
+        let nightly = ReleaseChannel.detect(
+            name: "RawTherapee", bundleID: Self.legacyID, keystoneChannel: nil, version: nightlyVersion)
+        #expect(nightly == .nightly)
+        #expect(await checker.check(Self.copy(nightlyVersion, channel: nightly)).status == .unknown)
+        #expect(await checker.check(Self.copy(nightlyVersion)).status == .unknown)
+        #expect(ChangelogRecipeRegistry.recipe(
+            forBundleID: Self.legacyID, channel: nightly, version: nightlyVersion) == nil)
+        #expect(ReleaseChannel.detect(
+            name: "RawTherapee", bundleID: Self.legacyID, keystoneChannel: nil, version: "5.12") == .stable)
+        #expect(ReleaseChannel.detect(
+            name: "RawTherapee", bundleID: Self.currentID, keystoneChannel: nil, version: "5.13") == .stable)
+        #expect(ReleaseChannel.detect(
+            name: "Another App", bundleID: "com.example.other", keystoneChannel: nil, version: nightlyVersion) == .stable)
     }
 
     @Test func absentCompatibleArchivesCannotBorrowAChecksumOrAnIncompatibleRelease() async throws {

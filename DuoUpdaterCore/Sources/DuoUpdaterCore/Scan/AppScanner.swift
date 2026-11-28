@@ -46,6 +46,7 @@ public struct AppScanner: Sendable {
     private let testflight: TestFlightInventory
 
     private let preferredLanguages: [String]
+    private let preservingPaths: Set<String>
 
     /// Where `readApp` gets an app's user-chosen channel. Always
     /// `ChannelBinding.resolve` outside tests.
@@ -73,13 +74,14 @@ public struct AppScanner: Sendable {
         extraLocations: [URL] = [],
         toolbox: ToolboxInventory = ToolboxInventory(),
         testflight: TestFlightInventory = TestFlightInventory(),
-        preferredLanguages: [String] = Locale.preferredLanguages
+        preferredLanguages: [String] = Locale.preferredLanguages,
+        preservingPaths: Set<String> = []
     ) {
         self.init(
             locations: locations, extraLocations: extraLocations,
             toolbox: toolbox, testflight: testflight,
             channelBinding: { ChannelBinding.resolve(bundleID: $0, bundleFeeds: $1, bundleStrings: $2) },
-            preferredLanguages: preferredLanguages)
+            preferredLanguages: preferredLanguages, preservingPaths: preservingPaths)
     }
 
     /// The above, with the channel read injected. See `channelBinding`.
@@ -91,12 +93,14 @@ public struct AppScanner: Sendable {
         channelBinding: @escaping @Sendable (
             _ bundleID: String?, _ bundleFeeds: [String: URL], _ bundleStrings: [String: String]
         ) -> ResolvedChannel?,
-        preferredLanguages: [String] = Locale.preferredLanguages
+        preferredLanguages: [String] = Locale.preferredLanguages,
+        preservingPaths: Set<String> = []
     ) {
         self.toolbox = toolbox
         self.testflight = testflight
         self.channelBinding = channelBinding
         self.preferredLanguages = preferredLanguages
+        self.preservingPaths = preservingPaths
         self.locations = (locations ?? Self.defaultLocations) + extraLocations
     }
 
@@ -297,7 +301,7 @@ public struct AppScanner: Sendable {
     /// version match too means those all survive, while a true clone — nothing to
     /// distinguish it but its path — folds into one row. First one wins, so scan
     /// order (`/Applications` before `~/Applications`) decides the keeper.
-    static func dedupeIdenticalInstalls(_ apps: [InstalledApp]) -> [InstalledApp] {
+    static func dedupeIdenticalInstalls(_ apps: [InstalledApp], preservingPaths: Set<String> = []) -> [InstalledApp] {
         var seen = Set<String>()
         return apps.filter { app in
             guard let bundleID = app.bundleID else { return true }
@@ -305,7 +309,9 @@ public struct AppScanner: Sendable {
                 bundleID, app.releaseChannel.rawValue,
                 app.shortVersion ?? "", app.buildVersion ?? ""
             ].joined(separator: "|")
-            return seen.insert(key).inserted
+            // A path-bound subscription still needs its own row when a manual
+            // update makes this copy identical to the first one in scan order.
+            return seen.insert(key).inserted || preservingPaths.contains(app.path.path)
         }
     }
 
@@ -535,7 +541,7 @@ public struct AppScanner: Sendable {
     /// The whole-pass rules that follow `admit`: collapse identical installs,
     /// report the sidecars turned away, sort by name.
     private func finish(_ apps: [InstalledApp], pass: EntryPass) -> [InstalledApp] {
-        let deduped = Self.dedupeIdenticalInstalls(apps)
+        let deduped = Self.dedupeIdenticalInstalls(apps, preservingPaths: preservingPaths)
         if pass.skippedSidecars > 0 {
             Log.scan.info("skipped \(pass.skippedSidecars, privacy: .public) sidecar backup/duplicate bundle(s)")
         }

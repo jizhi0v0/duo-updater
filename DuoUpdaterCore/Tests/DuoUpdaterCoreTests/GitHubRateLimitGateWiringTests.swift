@@ -37,6 +37,9 @@ struct GitHubRateLimitGateWiringTests {
                     let body = #"{"resources":{"core":{"limit":5000,"remaining":\#(Self.probeRemaining),"reset":\#(Int(Self.reset))}}}"#
                     return (200, body, [:])
                 }
+                if path == "/secondary" {
+                    return (Self.status, "secondary rate limit", ["x-ratelimit-limit": "60"])
+                }
                 return (Self.status, #"{"tag_name":"v1.0.0"}"#, [
                     "x-ratelimit-resource": "core",
                     "x-ratelimit-remaining": String(Self.remaining),
@@ -185,5 +188,26 @@ struct GitHubRateLimitGateWiringTests {
             _ = try await Self.session().countedBytes(for: Self.request(), purpose: .versionCheck, gate: gate)
         }
         #expect(Stub.seen == ["/rate_limit"])
+    }
+
+    @Test func streamingRefusalReportsTheEnforcedBackoffAndAnsweringBudget() async throws {
+        let world = GitHubRateLimitGateTests.World()
+        let gate = GitHubRateLimitGate.Store(now: { world.now })
+        let session = Self.session()
+        for (status, strike) in [(403, 1), (429, 2)] {
+            Stub.script(probe: 100, status: status, remaining: 50)
+            do {
+                _ = try await session.countedBytes(for: Self.request("/secondary"), purpose: .versionCheck,
+                                                   gate: gate, classifyGitHubErrors: true)
+                Issue.record("Expected a GitHub refusal")
+                return
+            } catch let refusal as GitHubRateLimitGate.Refused {
+                #expect(refusal.credential == .anonymous)
+                #expect(refusal.closure.reason == .secondary(strike: strike))
+                #expect(refusal.closure == (await gate.closures())[.anonymous])
+                #expect(refusal.closure.until == world.now.addingTimeInterval(strike == 1 ? 60 : 120))
+                world.now = refusal.closure.until.addingTimeInterval(1)
+            }
+        }
     }
 }

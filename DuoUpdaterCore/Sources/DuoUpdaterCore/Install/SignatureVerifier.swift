@@ -871,7 +871,7 @@ public enum SignatureVerifier {
         }
     }
 
-    private static func signingInfo(at url: URL) throws -> [String: Any] {
+    static func signingInfo(at url: URL) throws -> [String: Any] {
         let code = try staticCode(at: url)
         var info: CFDictionary?
         let flags = SecCSFlags(rawValue: kSecCSSigningInformation)

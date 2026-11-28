@@ -303,7 +303,7 @@ public struct SetappCatalogSource: UpdateSource {
     /// A public key is only a candidate signal: official direct AirBuddy and
     /// Downie packages ship `setappPublicKey.pem` too (#2072). Neither that
     /// resource nor the install folder alone may make this check terminal.
-    static func owns(_ app: InstalledApp) -> Bool {
+    public static func owns(_ app: InstalledApp) -> Bool {
         app.bundleID?.lowercased().hasSuffix("-setapp") == true
     }
 

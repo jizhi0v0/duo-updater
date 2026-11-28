@@ -1111,7 +1111,9 @@ final class AppListModel {
     /// blind pass indefinitely: the count filters `results`, and a deleted app has
     /// no row there.
     func needsAction(_ result: UpdateResult) -> Bool {
-        UpdatePolicy.needsAction(
+        if PersonalSources.shared.needsAction(result),
+           acceptsPersonalSource(result) { return true }
+        return UpdatePolicy.needsAction(
             result,
             isIgnored: prefs.isIgnored(result.app),
             isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) },
@@ -1518,6 +1520,34 @@ final class AppListModel {
     /// User settings (token, concurrency, ignore list, backups…). Read live on
     /// each refresh so a change made in the Settings window takes effect next check.
     let prefs: Preferences
+
+    /// The source window that requested GitHub settings, valid only while its view remains open.
+    struct PersonalSourceSettingsRequest {
+        let id: UUID
+        weak var origin: NSWindow?
+        let retryQuery: @MainActor () -> Void
+        var resolvingCredentials = false
+        var settingsClosed = false
+    }
+    @ObservationIgnored var personalSourceSettingsRequest: PersonalSourceSettingsRequest?
+
+    func returnToPersonalSource(credentialsReady: Bool = false) {
+        guard let request = personalSourceSettingsRequest else { return }
+        // Closing Settings while gh is resolving still returns focus immediately.
+        // Keep this one query until resolution finishes or its source disappears.
+        if !credentialsReady && request.resolvingCredentials {
+            personalSourceSettingsRequest?.settingsClosed = true
+        } else {
+            personalSourceSettingsRequest = nil
+        }
+        guard let origin = request.origin, origin.isVisible, !origin.isMiniaturized else { return }
+        if !request.settingsClosed {
+            surfaceGeneration &+= 1
+            (origin.sheetParent ?? origin).makeKeyAndOrderFront(nil)
+            origin.attachedSheet?.makeKeyAndOrderFront(nil)
+        }
+        if credentialsReady { request.retryQuery() }
+    }
 
     /// A Settings section another window wants to deep-link to — set by onboarding's
     /// "Set Up GitHub…" before it opens Settings. `SettingsView` consumes and clears
@@ -2464,6 +2494,7 @@ final class AppListModel {
         GitHubCredentials.shared.onRejected { [weak self] generation in
             Task { @MainActor in
                 guard GitHubCredentials.shared.generation == generation else { return }
+                PersonalSources.shared.credentialsDidChange(rejected: true)
                 self?.gitHubTokenRejected = true
             }
         }
@@ -2558,9 +2589,12 @@ final class AppListModel {
     /// one (it checks the generation first).
     func gitHubCredentialsChanged() {
         GitHubCredentials.shared.changed()
+        PersonalSources.shared.credentialsDidChange()
         gitHubCredentialChanges += 1
         gitHubTokenRejected = false
         let generation = GitHubCredentials.shared.generation
+        let sourceRequestID = personalSourceSettingsRequest?.id
+        personalSourceSettingsRequest?.resolvingCredentials = true
         let explicit = explicitGitHubToken()
         let usesCLI = prefs.useGitHubCLIToken
         Task { [weak self] in
@@ -2568,6 +2602,13 @@ final class AppListModel {
             // A later change started its own resolve, which owns the answer.
             guard let self, GitHubCredentials.shared.generation == generation else { return }
             self.resolvedGitHubToken = ResolvedGitHubToken(generation: generation, explicit: explicit, usesCLI: usesCLI, token: token)
+            guard let sourceRequestID, self.personalSourceSettingsRequest?.id == sourceRequestID else { return }
+            self.personalSourceSettingsRequest?.resolvingCredentials = false
+            if token != nil {
+                self.returnToPersonalSource(credentialsReady: true)
+            } else if self.personalSourceSettingsRequest?.settingsClosed == true {
+                self.personalSourceSettingsRequest = nil
+            }
         }
     }
 
@@ -3588,6 +3629,15 @@ final class AppListModel {
     }
 
     private func performRefresh(intent: RefreshIntent) async {
+        await PersonalSources.shared.recoverReplacements()
+        defer {
+            let subscriptions = results.filter { PersonalSources.shared.records[$0.app.path.path] != nil }
+            if !subscriptions.isEmpty {
+                Task(priority: .utility) {
+                    await PersonalSources.shared.refreshRegistered(subscriptions.map(\.app))
+                }
+            }
+        }
         // Without Full Disk Access no read of TestFlight's store can succeed, and on
         // macOS 27 each attempt costs the user a "Data Access Blocked" notice — so
         // none is attempted: not the store, not the sync that exists to feed it, not
@@ -3746,6 +3796,7 @@ final class AppListModel {
         // User-added scan folders (Settings → Folders). Captured on the main actor
         // before hopping off it, since `prefs` is `@MainActor`-isolated.
         let extraScan = prefs.customScanLocations
+        let personalSourcePaths = Set(PersonalSources.shared.records.keys)
         // Start token resolution early and off-main so a slow `gh` CLI overlaps the
         // local scan instead of freezing the UI or delaying the whole refresh later.
         let explicitToken = explicitGitHubToken()
@@ -3755,7 +3806,7 @@ final class AppListModel {
         // The rows' filesystem facts are observed in the same hop, for the list
         // the scan just found — see `pathFacts` for why not on the main actor.
         let (scanned, scannedPathFacts) = await Task.detached(priority: .userInitiated) {
-            let apps = AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
+            let apps = AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF, preservingPaths: personalSourcePaths).scan()
             return (apps, InstallPathFacts.observing(apps.map(\.path)))
         }.value
         var found = scanned
@@ -3833,6 +3884,7 @@ final class AppListModel {
                previous.token != token {
                 GitHubCredentials.shared.changed()
                 credentialGeneration = GitHubCredentials.shared.generation
+                PersonalSources.shared.credentialsDidChange()
                 gitHubCredentialChanges += 1
             }
             resolvedGitHubToken = ResolvedGitHubToken(generation: credentialGeneration, explicit: explicitToken, usesCLI: usesCLI, token: token)
@@ -4375,6 +4427,7 @@ final class AppListModel {
         // Keeping it is a floor under the live path, not a substitute for it.
         refreshRunningApps()
         let extraScan = prefs.customScanLocations
+        let personalSourcePaths = Set(PersonalSources.shared.records.keys)
         // The scanner's default reads TestFlight's store — not when that read
         // cannot succeed, and not when nobody asked for this rescan. A timer or an
         // FSEvents change reaching the ATTENDED gate would open another app's
@@ -4405,7 +4458,8 @@ final class AppListModel {
                 let found = AppScanner(
                     extraLocations: extraScan,
                     testflight: readsTestFlight
-                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
+                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false),
+                    preservingPaths: personalSourcePaths
                 ).scan()
                 let merged = ScanRowAssembly.merged(
                     found, prior: prior, proofs: ResolvedChannelStore.Snapshot())
@@ -4439,6 +4493,9 @@ final class AppListModel {
         await computeSelfUpdateStaging()
         await refreshBackupIndex()
         syncDockBadge()
+        for row in results where PersonalSources.shared.records[row.app.path.path] != nil {
+            await PersonalSources.shared.reconcileLocal(row.app)
+        }
         await repairStaleXcodeCopyNames()
     }
 
@@ -11475,6 +11532,7 @@ final class AppListModel {
     private func clearSettledExternalUpdates() async {
         guard !results.isEmpty else { return }
         let extraScan = prefs.customScanLocations
+        let personalSourcePaths = Set(PersonalSources.shared.records.keys)
         // Unattended, and this function's ONLY caller is `backgroundLocalRescan` —
         // a timer or an FSEvents change — so it takes the unattended gate. The
         // attended one admits `.unknown`, which here would open TestFlight's
@@ -11489,7 +11547,8 @@ final class AppListModel {
                 AppScanner(
                     extraLocations: extraScan,
                     testflight: readsTestFlight
-                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
+                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false),
+                    preservingPaths: personalSourcePaths
                 ).scan()
             }
         }
@@ -11868,12 +11927,13 @@ final class AppListModel {
         let resolved = await githubTokenForRecheck()
         let githubToken = resolved.token
         let bundles = targets.map(\.app.path)
+        let personalSourcePaths = Set(PersonalSources.shared.records.keys)
         // Scanned without TestFlight's store, which `ScanRowAssembly.recheck` reads
         // afterwards and only for a TestFlight row — so a post-install recheck
         // still never waits on that container's gate.
         let scanned = await Task.detached(priority: .userInitiated) {
-            AppScanner(toolbox: toolbox, testflight: TestFlightInventory(macRows: [], accessible: false))
-                .scan(bundlesAt: bundles)
+            AppScanner(toolbox: toolbox, testflight: TestFlightInventory(macRows: [], accessible: false),
+                       preservingPaths: personalSourcePaths).scan(bundlesAt: bundles)
         }.value
         // Identity is the resolved path, which is what a row already carries, so
         // this normally admits everything. Kept as the guard it always was: a bundle

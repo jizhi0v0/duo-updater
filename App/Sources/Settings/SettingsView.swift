@@ -67,7 +67,7 @@ struct SettingsView: View {
         .onChange(of: selection) { _, now in
             if let reveal, reveal.anchor.section != now { self.reveal = nil }
         }
-        .onDisappear { model.endTrustPolling(); model.windowDisappeared(); reveal = nil }
+        .onDisappear { model.endTrustPolling(); model.windowDisappeared(); reveal = nil; model.returnToPersonalSource() }
     }
 
     private var detail: some View {

@@ -89,7 +89,10 @@ struct MixxxRecipeTests {
             .appendingPathComponent("MixxxRecipeTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
 
-        func bundle(_ version: String, gitDescribe: String, bundleID: String = MixxxBuild.bundleID) throws -> URL {
+        func bundle(
+            _ version: String, gitInfo: String, encoding: String.Encoding = .utf16LittleEndian,
+            bundleID: String = MixxxBuild.bundleID
+        ) throws -> URL {
             let app = root.appendingPathComponent("\(UUID().uuidString)/Mixxx.app")
             let contents = app.appendingPathComponent("Contents")
             try FileManager.default.createDirectory(
@@ -101,17 +104,19 @@ struct MixxxRecipeTests {
             try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
                 .write(to: contents.appendingPathComponent("Info.plist"))
             var bytes = Data("refreshRate\0\(version)-beta\0WaveformType\0".utf8)
-            bytes.append(try #require("\0\(gitDescribe)\0".data(using: .utf16LittleEndian)))
+            bytes.append(try #require("\0\(gitInfo)\0".data(using: encoding)))
             try bytes.write(to: contents.appendingPathComponent("MacOS/Mixxx"))
             return app
         }
 
         let scanner = AppScanner(locations: [], testflight: TestFlightInventory(macRows: []))
-        let stable = try bundle("2.6.0", gitDescribe: "2.6.0")
-        let beta = try bundle("2.6.0", gitDescribe: "2.6-beta-505-g71c5dee15c")
-        let alpha = try bundle("2.7.0", gitDescribe: "2.7-alpha-450-gf8d7c4e818")
-        let unrelated = try bundle("2.6.0", gitDescribe: "2.6-beta-505-g71c5dee15c", bundleID: "org.example.other")
-        let missing = try bundle("2.6.0", gitDescribe: "2.6-beta-505-g71c5dee15c")
+        let stable = try bundle("2.5.4", gitInfo: "HEAD\0" + "2.5.4", encoding: .utf8)
+        let beta = try bundle("2.6.0", gitInfo: "2.6\0" + "2.6-beta-505-g71c5dee15c")
+        let alpha = try bundle("2.7.0", gitInfo: "main\0" + "2.7-alpha-450-gf8d7c4e818")
+        let maintenance = try bundle("2.5.4", gitInfo: "2.5\0" + "2.5.4-1-g08b6aeb3ee", encoding: .utf8)
+        let unfamiliar = try bundle("2.6.0", gitInfo: "2.6\0" + "unrecognised-layout")
+        let unrelated = try bundle("2.6.0", gitInfo: "2.6-beta-505-g71c5dee15c", bundleID: "org.example.other")
+        let missing = try bundle("2.6.0", gitInfo: "2.6-beta-505-g71c5dee15c")
         try FileManager.default.removeItem(at: missing.appendingPathComponent("Contents/MacOS/Mixxx"))
         let stableCopy = try #require(scanner.readApp(at: stable))
         let unclassifiedCopy = try #require(scanner.readApp(at: missing))
@@ -121,6 +126,8 @@ struct MixxxRecipeTests {
         #expect(unclassifiedCopy.recipeBundleID == nil)
         #expect(scanner.readApp(at: beta)?.releaseChannel == .beta)
         #expect(scanner.readApp(at: alpha)?.releaseChannel == .alpha)
+        #expect(scanner.readApp(at: maintenance)?.releaseChannel == .nightly)
+        #expect(try #require(scanner.readApp(at: unfamiliar)).recipeBundleID == nil)
         #expect(scanner.readApp(at: unrelated)?.releaseChannel == .stable)
     }
 }

@@ -73,6 +73,7 @@ import Testing
             }
 
             let stable = release("2.4.7", prerelease: false, digest: CleanClipRecipeTests.stableDigest)
+            let olderStable = release("2.4.6", prerelease: false)
             let beta = release("2.4.1-beta.1", prerelease: true)
             let olderBeta = release("2.2.0-beta.1", prerelease: true)
             // Both newer releases carry a stale DMG named for a different tag.
@@ -80,7 +81,7 @@ import Testing
             let mismatchedBeta = release("2.4.2-beta.1", prerelease: true, assetVersion: "2.4.1-beta.1")
             let payload: Any = url.path.hasSuffix("/latest")
                 ? mismatchedStable
-                : [mismatchedStable, stable, olderBeta, mismatchedBeta, beta]
+                : [mismatchedStable, olderStable, olderBeta, mismatchedBeta, stable, beta]
             let response = HTTPURLResponse(
                 url: url, statusCode: 200, httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"])!

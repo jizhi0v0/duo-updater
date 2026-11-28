@@ -22,6 +22,7 @@ enum com_antiless_cleanclip_mac {
                 bundleID: bundleID,
                 owner: "CleanClip", repo: "CleanClipApp",
                 versionPattern: #"^(\#(version))$"#,
+                candidateScope: .highestVersion,
                 installAssetPattern: #"^CleanClip-\#(version)\.dmg$"#,
                 installerKind: .dmg),
             // Both tracks use the same bundle ID. The beta's installed version

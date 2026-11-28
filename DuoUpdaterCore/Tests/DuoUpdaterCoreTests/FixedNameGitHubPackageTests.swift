@@ -29,8 +29,8 @@ struct FixedNameGitHubPackageTests {
 
     @Test(arguments: [
         ("com.zenangst.Gray", ReleaseChannel.stable, "0.17.0", "0.16.0"),
-        ("niteo.co.Pareto", .stable, "1.22.0", "1.21.0"),
-        ("niteo.co.Pareto", .beta, "1.7.74", "1.7.73"),
+        ("niteo.co.Pareto", .stable, "v1.22.0", "1.21.0"),
+        ("niteo.co.Pareto", .beta, "v1.7.74", "1.7.73"),
     ])
     func sameIDPackageMustCarryTheSelectedTag(
         example: (id: String, channel: ReleaseChannel, offered: String, older: String)
@@ -71,7 +71,7 @@ struct FixedNameGitHubPackageTests {
         for rule in niteo_co_Pareto.set.githubRules {
             for tag in ["1.50.0", "v1.22.0", "v1.7.74"] {
                 #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern)
-                    == String(tag.drop(while: { $0 == "v" })))
+                    == tag)
             }
             for tag in ["foo-v1.22.0", "vv1.22.0", "v1.22.0-rc1", "v1.22.0\n"] {
                 #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern) == nil)

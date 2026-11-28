@@ -12,11 +12,16 @@
 
 ## 历史与实测
 
-直接发行的 ID 是 `niteo.co.Pareto`，三个实测 DMG 均无 Sparkle feed。历史标签包括正式版 `v1.22.0` 和预发行 `v1.7.74`，两轨规则均接受可选的前导 `v`。读取该 ID 的标准偏好 `showBeta`，默认关闭。启用后，即使当前为预发行 1.49.1，也应提示后来的正式版 1.50.0。厂商按 GitHub 的 prerelease 标记过滤，不能只按数字推测历史渠道。Homebrew cask 引用同一个直接发行的 DMG。[厂商偏好设置](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Defaults.swift) · [Setapp 版 ID](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Config/App-SetApp.xcconfig)
+直接发行的 ID 是 `niteo.co.Pareto`，1.49.0、1.49.1 和 1.50.0 的实测 DMG 均无 Sparkle feed。历史标签包括正式版 `v1.22.0` 和预发行 `v1.7.74`，两份对应 DMG 的营销版本也都保留 `v`。两轨按标签原文核对签名包。0.0.19 之前没有预发行开关。0.0.19 至 1.9.0 的更新器读标准偏好 `betaChannel`。这些版本的 `showBeta`（如存在）控制实验界面。1.9.1 起更新器改读 `showBeta`，忽略遗留的 `betaChannel`。两代开关均默认关闭。[引入预发行开关](https://github.com/ParetoSecurity/pareto-mac/commit/179e7b9) · [切换偏好](https://github.com/ParetoSecurity/pareto-mac/commit/43af066)
 
-| 官方包 | short / build | 签名与架构 |
+启用后，即使当前为预发行 1.49.1，也应提示后来的正式版 1.50.0。厂商按 GitHub 的 prerelease 标记过滤，不能只按数字推测历史渠道。Homebrew cask 引用同一个直接发行的 DMG。[厂商偏好设置](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Defaults.swift) · [Setapp 版 ID](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Config/App-SetApp.xcconfig)
+
+| 官方包 | short / build | 实测或已核实的渠道信息 |
 |---|---|---|
 | 最早正式 0.0.13 ZIP | 0.0.13 / 639 | 同 ID，Team PM784W7B8X，universal |
+| 预发行 v1.7.74 DMG | v1.7.74 / 5403 | 使用历史 betaChannel 偏好 |
+| 正式 1.9.3 DMG | 1.9.3 / 5850 | 使用 showBeta 偏好 |
+| 正式 v1.22.0 DMG | v1.22.0 / 6955 | 使用 showBeta 偏好 |
 | 正式 1.49.0 DMG | 1.49.0 / 15803 | Team PM784W7B8X，universal，已公证 |
 | 预发行 1.49.1 DMG | 1.49.1 / 15808 | 同上 |
 | 正式 1.50.0 DMG | 1.50.0 / 15908 | 同上 |

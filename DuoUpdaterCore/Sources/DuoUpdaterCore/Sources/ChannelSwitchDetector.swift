@@ -86,6 +86,11 @@ public enum ChannelSwitchDetector {
     /// without touching the channel, so without it a renewal would wait for the
     /// next scheduled check.
     public static func recheckFingerprint(bundleID id: String) -> String {
+        if id.lowercased() == niteo_co_Pareto.bundleID.lowercased() {
+            return ChannelBinding.bounded.run(key: id.lowercased(), timeout: ChannelBinding.resolveTimeout) {
+                niteo_co_Pareto.preferenceFingerprint()
+            } ?? noResolutionFingerprint
+        }
         let channel = fingerprint(of: ChannelBinding.resolve(bundleID: id))
         guard let window = SubscriptionWindow.current(forBundleID: id) else { return channel }
         return channel + "|subscription=" + String(describing: window)

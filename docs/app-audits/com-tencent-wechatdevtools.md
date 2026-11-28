@@ -161,6 +161,19 @@ NOT the old `servicewechat.com/wxa-dev-logic/download_redirect?…&
 version_type=N` endpoint: measured 2026-08-18, it ignores `version_type`
 entirely and 302s all three values to the same Stable dmg.
 
+### Nightly PKG 下载字段（2026-11-28）
+
+官方 `config.json` 的 Nightly 2.02.2611272 在同一 macOS ARM64 下载项里同时提供
+DMG（`url` 和 `dmgurl`）及 PKG（`pkgurl`）。Nightly 配方在本渠道的
+`downloads` 数组中读取 ARM64 PKG，并继续接受旧版中直接指向 PKG 的 `url`。
+如果本渠道没有 ARM64 PKG，仍会显示已检测的版本并提供官网手动下载入口。
+Stable 和 RC 沿用各自已验证的 PKG 规则。 [官方配置](https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/config.json)
+
+2.02.2611272 ARM64 PKG 的 `pkgutil --check-signature` 返回 Tencent Developer ID Installer
+`FN2V63AD2J` 与可信公证。只读展开的包 ID 为 `com.tencent.wechatdevtools`，应用的
+`package.json` 报同版 Nightly（`versionType=2`）。ARM64 Electron 应用的同 Team
+严格签名检查通过。验证过程未运行安装器。
+
 ## PKG helper 专项验证（2026-11-14）
 
 VM 实装 2.02.2609250 后，磁盘身份为 `com.github.Electron` / `36.6.0`。

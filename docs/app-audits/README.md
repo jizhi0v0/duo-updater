@@ -103,7 +103,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Multi-channel families (audit covers all channels)
 
-- [x] [**Pareto Security**](niteo-co-Pareto.md) · `niteo.co.Pareto` — G(stable/beta) · 官网直接发行 universal DMG，按应用 Beta 偏好选版，VM 实测一键 1.49.0 → 1.50.0、重启和五项结构化日志 · 2026-11-28
+- [x] [**Pareto Security**](niteo-co-Pareto.md) · `niteo.co.Pareto` — G(stable/beta) · 官网直接发行 universal DMG，按应用 Beta 偏好选版，VM 实测一键 1.49.0 → 1.50.0、重启和五项结构化日志；已启用的特权检查可能需在应用中重新授权 · 2026-11-28
 - [x] [**Rune Player**](ci-not-rune.md) · `ci.not.rune` — G(stable/alpha) C · 官方 universal DMG，按实际 bundle 版本分流 · 2026-11-28
 
 - [x] [**Xmind**](net-xmind-vana-app.md) · `net.xmind.vana.app` — P(stable/beta) C · 官网两轨 versioned DMG 与结构化日志 · 2026-11-28

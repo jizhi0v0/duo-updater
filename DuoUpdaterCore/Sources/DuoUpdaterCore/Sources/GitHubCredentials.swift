@@ -53,15 +53,6 @@ public final class GitHubCredentials: @unchecked Sendable {
 
     /// The generations whose token GitHub rejected since the round began.
     private var rejectedGenerations: Set<Int> = []
-    // beginRound permits a fresh authenticated request. It cannot authorize
-    // metadata fetched before a rejection, even when Settings did not change.
-    private var rejectionRevision = 0
-    var restrictedSourceRevision: Int { lock.withLock { rejectionRevision } }
-    func mayReadRestrictedSource(generation: Int, revision: Int) -> Bool {
-        lock.withLock {
-            generation == generationValue && revision == rejectionRevision && !rejectedGenerations.contains(generation)
-        }
-    }
     private var rejectionHandler: (@Sendable (Int) -> Void)?
 
     /// Whether GitHub rejected the token of the credentials in use now, this
@@ -91,9 +82,7 @@ public final class GitHubCredentials: @unchecked Sendable {
     func recordRejection(generation: Int) {
         let handler: (@Sendable (Int) -> Void)? = lock.withLock {
             let first = rejectedGenerations.insert(generation).inserted
-            guard first && generation == generationValue else { return nil }
-            rejectionRevision += 1
-            return rejectionHandler
+            return first && generation == generationValue ? rejectionHandler : nil
         }
         handler?(generation)
     }

@@ -59,6 +59,10 @@ struct GeneralSettingsPage: View {
             // Re-arm the background loop with the new interval immediately.
             .onChange(of: prefs.checkFrequency) { _, _ in model.reschedule() }
             SettingsDivider()
+            Toggle("Animate the menu bar icon during update checks", isOn: $prefs.animateMenuBarIcon)
+                .settingsRow()
+                .settingsAnchor(.animateMenuBarIcon)
+            SettingsDivider()
             Toggle("Hide the Dock icon", isOn: $prefs.hideDockIcon)
                 .settingsRow()
                 .settingsAnchor(.hideDockIcon)

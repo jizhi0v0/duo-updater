@@ -33,9 +33,9 @@
       "bundleIdentifier" : "ai.ducoro.desktop",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "2026.1115.1130",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "f0e789ada404cfd54eb7ef018b63ccd9279bf011f04bd456988e93d516ea2029",
-      "lastSeenVersion" : "2026.1127.1843",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "7640bd0f0129b407f9c45b1c99e38cf01af9fe57c648eba195cd999a259ef0e5",
+      "lastSeenVersion" : "2026.1128.245",
       "signedIdentifier" : "ai.ducoro.desktop",
       "teamIdentifier" : "6YU2PK44KX"
     },
@@ -230,11 +230,39 @@
       "bundleIdentifier" : "com.kangfenmao.CherryStudio",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.1.4",
-      "lastSeenAt" : "2026-11-20T00:37:57Z",
-      "lastSeenURLSHA256" : "6d47c21ed08d75dc1e87299b521e1769b0a95a8ba23c9364e8290c25587154f4",
-      "lastSeenVersion" : "2.2.3",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "1b17cc55d432c4ad0a6b70d85f7d868a6d260b57ae02f185af0f15d33591540a",
+      "lastSeenVersion" : "2.2.5",
       "signedIdentifier" : "com.kangfenmao.CherryStudio",
       "teamIdentifier" : "87242QY66T"
+    },
+    "github:CleanClip\/CleanClipApp:beta" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.antiless.cleanclip.mac",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "2.4.1-beta.1",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "07fbe83ea99f7fe63a2665e5e89b0a564530b2135529bb0008b1263637908c14",
+      "lastSeenVersion" : "2.4.1-beta.1",
+      "signedIdentifier" : "com.antiless.cleanclip.mac",
+      "teamIdentifier" : "JDZMWLF652"
+    },
+    "github:CleanClip\/CleanClipApp:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.antiless.cleanclip.mac",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "2.4.7",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "1939e54c5581d4af15a4b0f9c42c9c35ed21f3b0017d892c61ad49aabf6eee26",
+      "lastSeenVersion" : "2.4.7",
+      "signedIdentifier" : "com.antiless.cleanclip.mac",
+      "teamIdentifier" : "JDZMWLF652"
     },
     "github:EpicenterHQ\/epicenter:stable" : {
       "architectures" : [
@@ -370,6 +398,34 @@
       "lastSeenVersion" : "0.6.0",
       "signedIdentifier" : "top.kyleye.swifty-download-manager-app",
       "teamIdentifier" : "VB7MJ8R223"
+    },
+    "github:Losses\/rune:alpha" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "ci.not.rune",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "2.0.1017",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "08752d871dc0bce06fd89dca06ea3d9ce1e3c5c410f460218e333946c4889d02",
+      "lastSeenVersion" : "2.0.1017",
+      "signedIdentifier" : "ci.not.rune",
+      "teamIdentifier" : "LG57TUQ726"
+    },
+    "github:Losses\/rune:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "ci.not.rune",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "1.1.4002",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "8767157caeeea84e4cc0c224e47ffda3e17f6f07a0d6a4aed3a481edf83b5d91",
+      "lastSeenVersion" : "1.1.4002",
+      "signedIdentifier" : "ci.not.rune",
+      "teamIdentifier" : "LG57TUQ726"
     },
     "github:MaddTheSane\/Simple-Comic:stable" : {
       "architectures" : [
@@ -1481,9 +1537,9 @@
       "bundleIdentifier" : "com.lokii.app",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1",
-      "lastSeenAt" : "2026-11-22T23:31:57Z",
-      "lastSeenURLSHA256" : "35414b81bbe8d032497e91a49f90bdce6a931dd6a39831cda338e454d7cea15c",
-      "lastSeenVersion" : "0.2.0",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "5b4cfd2eb589ed667fd96137f3ef6166ba1e4f558bebd92361e1ca078b319b53",
+      "lastSeenVersion" : "0.2.1",
       "signedIdentifier" : "com.lokii.app",
       "sparklePublicKey" : "pxrsUMDmDnkDlrD0UqaLGc8tIGwWuY7xmmVT2G3SXtE="
     },
@@ -2140,9 +2196,9 @@
       "bundleIdentifier" : "com.neovide.neovide",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.16.2",
-      "lastSeenAt" : "2026-11-24T17:02:24Z",
-      "lastSeenURLSHA256" : "2e17b2f5d412c8a138e97932f4e811d6be7b0a1980083cb890bc9274d3a44bd2",
-      "lastSeenVersion" : "0.17.4",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "d59538cd523a992c1fc7da1ae1e86389aae42b57e47a02ff771b982ec56e106e",
+      "lastSeenVersion" : "0.17.5",
       "signedIdentifier" : "com.neovide.neovide",
       "teamIdentifier" : "X8CNW77992"
     },
@@ -2454,9 +2510,9 @@
       "bundleIdentifier" : "com.t3tools.t3code",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.0.46-nightly.20261008.2849",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "0414a509a7e914928d9783d946c66a41bf97e9002f9c49982945f0e3f49bb939",
-      "lastSeenVersion" : "0.1.14-nightly.20261127.5359",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "8b915b04c6cde7826faa83ba3a015c251d8acd3649ba60f14f553db900bb55fa",
+      "lastSeenVersion" : "0.1.14-nightly.20261128.5385",
       "signedIdentifier" : "com.t3tools.t3code",
       "teamIdentifier" : "ARK85ZXQ4Z"
     },
@@ -2983,9 +3039,9 @@
       "bundleIdentifier" : "com.treesoop.mycel",
       "firstSeenAt" : "2026-11-23T17:32:21Z",
       "firstSeenVersion" : "0.15.0",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "4a81c4a3d357fc13a42fd1442e3cf7b12bbdc648980f070abfdfb8e1ef1602d6",
-      "lastSeenVersion" : "0.20.2",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "bb8e5e1a4392c0650997a892d1d3db7c5d6562e1d457c0d29efe2bb8057f673f",
+      "lastSeenVersion" : "0.20.4",
       "signedIdentifier" : "com.treesoop.mycel",
       "teamIdentifier" : "YWW96288YY"
     },
@@ -3023,9 +3079,9 @@
       "bundleIdentifier" : "com.trycua.driver",
       "firstSeenAt" : "2026-10-09T12:37:52Z",
       "firstSeenVersion" : "0.30.5",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "fbc8bfcf25395465c760ec51ef6e145e9381dbec6dda0fe8632c68f1e2c36fa1",
-      "lastSeenVersion" : "0.63.3",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "a0f0209e523e9958b25a0ec1b01ef2b932e30fc809ccc38970ca46c1fe285a2c",
+      "lastSeenVersion" : "0.64.5",
       "signedIdentifier" : "com.trycua.driver",
       "teamIdentifier" : "YCK386LBJ7"
     },
@@ -3037,9 +3093,9 @@
       "bundleIdentifier" : "com.trycua.driver",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.34.0",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "3c226015e3e418068b72ff3707574bb2149d4d10216a3b94c4f0e069be23b7a6",
-      "lastSeenVersion" : "0.64.3",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "28cc2b71e6222eebd134732616bb81b05af990d7422b89ec4737622dfce0713f",
+      "lastSeenVersion" : "0.66.0",
       "signedIdentifier" : "com.trycua.driver",
       "teamIdentifier" : "YCK386LBJ7"
     },
@@ -3197,9 +3253,9 @@
       "bundleIdentifier" : "com.yetone.magpie",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1133",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "ab1b2b806eb2ffce2735b1586297c710c4c3f263afac94c8c13d64d51ae06530",
-      "lastSeenVersion" : "0.1.4985",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "7e827450caf8f1fb7437251e5f7e9d819ba3f238001f23c5a31cc5216c9cdccd",
+      "lastSeenVersion" : "0.1.5039",
       "signedIdentifier" : "com.yetone.magpie",
       "teamIdentifier" : "LY7MVTUDZG"
     },
@@ -3276,9 +3332,9 @@
       "bundleIdentifier" : "ai.openclaw.mac",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "2026.11.3",
-      "lastSeenAt" : "2026-11-25T16:46:24Z",
-      "lastSeenURLSHA256" : "af8c7ba64032ad8d30fa28d12be3bdf12491f5b50b91c6d8394a62f69379711f",
-      "lastSeenVersion" : "2026.11.9",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "f8fa448a99cb60ff8a3c6dea9511d9a58a5fb19bcadc083d66fd61663532419a",
+      "lastSeenVersion" : "2026.11.10",
       "signedIdentifier" : "ai.openclaw.mac",
       "sparklePublicKey" : "AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj\/Qs67XI=",
       "teamIdentifier" : "FWJYW4S8P8"
@@ -3291,9 +3347,9 @@
       "bundleIdentifier" : "ai.openclaw.mac",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "2026.11.3",
-      "lastSeenAt" : "2026-11-25T16:46:24Z",
-      "lastSeenURLSHA256" : "fd0e469cbaeb392487a5b11df446b676238e7dde19c93b78aac3917a2f6602fb",
-      "lastSeenVersion" : "2026.11.9",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "6e91f1e0fdb4dc3644771fefe999e2f1d67dabbd7b572bc116cec5f395620588",
+      "lastSeenVersion" : "2026.11.10",
       "signedIdentifier" : "ai.openclaw.mac",
       "sparklePublicKey" : "AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj\/Qs67XI=",
       "teamIdentifier" : "FWJYW4S8P8"
@@ -3387,6 +3443,48 @@
       "sparklePublicKey" : "1iIOlpd4wsTzefsS0cmmxZt7Sjf9tCMrVFtJwqHKlf8=",
       "teamIdentifier" : "W437NFRGZW"
     },
+    "sparkle:asc.onlyoffice.ONLYOFFICE:stable:arm64" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "asc.onlyoffice.ONLYOFFICE",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "10.0.0",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "70fa6515c4d47a04d94ec5b448885edbf3642c4a8ca6fd55c89ded0d3ee2879b",
+      "lastSeenVersion" : "10.0.0",
+      "signedIdentifier" : "asc.onlyoffice.ONLYOFFICE",
+      "sparklePublicKey" : "N2LfKoNN6LkD5qNMjt+lEh6LYrQMEFNCEXQ3Kk6nTlM=",
+      "teamIdentifier" : "2WH24U26GJ"
+    },
+    "sparkle:asc.onlyoffice.ONLYOFFICE:stable:intel" : {
+      "architectures" : [
+        "x86_64"
+      ],
+      "bundleIdentifier" : "asc.onlyoffice.ONLYOFFICE",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "10.0.0",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "e990649402b05abdde4f40835bd210d149caa2f427303376b7616f04fb3e0aac",
+      "lastSeenVersion" : "10.0.0",
+      "signedIdentifier" : "asc.onlyoffice.ONLYOFFICE",
+      "sparklePublicKey" : "N2LfKoNN6LkD5qNMjt+lEh6LYrQMEFNCEXQ3Kk6nTlM=",
+      "teamIdentifier" : "2WH24U26GJ"
+    },
+    "sparkle:asc.onlyoffice.ONLYOFFICE:stable:legacy-intel" : {
+      "architectures" : [
+        "x86_64"
+      ],
+      "bundleIdentifier" : "asc.onlyoffice.ONLYOFFICE",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "6.4.1",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "fa34393373570ddc5194ef4e7dcc51cc924f32fa271788f292e08aa94bf85506",
+      "lastSeenVersion" : "6.4.1",
+      "signedIdentifier" : "asc.onlyoffice.ONLYOFFICE",
+      "sparklePublicKey" : "N2LfKoNN6LkD5qNMjt+lEh6LYrQMEFNCEXQ3Kk6nTlM=",
+      "teamIdentifier" : "2WH24U26GJ"
+    },
     "sparkle:com.JH.RuntimeViewer:beta" : {
       "architectures" : [
         "arm64",
@@ -3416,6 +3514,36 @@
       "signedIdentifier" : "com.JH.RuntimeViewer",
       "sparklePublicKey" : "jlL11Arlrn0YtrQn66hxwUZeBI6dFxP2Wluq6eEYzss=",
       "teamIdentifier" : "D5Q73692VW"
+    },
+    "sparkle:com.MagicQuit:stable:ed25519" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.MagicQuit",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "2.0",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "165439699fd2140da133c31fee39c415ba17774c8c458ed0de4155f9063cab0a",
+      "lastSeenVersion" : "2.0",
+      "signedIdentifier" : "com.MagicQuit",
+      "sparklePublicKey" : "wFrCgZt+qwG6\/UbxYscLbW9m2ttAS5AvQMC9ROCZr7g=",
+      "teamIdentifier" : "4HMNGH59W8"
+    },
+    "sparkle:com.MagicQuit:stable:legacy-no-key" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.MagicQuit",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "2.0",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "165439699fd2140da133c31fee39c415ba17774c8c458ed0de4155f9063cab0a",
+      "lastSeenVersion" : "2.0",
+      "signedIdentifier" : "com.MagicQuit",
+      "sparklePublicKey" : "wFrCgZt+qwG6\/UbxYscLbW9m2ttAS5AvQMC9ROCZr7g=",
+      "teamIdentifier" : "4HMNGH59W8"
     },
     "sparkle:com.aone.keka:stable" : {
       "architectures" : [
@@ -3520,6 +3648,34 @@
       "sparklePublicKey" : "HBRBQ8QQOhmvMKnSxQxqb3upTjyirdx0xkHSSRqn7aI=",
       "teamIdentifier" : "4W8QF9VR2F"
     },
+    "sparkle:com.flyingmeat.Acorn8:beta" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.flyingmeat.Acorn8",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "8.8b1",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "bb6a760cdf8978d8ca2a66e28182dd579ed50b90f0d2ae45b38b1b03b7253918",
+      "lastSeenVersion" : "8.8b1",
+      "signedIdentifier" : "com.flyingmeat.Acorn8",
+      "teamIdentifier" : "WZCN9HJ4VP"
+    },
+    "sparkle:com.flyingmeat.Acorn8:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.flyingmeat.Acorn8",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "8.7.3",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "a55e34f227e9b4dcb2e3898746bec048f26c30d23f869579245a9dd809f94c05",
+      "lastSeenVersion" : "8.7.3",
+      "signedIdentifier" : "com.flyingmeat.Acorn8",
+      "teamIdentifier" : "WZCN9HJ4VP"
+    },
     "sparkle:com.github.CopilotForXcode:prerelease" : {
       "architectures" : [
         "arm64",
@@ -3573,9 +3729,9 @@
       "bundleIdentifier" : "com.googlecode.iterm2",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "3.7.20261114-nightly",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "56ab6f37791da7e4817cfaeb032aa01a9ec5f6c26ab1a0b691b875ba8db8078f",
-      "lastSeenVersion" : "3.7.20261127-nightly",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "cfef0529ea701254d704020b3693e242e46e5f89d77962c3f63d77368482bd71",
+      "lastSeenVersion" : "3.7.20261128-nightly",
       "signedIdentifier" : "com.googlecode.iterm2",
       "sparklePublicKey" : "xdqAa0KXBPhMbUrutVTe87i6U7yWf7WKaCeRG7AAZ0w=",
       "teamIdentifier" : "H7V7XYVQ7D"
@@ -3624,6 +3780,35 @@
       "signedIdentifier" : "com.knollsoft.Rectangle",
       "sparklePublicKey" : "lpt9M3PhocbZ3MZiLH+crEqRfU11kfoNzGxSqiEIdvM=",
       "teamIdentifier" : "XSYZ3E4B7D"
+    },
+    "sparkle:com.lemonmojo.RoyalTSX.App:beta" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.lemonmojo.RoyalTSX.App",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "26.0.20",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "ebe6cb9f031ef6134c872969fb320b3071715e1e0c70829b66ddc37a0de7812a",
+      "lastSeenVersion" : "26.0.20",
+      "signedIdentifier" : "com.lemonmojo.RoyalTSX.App",
+      "sparklePublicKey" : "48ZqGC3v4p507RvAi3q5V02dh3GyoLF7VAuFqN1qTdA=",
+      "teamIdentifier" : "VXP8K9EDP6"
+    },
+    "sparkle:com.lemonmojo.RoyalTSX.App:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.lemonmojo.RoyalTSX.App",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "6.4.5",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "2cb3820b9a013e5c7d59bbcc9acc8e157fc404392f2b401a789971fe77e979d3",
+      "lastSeenVersion" : "6.4.5",
+      "signedIdentifier" : "com.lemonmojo.RoyalTSX.App",
+      "teamIdentifier" : "VXP8K9EDP6"
     },
     "sparkle:com.loon.Loon:stable" : {
       "architectures" : [
@@ -4021,9 +4206,9 @@
       "bundleIdentifier" : "com.tddworks.claudebar",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "0.5.27",
-      "lastSeenAt" : "2026-11-20T15:11:50Z",
-      "lastSeenURLSHA256" : "a002764de1c01b232b93bf12c094a762dd79c634760beb8aab84f355010cbf2f",
-      "lastSeenVersion" : "0.5.29",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "9ceedf2f4396bd5a24337b0e2bcb416567aec0f8488c9be2dcdc1471d511c203",
+      "lastSeenVersion" : "0.5.30",
       "signedIdentifier" : "com.tddworks.claudebar",
       "sparklePublicKey" : "2Kn6vvvrrNqgAWrzOiq5Ae+abMjEqlu2MOOM\/YBlsw0=",
       "teamIdentifier" : "Y5856NSDZU"
@@ -4036,9 +4221,9 @@
       "bundleIdentifier" : "com.typewhisper.mac",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "1.9.0-daily.20261115",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "8734914e37af42139f6049853046d7aeefeb4db9cc15b5c0e8d8d4eda1e84750",
-      "lastSeenVersion" : "1.9.0-daily.20261127",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "e03ee75e0fa5a8a2bddc61d043ad29273de4e48882365cd4953c93232c01453c",
+      "lastSeenVersion" : "1.9.0-daily.20261128",
       "signedIdentifier" : "com.typewhisper.mac",
       "sparklePublicKey" : "OdAMiN136Ckglxnq4FeLagPjcrZiASYGaeUWBkK6tuc=",
       "teamIdentifier" : "2D8ALY3LCL"
@@ -4205,6 +4390,21 @@
       "signedIdentifier" : "org.p0deje.Maccy",
       "teamIdentifier" : "MN3X4648SC"
     },
+    "sparkle:org.sil.ukelele:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "org.sil.ukelele",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "3.7.1",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "a53e2d251f3a6544049f077b311d775d3a5daf88d0e6fb630cacebd79eaaf6e1",
+      "lastSeenVersion" : "3.7.1",
+      "signedIdentifier" : "org.sil.ukelele",
+      "sparklePublicKey" : "akGj2v0tJZhSIxt8IgV4Xx5lr7paN6sIshhWKJLPkVw=",
+      "teamIdentifier" : "3YE4W86L3G"
+    },
     "sparkle:plus.yellow.AirBuild:beta" : {
       "architectures" : [
         "arm64"
@@ -4212,8 +4412,8 @@
       "bundleIdentifier" : "plus.yellow.AirBuild",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "1.7",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "74edf08606f474b8787953520ce21fdd941c5e9921624ed1587061ebb5a5b776",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "5e27a5bec07c04006e4d94e7d95741e1944da12385e99192802d6a7e403bdaf1",
       "lastSeenVersion" : "1.7",
       "signedIdentifier" : "plus.yellow.AirBuild",
       "sparklePublicKey" : "xPc2c4nfaYOLmG2PTK3uDRxSaMsTgeq1qvZ\/pFjFk7I=",
@@ -4226,8 +4426,8 @@
       "bundleIdentifier" : "plus.yellow.AirBuild",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "1.7",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "2d4180f2c2a0a8c5e458a7193e93009dcd716f1bc787436abb1e37c2b3cb5c6a",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "5e27a5bec07c04006e4d94e7d95741e1944da12385e99192802d6a7e403bdaf1",
       "lastSeenVersion" : "1.7",
       "signedIdentifier" : "plus.yellow.AirBuild",
       "sparklePublicKey" : "xPc2c4nfaYOLmG2PTK3uDRxSaMsTgeq1qvZ\/pFjFk7I=",
@@ -4291,6 +4491,36 @@
       "signedIdentifier" : "sb.moe.tamio",
       "sparklePublicKey" : "FGnM3UVskuCdONiYX+6KbArkar0D5lYS73IeqOmWrps=",
       "teamIdentifier" : "NCFNX3LJ83"
+    },
+    "sparkle:studio.fireball.OneSwitch:beta" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "studio.fireball.OneSwitch",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "2.0",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "e0698173106ef4021fd8e454d685fb963d1fbb3cb683130e81784d90406033d0",
+      "lastSeenVersion" : "2.0",
+      "signedIdentifier" : "studio.fireball.OneSwitch",
+      "sparklePublicKey" : "z2lwSPpfFZuIZGl\/+GHlMOyf7SmeKV0IbVvvs6rF4Xg=",
+      "teamIdentifier" : "KAQ3M6FSM7"
+    },
+    "sparkle:studio.fireball.OneSwitch:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "studio.fireball.OneSwitch",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "1.35.4",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "55b398087bbbc4e8a5ea849d436284fc13ba7c97acad7ea9968b3d1592ee5350",
+      "lastSeenVersion" : "1.35.4",
+      "signedIdentifier" : "studio.fireball.OneSwitch",
+      "sparklePublicKey" : "z2lwSPpfFZuIZGl\/+GHlMOyf7SmeKV0IbVvvs6rF4Xg=",
+      "teamIdentifier" : "KAQ3M6FSM7"
     },
     "sparkle:uk.co.bzwrd.macperfmonitor:stable" : {
       "architectures" : [
@@ -4412,6 +4642,19 @@
       "signedIdentifier" : "ai.perplexity.comet",
       "teamIdentifier" : "7S8W4W365S"
     },
+    "vendor:anomaly.opencode-rune:dev" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "anomaly.opencode-rune",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "0.0.0-dev-504",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "54c049d61f6890efd5324bfe3e03aa542096abe3547dfc451c763b92127ce32a",
+      "lastSeenVersion" : "0.0.0-dev-504",
+      "signedIdentifier" : "anomaly.opencode-rune",
+      "teamIdentifier" : "5NZ4Q7NXJ4"
+    },
     "vendor:app.chatwise:stable" : {
       "architectures" : [
         "arm64"
@@ -4424,6 +4667,19 @@
       "lastSeenVersion" : "26.9.1",
       "signedIdentifier" : "app.chatwise",
       "teamIdentifier" : "GJE9R5VE87"
+    },
+    "vendor:app.dataflare.desktop:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "app.dataflare.desktop",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "3.2.6",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "7fadb74ba14df9da3030025d0a3a7d26ef6875069ac8735ed4c09faf4506c9c0",
+      "lastSeenVersion" : "3.2.6",
+      "signedIdentifier" : "app.dataflare.desktop",
+      "teamIdentifier" : "8Z4759S53G"
     },
     "vendor:app.getmoshi.desktop:stable" : {
       "architectures" : [
@@ -4551,9 +4807,9 @@
       "bundleIdentifier" : "com.aliyun.lingma.ide",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.32.2",
-      "lastSeenAt" : "2026-11-20T15:11:50Z",
-      "lastSeenURLSHA256" : "202f6ed432173c9afc555fc416818654c193ccc8781e548c5f1adee7fee88c7b",
-      "lastSeenVersion" : "1.41.1",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "9150108120b859bd6ad4fc2c06f476482981c886ea108b428cbac8cbb8211821",
+      "lastSeenVersion" : "1.42.1",
       "signedIdentifier" : "com.aliyun.lingma.ide",
       "teamIdentifier" : "9DFNGU9AK5"
     },
@@ -4706,6 +4962,20 @@
       "lastSeenVersion" : "1.129.0",
       "signedIdentifier" : "com.canva.CanvaDesktop",
       "teamIdentifier" : "5HD2ARTBFS"
+    },
+    "vendor:com.cockos.LICEcap:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.cockos.LICEcap",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "1.32",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "455549850ff5a37ec4ba0c652930cf17509c4c6a380896074ef5ff562195175f",
+      "lastSeenVersion" : "1.32",
+      "signedIdentifier" : "com.cockos.LICEcap",
+      "teamIdentifier" : "Y3T58622SG"
     },
     "vendor:com.code.athas:beta" : {
       "architectures" : [
@@ -4862,9 +5132,9 @@
       "bundleIdentifier" : "com.electron.wispr-flow",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.6.1102",
-      "lastSeenAt" : "2026-11-26T01:52:17Z",
-      "lastSeenURLSHA256" : "a7c95ee8ffc2c401fae6d3af8881d945f6cf1a749d575b4f6025d7add616bb5d",
-      "lastSeenVersion" : "1.6.1631",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "561c77240a0f1c54fb24ccabbb07bb38dab760ac4aef13cb31746877296b8bbb",
+      "lastSeenVersion" : "1.6.1655",
       "signedIdentifier" : "com.electron.wispr-flow",
       "teamIdentifier" : "C9VQZ78H85"
     },
@@ -4920,6 +5190,19 @@
       "signedIdentifier" : "com.getdropbox.dropbox",
       "teamIdentifier" : "G7HH3F8CAK"
     },
+    "vendor:com.gitbutler.app:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.gitbutler.app",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "0.23.5",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "70f7531563a4ca328226f374bb7ce437c97f09ed93dca230962e943bc18ea541",
+      "lastSeenVersion" : "0.23.5",
+      "signedIdentifier" : "com.gitbutler.app",
+      "teamIdentifier" : "AT87WZ3SVG"
+    },
     "vendor:com.github.GitHubClient:stable" : {
       "architectures" : [
         "arm64"
@@ -4955,9 +5238,9 @@
       "bundleIdentifier" : "com.google.Chrome.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "157.0.8093.0",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
       "lastSeenURLSHA256" : "11a232feff09fd1bca2fb1115f23af0ac3f3c39d1b12976b737b88bf3244a989",
-      "lastSeenVersion" : "160.0.8188.0",
+      "lastSeenVersion" : "160.0.8189.0",
       "signedIdentifier" : "com.google.Chrome.canary",
       "teamIdentifier" : "EQHXZ8M8AV"
     },
@@ -5125,6 +5408,20 @@
       "lastSeenVersion" : "0.0.274",
       "signedIdentifier" : "com.hnc.DiscordPTB",
       "teamIdentifier" : "53Q6R32WPB"
+    },
+    "vendor:com.hogbaysoftware.TaskPaper3.direct:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.hogbaysoftware.TaskPaper3.direct",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "3.9.4",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "0bba6c3942c2f90c18f625a60a1247c0ad4a639eecdc4bc5f02a01b9c75c7320",
+      "lastSeenVersion" : "3.9.4",
+      "signedIdentifier" : "com.hogbaysoftware.TaskPaper3.direct",
+      "teamIdentifier" : "64A5CLJP5W"
     },
     "vendor:com.jetbrains.intellij-EAP:preview" : {
       "architectures" : [
@@ -5457,8 +5754,8 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.42.0",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "f85be4d49996b4217c73144c3f01755afc49d4c67890e26cfc97f43e07d64c6c",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "7771937f038c2cf4c3496d8ca7e98ab3f1d31f95ca0020b2b460f8c42fab012a",
       "lastSeenVersion" : "4.49.1",
       "packageTeamIdentifier" : "PU9BNSBJW7"
     },
@@ -5592,9 +5889,9 @@
       "bundleIdentifier" : "com.qoder.ide",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.32.2",
-      "lastSeenAt" : "2026-11-20T15:11:50Z",
-      "lastSeenURLSHA256" : "064da2001536bb10b66752c2b8746c1f2d36e43e048c4e6b7f01b207b55a3298",
-      "lastSeenVersion" : "1.41.1",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "4f12b19c3109d72bbb32dda11fc630823789597adfe4e5a90972e4c8250419c0",
+      "lastSeenVersion" : "1.42.1",
       "signedIdentifier" : "com.qoder.ide",
       "teamIdentifier" : "T27K5A5ZWD"
     },
@@ -5606,8 +5903,8 @@
       "bundleIdentifier" : "com.raycast.macos",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.104.31",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "ded6954ffbd8500b329879db988312e2e6c854b22c7d5d06fbcabac3bccdf36f",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "406bf3d85cfa2781a2eb2f4e61e94cb717798d9e8ec67bd6e3dc78820763532f",
       "lastSeenVersion" : "1.104.39",
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
@@ -5619,9 +5916,9 @@
       "bundleIdentifier" : "com.raycast.macos",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.7.2.0",
-      "lastSeenAt" : "2026-11-25T16:46:24Z",
-      "lastSeenURLSHA256" : "a3c14adaffcd951b49f3e285d8555a3f7961cc0bd3f7853ed1569a4d5e7addc3",
-      "lastSeenVersion" : "2.14.0.0",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "d028efefa283dbbd40145cd08a3d8224a432ce1a8f935e9d1c4abc55803aa35b",
+      "lastSeenVersion" : "2.14.1.0",
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
     },
@@ -5681,6 +5978,19 @@
       "signedIdentifier" : "com.runningwithcrayons.Alfred",
       "teamIdentifier" : "XZZXE9SED4"
     },
+    "vendor:com.sigil-ebook.Sigil.app:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.sigil-ebook.Sigil.app",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "2.8.6",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "70ed53584d7f0877e788e250f0cd97c7f7259e3cde0cd4e47733e0c445ebfbee",
+      "lastSeenVersion" : "2.8.6",
+      "signedIdentifier" : "com.sigil-ebook.Sigil.app",
+      "teamIdentifier" : "2SMCVQU3CJ"
+    },
     "vendor:com.sogou.inputmethod.sogou:stable" : {
       "architectures" : [
         "arm64",
@@ -5689,8 +5999,8 @@
       "bundleIdentifier" : "com.sogou.inputmethod.sogou",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "6.25.1.11973",
-      "lastSeenAt" : "2026-11-26T16:33:14Z",
-      "lastSeenURLSHA256" : "4fc576a56bf8d4c387b903494d118bf38d71e2f9f9f301533edb74fa2cdf04ba",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "3d48acf3515f599546cdeaf75920913a56458e63e387d32efb6d9f65477f0871",
       "lastSeenVersion" : "6.25.3.12004",
       "signedIdentifier" : "com.sogou.inputmethod.sogou",
       "teamIdentifier" : "DFD88F82SU"
@@ -5825,9 +6135,9 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.02.2610082",
-      "lastSeenAt" : "2026-11-26T16:33:14Z",
-      "lastSeenURLSHA256" : "94006a56b14ee97d177c5c2ef2a3524cc545eb8802690480989927fe88c4ecdb",
-      "lastSeenVersion" : "2.02.2611262",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "7a381bdbb6c78cf5e8ce23644863ef14d7113eec262ee1eae917f49c9b26e072",
+      "lastSeenVersion" : "2.02.2611272",
       "packageTeamIdentifier" : "FN2V63AD2J"
     },
     "vendor:com.tencent.wechatdevtools:rc" : {
@@ -6117,9 +6427,9 @@
       "bundleIdentifier" : "com.zarifpour.superconductor",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "49cdc780",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "b65deed9adf6a6535cec7c0c3dbbebe749435c084d95696086252163a3cc9a45",
-      "lastSeenVersion" : "53f6d61c",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "837dee24308e3f20afc667bee7dc04fbf7a95ba07fc37f96357bbb34bdfa28a5",
+      "lastSeenVersion" : "87e5a33e",
       "signedIdentifier" : "com.zarifpour.superconductor",
       "teamIdentifier" : "MR38E36N26"
     },
@@ -6144,9 +6454,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b292",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "f4d5335e24716f5a68fc1e849c928d31888cd5da8cd2ad6f6807d2cf166ab18a",
-      "lastSeenVersion" : "b1334",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "6ce4988ae57c518aa409245471f505daae3eaf587e0b30562f3f0e5946c4b805",
+      "lastSeenVersion" : "b1349",
       "signedIdentifier" : "dev.hyperframes.desktop.canary",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -6158,9 +6468,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b290",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "c0d1e787be1adf3c6e2c519e0339af9dbcbdb269a04a23f38d7ae76c1eb54d0b",
-      "lastSeenVersion" : "b1319",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "98d27cb40505638a58d1913d0afb40a4b2caf006b43d5e09ae8e1c3c7e940739",
+      "lastSeenVersion" : "b1343",
       "signedIdentifier" : "dev.hyperframes.desktop",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -6283,9 +6593,9 @@
       "bundleIdentifier" : "im.riot.nightly",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2026100801",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "0051044fa074b9132bd2c15d31b72e3e21eb68499cc8f2944920b461e49cca98",
-      "lastSeenVersion" : "2026112701",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "dc6ec9ae78887d196fa3d6560d64dbd0c859759787120cea9804e1aec5298033",
+      "lastSeenVersion" : "2026112801",
       "signedIdentifier" : "im.riot.nightly",
       "teamIdentifier" : "7J4U792NQT"
     },
@@ -6452,12 +6762,40 @@
       "bundleIdentifier" : "net.whatsapp.WhatsApp",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.40.20",
-      "lastSeenAt" : "2026-11-28T01:20:11Z",
-      "lastSeenURLSHA256" : "78e382244642f82971f6132b4eaedea4147d40196e47054ded531a5d6cadad1b",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "c092c6f326c0e23ed3bb651c40d0b10e0e5994136efca05a2023cf57ea0d0fa7",
       "lastSeenVersion" : "26.48.12",
       "signedIdentifier" : "net.whatsapp.WhatsApp",
       "sparklePublicKey" : "2jE1ZmLwrfk0yprKc8DTdt5YlKRGI7lGmnf3EJqBA5A=",
       "teamIdentifier" : "57T9237FN3"
+    },
+    "vendor:net.xmind.vana.app:beta" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "net.xmind.vana.app",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "25.10.03031-beta",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "f20f2e479fb57cb814bdf4912bc891e61d4dea0dc72a1ad7fddcd59dfe5810b1",
+      "lastSeenVersion" : "25.10.03031-beta",
+      "signedIdentifier" : "net.xmind.vana.app",
+      "teamIdentifier" : "4WV38P2X5K"
+    },
+    "vendor:net.xmind.vana.app:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "net.xmind.vana.app",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "27.01.05089",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "b0acff7cf96a7eaa682a6af1b0365df15c4c890363e3d74357e353397a50b092",
+      "lastSeenVersion" : "27.01.05089",
+      "signedIdentifier" : "net.xmind.vana.app",
+      "teamIdentifier" : "4WV38P2X5K"
     },
     "vendor:notion.id:stable" : {
       "architectures" : [
@@ -6493,8 +6831,8 @@
       "bundleIdentifier" : "org.blenderfoundation.blender",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "5.4.0",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "820e27b80d61326ca552a6009ea708807a935fbb5077a565f9075c580cf45fed",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "9c84ee463ec760556b9dcd3bd6164bf9b872c270a2588b4fcbafdc1eb52d1b39",
       "lastSeenVersion" : "5.4.0",
       "signedIdentifier" : "org.blenderfoundation.blender",
       "teamIdentifier" : "68UA947AUU"
@@ -6519,8 +6857,8 @@
       "bundleIdentifier" : "org.blenderfoundation.blender",
       "firstSeenAt" : "2026-10-16T10:20:06Z",
       "firstSeenVersion" : "5.2.3",
-      "lastSeenAt" : "2026-11-27T16:18:43Z",
-      "lastSeenURLSHA256" : "661a9cf16f7379dce9389b82bfe83bdae8bbb812d87f5781f192bbc1bc10b3ae",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "b401491828f200f06b41724b4472caf1b512d4443fdadc76a67f461cd0ec76b8",
       "lastSeenVersion" : "5.3.1",
       "signedIdentifier" : "org.blenderfoundation.blender",
       "teamIdentifier" : "68UA947AUU"
@@ -6658,6 +6996,19 @@
       "lastSeenVersion" : "26.8.3",
       "signedIdentifier" : "org.libreoffice.script",
       "teamIdentifier" : "7P5S3ZLCN7"
+    },
+    "vendor:org.mixxx.mixxx:stable:arm64" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "org.mixxx.mixxx",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "2.5.6",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "ed1aba68eddf796c537c5853e971297c8b56c8f6d0be174c0adf21d7a8d792f6",
+      "lastSeenVersion" : "2.5.6",
+      "signedIdentifier" : "org.mixxx.mixxx",
+      "teamIdentifier" : "JBLRSP95FC"
     },
     "vendor:org.mozilla.firefox:beta" : {
       "architectures" : [
@@ -6812,6 +7163,20 @@
       "signedIdentifier" : "org.pgadmin.pgadmin4",
       "teamIdentifier" : "TCHGL2R7C5"
     },
+    "vendor:org.ppsspp.ppsspp:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "org.ppsspp.ppsspp",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "1.20.4",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "1b3df20a2e3d579e34bb8e6b5dea72ce47baa6bde50cdb9e82c0cbb2c366d319",
+      "lastSeenVersion" : "1.20.4",
+      "signedIdentifier" : "org.ppsspp.ppsspp",
+      "teamIdentifier" : "97NS59EENG"
+    },
     "vendor:org.torproject.torbrowser:stable" : {
       "architectures" : [
         "arm64",
@@ -6864,6 +7229,19 @@
       "lastSeenVersion" : "8.36.0",
       "signedIdentifier" : "org.whispersystems.signal-desktop",
       "teamIdentifier" : "U68MSDN6DR"
+    },
+    "vendor:org.xbmc.kodi:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "org.xbmc.kodi",
+      "firstSeenAt" : "2026-11-28T15:13:18Z",
+      "firstSeenVersion" : "21.3",
+      "lastSeenAt" : "2026-11-28T15:13:18Z",
+      "lastSeenURLSHA256" : "1928ad0141f0bfc275fa58c00fae55b1ff68ac3728957fa2ba1a5a57ebe44848",
+      "lastSeenVersion" : "21.3",
+      "signedIdentifier" : "org.xbmc.kodi",
+      "teamIdentifier" : "QR7RHK8K4X"
     },
     "vendor:org.zotero.zotero:stable" : {
       "architectures" : [

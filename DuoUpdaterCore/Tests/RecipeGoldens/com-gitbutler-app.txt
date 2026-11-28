@@ -1,0 +1,108 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-gitbutler-app"
+
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.gitbutler.app"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement? = struct VendorHostRequirement
+probes[0].hostRequirement?.minimumSystemVersion = nil
+probes[0].hostRequirement?.architectures = Array(count: 1)
+probes[0].hostRequirement?.architectures[0] = .arm64
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
+probes[0].url = URL("https://app.gitbutler.com/releases/release/darwin-aarch64/0.0.0")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\\A\\s*\\{\\s*(?=(?:(?!\"version\"\\s*:)\"(?:[^\"\\\\]|\\\\.)*\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"\\s*,\\s*)*\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){2})\"(?=\\s*[,}]))(?:(?!\"url\"\\s*:)\"(?:[^\"\\\\]|\\\\.)*\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"\\s*,\\s*)*\"url\"\\s*:\\s*\"https://releases\\.gitbutler\\.com/releases/release/\\1-[0-9]+/macos/aarch64/GitButler\\.app\\.tar\\.gz\"(?=\\s*[,}])"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://gitbutler.com/downloads")
+probes[0].changelogURL? = URL("https://gitbutler.com/downloads")
+probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "\\A\\s*\\{\\s*(?:(?!\"url\"\\s*:)\"(?:[^\"\\\\]|\\\\.)*\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"\\s*,\\s*)*\"url\"\\s*:\\s*\"(https://releases\\.gitbutler\\.com/releases/release/[0-9]+(?:\\.[0-9]+){2}-[0-9]+/macos/aarch64/GitButler\\.app\\.tar\\.gz)\"(?=\\s*[,}])"
+probes[0].install?.kind = .tarGz
+probes[0].install?.installerApp = nil
+probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
+probes[0].install?.myGoPublicKey = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.gitbutler.app"
+changelogs[0].source = URL("https://gitbutler.com/downloads")
+changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "(?:<div class=\"latest-release__header-subtitle\\b[^\"]*\"><span[^>]*>|<h3 class=\"release-version\\b[^\"]*\">)(?<version>[0-9]+(?:\\.[0-9]+){2})(?: Latest release</span>\\s*<span[^>]*>\u{2022}</span>|</h3>)\\s*<span[^>]*>(?<date>[0-9]{1,2} [A-Za-z]+ [0-9]{4})</span>(?:(?!</section>|<h3 class=\"release-version\\b).)*?<div class=\"release-notes-content\\b[^\"]*\">(?<body>.*?)</div>"
+changelogs[0].itemPatterns = Array(count: 1)
+changelogs[0].itemPatterns[0] = "<(li|p)\\b[^>]*>(?<item>.*?)</\\1>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 40
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].ordersByPublishedDate = false
+changelogs[0].excludedChannels = Array(count: 0)
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern? = "<h([23])\\b[^>]*>(?<heading>.*?)</h\\1>"
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

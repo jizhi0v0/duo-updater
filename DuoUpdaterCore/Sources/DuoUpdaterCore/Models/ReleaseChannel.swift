@@ -485,6 +485,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .preview
         }
 
+        // Xmind's beta keeps the stable ID and app name, and appends bare
+        // `-beta` to the marketing version without a numeric counter.
+        if bundleID == net_xmind_vana_app.bundleID,
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+           fullyMatches(net_xmind_vana_app.betaVersion, version) {
+            return .beta
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {

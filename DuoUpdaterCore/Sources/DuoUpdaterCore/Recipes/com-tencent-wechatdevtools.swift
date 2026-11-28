@@ -1,6 +1,17 @@
 import Foundation
 
 enum com_tencent_wechatdevtools {
+    // A channel has scalar fields and flat arrays of tag/download objects.
+    // Consume complete fields so an adjacent channel's opening brace is never
+    // reached, even when that channel puts its id after version or downloads.
+    private static let jsonString = #""(?:[^"\\]|\\.)*""#
+    private static let flatObject = #"\{(?:[^{}\[\]"\\]|\#(jsonString))*\}"#
+    private static let flatArray = #"\[(?:[^{}\[\]"\\]|\#(jsonString)|\#(flatObject))*\]"#
+    private static let channelField =
+        #"\#(jsonString)\s*:\s*(?:\#(jsonString)|\#(flatArray)|\#(flatObject)|[0-9.eE+\-]+|true|false|null)\s*,\s*"#
+    private static let nightlyChannelStart =
+        #"\{\s*(?=(?:\#(channelField))*"id"\s*:\s*"nightly"\s*[,}])"#
+
     static let set = AppRecipeSet(
         family: "com-tencent-wechatdevtools",
         probes: [
@@ -60,12 +71,19 @@ enum com_tencent_wechatdevtools {
             bundleID: "com.tencent.wechatdevtools",
             url: URL(string: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/config.json")!,
             mode: .responseBody,
-            versionPattern: #""id":\s*"nightly"[\s\S]*?"version":\s*"([0-9]+(?:\.[0-9]+)+)""#,
+            versionPattern: #"\#(nightlyChannelStart)(?:\#(channelField))*?"version"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html"),
             changelogURL: URL(string: "https://developers.weixin.qq.com/miniprogram/dev/devtools/log.html#nightly"),
             install: VendorInstallSpec(
+                // When url points to the DMG, the same ARM64 row carries
+                // pkgurl. An absent PKG must stop at this downloads array.
                 urlSource: .bodyPattern(
-                    #""id":\s*"nightly"[\s\S]*?"url":\s*"(https://[^"]+_darwin_arm64\.pkg)""#),
+                    #"""
+                    (?x)
+                    \#(nightlyChannelStart)(?:\#(channelField))*?"downloads"\s*:\s*\[\s*
+                    (?:\#(flatObject)\s*,\s*)*?\{(?=[^{}]*"os"\s*:\s*"macOS")(?=[^{}]*"arch"\s*:\s*"ARM64")
+                    [^{}]*?"(?:pkgurl|url)"\s*:\s*"(https://[^"/]+/WechatWebDev/nightly/[^"]+_darwin_arm64\.pkg)"
+                    """#),
                 kind: .pkg),
             channel: .nightly),
         ],

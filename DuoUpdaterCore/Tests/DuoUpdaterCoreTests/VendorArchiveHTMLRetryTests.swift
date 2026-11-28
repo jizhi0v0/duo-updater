@@ -188,12 +188,14 @@ struct VendorArchiveHTMLRetryTests {
     }
 
     @Test(arguments: [
-        (version: "2.0.0", build: Optional<String>.none, accepted: true),
-        (version: "2.0.0", build: Optional("3"), accepted: false),
-        (version: "2.1.0", build: Optional<String>.none, accepted: false),
+        (version: "2.0.0", build: Optional<String>.none, source: "GitHub", exact: false, accepted: true),
+        (version: "2.0.0", build: Optional("3"), source: "GitHub", exact: false, accepted: false),
+        (version: "2.1.0", build: Optional<String>.none, source: "GitHub", exact: false, accepted: false),
+        (version: "2.1.0", build: Optional<String>.none, source: "Vendor", exact: true, accepted: false),
+        (version: "2.1.0", build: Optional<String>.none, source: "Vendor", exact: false, accepted: true),
     ])
-    func verifyInstallChecksTheSignedGitHubVersion(
-        expected: (version: String, build: String?, accepted: Bool)
+    func verifyInstallChecksTheAdvertisedSealedVersion(
+        expected: (version: String, build: String?, source: String, exact: Bool, accepted: Bool)
     ) async throws {
         let dir = try DigestOnlyInstallTests.scratch("github-version")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -206,7 +208,8 @@ struct VendorArchiveHTMLRetryTests {
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         let remote = RemoteVersion(
             shortVersion: expected.version, version: expected.build, marketingMatchesBundle: true,
-            downloadURL: server.url, sourceName: "GitHub", vendorInstallerKind: .zip)
+            downloadURL: server.url, sourceName: expected.source, vendorInstallerKind: .zip,
+            requiresExactPackageVersion: expected.exact)
 
         switch await ArtifactInspection.inspect(remote, bundleName: "Test", workDir: workDir) {
         case .success(let inspected):

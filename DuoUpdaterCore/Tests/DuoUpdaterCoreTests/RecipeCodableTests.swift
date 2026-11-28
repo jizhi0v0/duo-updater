@@ -175,6 +175,7 @@ struct RecipeCodableTests {
                     (.installedVersionJSONURL(queryParameter: "version"),
                      #"{"kind":"installedVersionJSONURL","queryParameter":"version"}"#),
                     (.longbridgeManifest, #"{"kind":"longbridgeManifest"}"#),
+                    (.opencodeRuneManifest, #"{"kind":"opencodeRuneManifest"}"#),
                     (.dockerAppcast, #"{"kind":"dockerAppcast"}"#),
                     (.jetBrainsIdeaEAP, #"{"kind":"jetBrainsIdeaEAP"}"#),
                     (.versionedDirectory(linkPattern: "(dir)(1.2)"),

@@ -21,7 +21,7 @@ PR 安装包可与 dev 副本并存。厂商只允许公开发行 ID 使用内�
 
 ## 一键安装
 
-读取清单里 `release.targets.macos-arm64-dmg` 对象的不可变路径和 SHA-256。该摘要随一键安装计划传入已有供应商安装器，与旧副本的 bundle ID 和签名团队校验一起使用。同份清单中的 `macos-arm64` 条目是内置更新器使用的 ZIP，具有自己的路径与摘要。
+按键读取清单里 `release.targets.macos-arm64-dmg` 对象。只接受路径内版本与 `release.version` 一致、路径内 SHA-256 与目标摘要一致的 DMG。归档摘要、旧副本的 bundle ID 和签名团队通过验证后，还要核对签名封存的 `CFBundleShortVersionString` 与清单发布版本完全一致。同份清单中的 `macos-arm64` 条目是内置更新器使用的 ZIP，具有自己的路径与摘要。
 
 ## Changelog
 

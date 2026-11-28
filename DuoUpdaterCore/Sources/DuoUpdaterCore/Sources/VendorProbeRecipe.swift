@@ -280,6 +280,8 @@ public struct VendorProbeRecipe: Sendable {
         /// GET Longbridge's manifest and scope the patterns to the top-level
         /// release before resolving its version, date, and installer.
         case longbridgeManifest
+        /// GET OpenCode (Rune)'s dev feed and select its fully rolled-out release and exact arm64 DMG.
+        case opencodeRuneManifest
         /// GET Docker Desktop's JSON appcast and scope the patterns to the
         /// selected release and its matching full Apple Silicon DMG.
         case dockerAppcast

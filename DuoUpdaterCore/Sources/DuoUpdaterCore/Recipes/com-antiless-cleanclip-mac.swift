@@ -1,7 +1,7 @@
 import Foundation
 
 enum com_antiless_cleanclip_mac {
-    private static let bundleID = "com.antiless.cleanclip.mac"
+    static let bundleID = "com.antiless.cleanclip.mac"
     private static let releaseNotes = URL(string: "https://cleanclip.cc/docs/changelog")!
     private static let version = #"[0-9]+\.[0-9]+\.[0-9]+"#
     private static let betaVersion = version + #"-beta\.[0-9]+"#

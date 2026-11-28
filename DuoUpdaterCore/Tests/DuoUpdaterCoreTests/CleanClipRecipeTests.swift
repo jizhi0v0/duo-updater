@@ -7,7 +7,7 @@ import Testing
     private static let bundleID = "com.antiless.cleanclip.mac"
     private static let stableDigest = "a5e4d694dbd97a1b5371e88bef148dc4e31311bf1f05fdda7693285bdafb088b"
 
-    @Test func installedChannelSelectsItsOwnOfficialDMG() async throws {
+    @Test func installedChannelSelectsAnOfficialDMGMatchingItsTag() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ReleaseFixture.self]
         let source = GitHubReleasesSource(
@@ -75,8 +75,12 @@ import Testing
             let stable = release("2.4.7", prerelease: false, digest: CleanClipRecipeTests.stableDigest)
             let beta = release("2.4.1-beta.1", prerelease: true)
             let olderBeta = release("2.2.0-beta.1", prerelease: true)
-            // An older beta deliberately comes before the latest beta in the list.
-            let payload: Any = url.path.hasSuffix("/latest") ? stable : [stable, olderBeta, beta]
+            // Both newer releases carry a stale DMG named for a different tag.
+            let mismatchedStable = release("2.4.8", prerelease: false, assetVersion: "2.4.7")
+            let mismatchedBeta = release("2.4.2-beta.1", prerelease: true, assetVersion: "2.4.1-beta.1")
+            let payload: Any = url.path.hasSuffix("/latest")
+                ? mismatchedStable
+                : [mismatchedStable, stable, olderBeta, mismatchedBeta, beta]
             let response = HTTPURLResponse(
                 url: url, statusCode: 200, httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"])!
@@ -87,10 +91,12 @@ import Testing
 
         override func stopLoading() {}
 
-        private func release(_ version: String, prerelease: Bool, digest: String? = nil) -> [String: Any] {
+        private func release(
+            _ version: String, prerelease: Bool, digest: String? = nil, assetVersion: String? = nil
+        ) -> [String: Any] {
             let upstream = "https://github.com/CleanClip/CleanClipApp/releases"
             let assets: [[String: Any]] = ["zip", "dmg"].map { archiveType in
-                let name = "CleanClip-\(version).\(archiveType)"
+                let name = "CleanClip-\(assetVersion ?? version).\(archiveType)"
                 var asset: [String: Any] = [
                     "name": name,
                     "browser_download_url": "\(upstream)/download/\(version)/\(name)",

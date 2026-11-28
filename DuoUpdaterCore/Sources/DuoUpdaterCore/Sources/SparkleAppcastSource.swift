@@ -37,7 +37,9 @@ public struct SparkleAppcastSource: UpdateSource {
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
-        guard let feedURL = app.sparkleFeedURL else { return nil }
+        guard let feedURL = app.sparkleFeedURL,
+              !com_antiless_cleanclip_mac.usesObsoleteAppcast(app, feedURL: feedURL)
+        else { return nil }
 
         let request = Self.feedRequest(url: feedURL, headers: app.sparkleFeedHeaders)
 

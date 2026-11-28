@@ -1739,12 +1739,16 @@ public struct GitHubReleasesSource: UpdateSource {
         }
 
         let isZeaburDesktop = rule.bundleID == com_zeabur_oss_desktop.bundleID
-        let pinsDMGToTag = isZeaburDesktop || rule.bundleID == com_burakgon_openscreens.bundleID
+        let isCleanClip = rule.bundleID == com_antiless_cleanclip_mac.bundleID
+        let pinsDMGToTag = isZeaburDesktop || isCleanClip || rule.bundleID == com_burakgon_openscreens.bundleID
 
         // These publishers generate exactly one Mac DMG named from the tag.
         // A signed DMG from another release cannot establish this version.
         func eligibleAssets(in release: Release) -> [(name: String, url: URL, size: Int64?)] {
             guard pinsDMGToTag else { return release.assets }
+            if isCleanClip {
+                return release.assets.filter { $0.name == "CleanClip-\(release.tag).dmg" }
+            }
             guard release.tag.hasPrefix("v") else { return [] }
             let name = isZeaburDesktop
                 ? "zeabur-desktop-\(release.tag)-darwin-arm64.dmg"

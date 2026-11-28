@@ -261,7 +261,10 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// `bundleID` stays the id on disk; `AppRestarter.runningInstances` widens
     /// its process query with `BundleIDMigration.relatedBundleIDs` on its own.
     public var recipeBundleID: String? {
-        bundleID.map { BundleIDMigration.recipeBundleID(for: $0, installedVersion: shortVersion) }
+        // Mixxx snapshots share the stable bundle ID and plist versions. A
+        // missing executable verdict must not make one eligible for stable recipes.
+        guard bundleID != MixxxBuild.bundleID || channelIsAuthoritative else { return nil }
+        return bundleID.map { BundleIDMigration.recipeBundleID(for: $0, installedVersion: shortVersion) }
     }
 
     /// A Toolbox-managed install we should route through its `VendorProbeRecipe`

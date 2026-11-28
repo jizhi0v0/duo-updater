@@ -286,6 +286,7 @@ let remotingName = mozillaINI.remotingName
 // Same production helper and bundle ids as `AppScanner`.
 let hyperFramesBuild = bundleID.map(AppScanner.hyperFramesBundleIDs.contains) == true
     ? AppScanner.hyperFramesBuildNumber(info) : nil
+let xmindBuild = AppScanner.xmindArchiveBuild(bundleID: bundleID, bundleBuild: buildVersion)
 
 // WeChat DevTools keeps its real version and channel in its own `package.json`;
 // since 2.02 the Info.plist read above is Electron's stock one (`com.github.Electron`
@@ -347,7 +348,9 @@ let blender = bundleID == BlenderBuildInfo.bundleID ? BlenderBuildInfo.read(bund
 // makes. See `LapceBuild`. AppScanner applies a ChannelBinding after it, so a
 // binding wins here too.
 let lapce = bundleID == LapceBuild.bundleID ? LapceBuild.channel(bundleAt: appPath) : nil
-let detected = weChatDevTools?.channel ?? blender?.channel ?? bound?.channel ?? lapce ?? inferred
+let mixxx = bundleID == MixxxBuild.bundleID
+    ? MixxxBuild.channel(bundleAt: appPath, version: shortVersion) : nil
+let detected = weChatDevTools?.channel ?? blender?.channel ?? bound?.channel ?? lapce ?? mixxx ?? inferred
 
 print("""
 
@@ -383,12 +386,13 @@ let app = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
-    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
+    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild ?? xmindBuild,
     vendorBuildDate: blender?.builtAt,
     path: appPath,
     isMASApp: false,
     sparkleFeedURL: nil,
-    releaseChannel: detected
+    releaseChannel: detected,
+    channelIsAuthoritative: mixxx != nil
 )
 
 let probe = VendorProbeSource()
@@ -503,7 +507,7 @@ let chainApp = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
-    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
+    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild ?? xmindBuild,
     vendorBuildDate: blender?.builtAt,
     path: appPath,
     isMASApp: false,
@@ -522,7 +526,7 @@ let chainApp = InstalledApp(
     hasSparkleUpdater: FileManager.default.fileExists(
         atPath: appPath.appendingPathComponent("Contents/Frameworks/Sparkle.framework").path),
     releaseChannel: detected,
-    channelIsAuthoritative: bound != nil || weChatDevTools != nil || lapce != nil)
+    channelIsAuthoritative: bound != nil || weChatDevTools != nil || lapce != nil || mixxx != nil)
 
 // `SourceStack.make`, not a hand-copied list: a copy here once dropped
 // `ElectronManifestSource` and ran Homebrew/Sparkle in the wrong order, so an

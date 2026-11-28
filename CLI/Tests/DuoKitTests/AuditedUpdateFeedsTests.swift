@@ -78,7 +78,7 @@ import Testing
     }
 
     @Test func allCatalogURLsArePublicHTTPSWithoutCredentials() {
-        #expect(AuditedUpdateFeeds.entries.count == 90)
+        #expect(AuditedUpdateFeeds.entries.count == 93)
         for entry in AuditedUpdateFeeds.entries {
             let url: URL?
             if case .electron(let config) = entry.source {
@@ -126,7 +126,7 @@ import Testing
         let excludedDocuments = Set(AuditedUpdateFeeds.uncoveredRows.map(\.auditDocument))
 
         #expect(electronEntries.count == 12)
-        #expect(sparkleEntries.count == 78)
+        #expect(sparkleEntries.count == 81)
         #expect(electronDocuments == electronRows)
         #expect(sparkleDocuments.isDisjoint(with: excludedDocuments))
         #expect(sparkleDocuments.union(excludedDocuments) == sparkleRows)
@@ -315,6 +315,22 @@ import Testing
         }
     }
 
+    @Test func onlyofficeUsesSeparateSparkleTargetsForAllThreeInstalledFeedGroups() {
+        let entries = AuditedUpdateFeeds.entries.filter { $0.bundleID == "asc.onlyoffice.ONLYOFFICE" }
+        let expectedFeeds = [
+            "sparkle:asc.onlyoffice.ONLYOFFICE:stable:arm64": "/install/desktop/editors/mac/arm/onlyoffice.xml",
+            "sparkle:asc.onlyoffice.ONLYOFFICE:stable:intel": "/install/desktop/editors/mac/x86_64/onlyoffice.xml",
+            "sparkle:asc.onlyoffice.ONLYOFFICE:stable:legacy-intel": "/install/desktop/editors/mac/onlyoffice.xml",
+        ]
+        #expect(Set(entries.map(\.recipeID)) == Set(expectedFeeds.keys))
+        for entry in entries {
+            let details = sparkleDetails(entry)
+            #expect(details?.feed.path == expectedFeeds[entry.recipeID])
+            #expect(details?.publicKey == "N2LfKoNN6LkD5qNMjt+lEh6LYrQMEFNCEXQ3Kk6nTlM=")
+            #expect(details?.channelNames.isEmpty == true)
+        }
+    }
+
     @Test func everyKnownPublicKeyIsAValidSparkleKeyAndEveryMissingOneIsExplained() {
         let sparkleEntries = AuditedUpdateFeeds.entries.filter { sparkleDetails($0) != nil }
         let keyedBundleIDs = Set(sparkleEntries.compactMap { item -> String? in
@@ -326,7 +342,7 @@ import Testing
         let gaps = AuditedUpdateFeeds.unavailablePublicKeys
         let gapBundleIDs = Set(gaps.map(\.bundleID))
 
-        #expect(keyedBundleIDs.count == 25)
+        #expect(keyedBundleIDs.count == 26)
         #expect(missingBundleIDs.count == 36)
         #expect(gapBundleIDs == missingBundleIDs)
         #expect(gaps.count == gapBundleIDs.count)

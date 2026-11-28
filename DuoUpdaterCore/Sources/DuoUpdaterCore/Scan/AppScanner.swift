@@ -829,6 +829,7 @@ public struct AppScanner: Sendable {
 
         let hyperFramesBuild = bundleID.map(Self.hyperFramesBundleIDs.contains) == true
             ? Self.hyperFramesBuildNumber(plist) : nil
+        let xmindBuild = Self.xmindArchiveBuild(bundleID: bundleID, bundleBuild: buildVersion)
 
         let toolboxTool = toolbox.tool(forApp: bundleURL)
         let displayShortVersion: String = {
@@ -924,6 +925,12 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
+        // Mixxx records its snapshot track in the main executable.
+        if bundleID == MixxxBuild.bundleID,
+           let channel = MixxxBuild.channel(bundleAt: bundleURL, version: shortVersion) {
+            releaseChannel = channel
+            channelIsAuthoritative = true
+        }
         // The direct and Mac App Store editions of Acorn 8 share an ID. The
         // direct updater's preference is not a channel choice for a store copy.
         let isStoreAcorn = (isMAS || isTestFlight)
@@ -968,7 +975,7 @@ public struct AppScanner: Sendable {
             bundleID: bundleID,
             shortVersion: displayShortVersion,
             buildVersion: effectiveBuildVersion,
-            vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
+            vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild ?? xmindBuild,
             vendorBuildDate: blender?.builtAt,
             path: bundleURL,
             isMASApp: isMAS,
@@ -1086,6 +1093,12 @@ public struct AppScanner: Sendable {
               !build.isEmpty, build.allSatisfy(\.isNumber)
         else { return nil }
         return build
+    }
+
+    /// Xmind's DMG filenames name the timestamp portion of the bundle build.
+    public static func xmindArchiveBuild(bundleID: String?, bundleBuild: String?) -> String? {
+        guard bundleID == net_xmind_vana_app.bundleID else { return nil }
+        return net_xmind_vana_app.archiveBuild(bundleBuild)
     }
 
     /// HyperFrames' build number, from the custom `HFBuildLabel` key in its

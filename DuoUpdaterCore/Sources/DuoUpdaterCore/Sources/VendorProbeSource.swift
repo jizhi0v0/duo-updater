@@ -1694,6 +1694,10 @@ public struct VendorProbeSource: UpdateSource {
         // A `bundle` pair replaces both: it carries the app's own marketing
         // version and build, either from its Info.plist or from Docker's appcast.
         let shortVersion = bundle.map(\.marketing) ?? (recipe.versionIsBuild ? display : version)
+        // The Xmind redirect names both the exact bundle marketing version and
+        // the archive timestamp. A later repack cannot demote the marketing version.
+        let marketingMatchesBundle = bundle != nil
+            || (recipe.bundleID == net_xmind_vana_app.bundleID && display != nil)
         // A `headBuildPattern` recipe keeps its marketing version in `shortVersion`
         // and puts the head's build id beside it; that id is the one `lineage`
         // lists (`BuildLineage.head`), set by the caller from the same entry.
@@ -1710,7 +1714,7 @@ public struct VendorProbeSource: UpdateSource {
                 shortVersion: shortVersion,
                 version: buildVersion,
                 buildNamespace: namespace,
-                marketingMatchesBundle: bundle != nil,
+                marketingMatchesBundle: marketingMatchesBundle,
                 downloadURL: plan.url,
                 // The install plan's URL is the artifact we fetch — handing it to
                 // a browser downloads a pkg instead of opening a page. The recipe's
@@ -1745,7 +1749,7 @@ public struct VendorProbeSource: UpdateSource {
             shortVersion: shortVersion,
             version: buildVersion,
             buildNamespace: namespace,
-            marketingMatchesBundle: bundle != nil,
+            marketingMatchesBundle: marketingMatchesBundle,
             downloadURL: recipe.downloadURL ?? resolvedDownload,
             // Only the curated `downloadURL` is a page. `resolvedDownload` falls
             // back to the probe endpoint, which is an API/redirect that serves a

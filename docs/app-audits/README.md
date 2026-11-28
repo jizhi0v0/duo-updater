@@ -102,6 +102,10 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Multi-channel families (audit covers all channels)
 
+- [x] [**Xmind**](net-xmind-vana-app.md) · `net.xmind.vana.app` — P(stable/beta) C · 官网两轨 versioned DMG 与结构化日志 · 2026-11-28
+
+- [x] [**CleanClip**](com-antiless-cleanclip-mac.md) · `com.antiless.cleanclip.mac` — G(stable/beta) C · 官网两轨 universal DMG 与结构化日志 · 2026-11-28
+
 - [x] [**Zeabur Desktop**](com-zeabur-oss-desktop.md) · `com.zeabur.oss.desktop` — G（Stable / Beta 含 RC，arm64 DMG 一键更新，预发布可晋升到 Stable）· 2026-11-23
 - [x] [**Athas**](com-code-athas.md) · `com.code.athas` — P(stable/beta) C · 两代共用官方更新 API。参与 Beta 的 Homebrew 副本跟随厂商渠道 · 2026-11-23
 - [x] [**Private Internet Access**](com-privateinternetaccess-vpn.md) · `com.privateinternetaccess.vpn` — P(stable/beta) · 官方稳定版灰色 Update 打开厂商安装器 · Beta 可检测，稳定版可作为回落 · 2026-11-22
@@ -150,6 +154,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] **Teams** · `com.microsoft.teams2` — P(stable, one-click) · ⏭ pkg/sudo
 
 ## Single-channel — VendorProbe + optional Changelog
+
+- [x] [**Mixxx**](org-mixxx-mixxx.md) · `org.mixxx.mixxx` — P+C · 官网 ARM 正式版 DMG 和手册结构化日志 · 2026-11-28
 
 - [x] [**GitButler**](com-gitbutler-app.md) · `com.gitbutler.app` — P+C · 官网 ARM64 正式轨与版本化 tar.gz · 本机 0.23.4 → 0.23.5 一键和结构化日志通过 · 2026-11-28
 - [x] [**Kodi**](org-xbmc-kodi.md) · `org.xbmc.kodi` — P+C · 官网 ARM64 正式版 DMG 和 RSS 日志 · 本机 21.2 → 21.3 一键和结构化日志通过 · 2026-11-28
@@ -438,6 +444,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Mayoi**](dev-mayoi-editor.md) · `dev.mayoi.editor` — C（历史读仓库 `CHANGELOG.md`，19 版全）· 检测与 tar.gz/delta 一键走 MyGoUpdateSource · Developer ID + 公证 · MyGo delta ✓ · 真包 0.1.0/0.10.0/0.11.0 ✓ · 一键端到端 ✓ · 2026-10-18
 
 ## Sparkle-covered (auto-detected, no custom recipe)
+
+- [x] [**ONLYOFFICE**](asc-onlyoffice-ONLYOFFICE.md) · `asc.onlyoffice.ONLYOFFICE` — S（官网包内 ARM、Intel 和旧 Intel appcast）+ C（官方版本历史与迁移提示）· 2026-11-28
 
 - [x] [**Royal TSX**](com-lemonmojo-RoyalTSX-App.md) · `com.lemonmojo.RoyalTSX.App` — S（v6 stable、v26 beta 各用包内 feed）· v6 一键 DMG 实测 · Sparkle HTML 日志保留标题和首条 · 2026-11-28
 - [x] [**Ukelele**](org-sil-ukelele.md) · `org.sil.ukelele` — S（补全厂商 feed，隔离 beta 条目）+ C（厂商版本历史）· 2026-11-28

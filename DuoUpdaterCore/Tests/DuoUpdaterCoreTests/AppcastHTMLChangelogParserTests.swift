@@ -150,12 +150,12 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         let changelog = try XCTUnwrap(SparkleAppcastSource.structuredChangelog(
             from: [item], bundleID: "com.lemonmojo.RoyalTSX.App"))
         let entry = try XCTUnwrap(changelog.entries.first)
-        XCTAssertEqual(Array(entry.items.suffix(3)), [
+        XCTAssertEqual(entry.items, [
             "Several fixes that improve macOS 27 compatibility",
             "Fixed a bug that could cause the app to freeze when opening Properties in full screen with the dashboard hidden and the navigation panel set to auto-hide",
             "Several small bugfixes",
         ])
-        XCTAssertEqual(Array(entry.content.suffix(4)), [.heading("Bugfixes")] + entry.items.suffix(3).map { .note($0) })
+        XCTAssertEqual(entry.content, [.heading("Bugfixes")] + entry.items.map { .note($0) })
     }
 
     // MARK: - Fork (flat <ul><li>, no headings)

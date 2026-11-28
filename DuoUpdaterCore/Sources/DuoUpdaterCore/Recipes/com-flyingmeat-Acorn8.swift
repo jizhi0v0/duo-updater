@@ -32,12 +32,15 @@ enum com_flyingmeat_Acorn8 {
         source: URL(string: "https://flyingmeat.com/acorn/releasenotes.html")!,
         entryPattern:
             #"<div\s+class="releaseT">\s*<div\s+class="releaseInfo">\s*(?:<a\b[^>]*>\s*)?<div\s+class="releaseTitleT">\s*Acorn\s+(?<version>8(?:\.[0-9]+)*(?:b[0-9]+)?)\s*</div>\s*(?:<div\s+class="releaseDate">[^<]*</div>\s*)?</div>(?<body>.*?)(?=<div\s+class="releaseT">|</body>|\z)"#,
-        itemPatterns: [#"<li\b[^>]*>(?<item>.*?)</li>"#],
+        itemPatterns: [#"<(li|p|pre)\b[^>]*>(?<item>.*?)</\1\s*>"#],
         headingPattern: #"<h3\b[^>]*>\s*#?\s*(?<heading>.*?)</h3>"#)
 
     static func changelog(for item: SparkleAppcastItem, feedURL: URL) -> Changelog? {
-        guard let html = item.descriptionHTML, let version = item.shortVersionString,
-              let log = ChangelogExtractor.extract(from: html, using: notes),
+        guard let html = item.descriptionHTML, let version = item.shortVersionString else { return nil }
+        // The feed carries commented-out draft notes inside the HTML.
+        let publishedHTML = html.replacingOccurrences(
+            of: #"(?s)<!--.*?(?:-->|\z)"#, with: "", options: .regularExpression)
+        guard let log = ChangelogExtractor.extract(from: publishedHTML, using: notes),
               let head = log.entries.first
         else { return nil }
         // Preview notes may label a section by the release series (e.g. 8.8)

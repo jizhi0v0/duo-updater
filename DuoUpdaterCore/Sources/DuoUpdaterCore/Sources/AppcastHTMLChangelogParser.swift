@@ -233,10 +233,10 @@ enum AppcastHTMLChangelogParser {
     // MARK: - Internals
 
     /// Block-level tags a gap (the HTML between two heading/`<li>` matches) is cut
-    /// into paragraphs on. `<br>` is deliberately absent: a line break inside one
-    /// paragraph joins with a space, as it does inside an `<li>`.
+    /// into paragraphs on. A stylesheet `<link>` is metadata at a gap boundary.
+    /// `<br>` stays inside its paragraph, where it joins with a space.
     private static let gapBlockRegex = try? NSRegularExpression(
-        pattern: #"<\s*/?\s*(?:p|div|ul|ol|li|h[1-6]|hr|blockquote|section|table|tr|pre)\b[^>]*>"#,
+        pattern: #"<\s*/?\s*(?:p|div|ul|ol|li|link|h[1-6]|hr|blockquote|section|table|tr|pre)\b[^>]*>"#,
         options: [.caseInsensitive])
 
     /// The readable paragraphs in a gap, in order. Dropped, because they are

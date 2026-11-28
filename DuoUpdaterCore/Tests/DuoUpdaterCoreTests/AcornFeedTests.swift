@@ -42,6 +42,29 @@ struct AcornFeedTests {
         #expect(app.changelog(for: Self.item("8.8b1", html: malformed + stable), feedURL: app.betaFeed) == nil)
     }
 
+    @Test func historicalAutomationNotesKeepParagraphsAndStandaloneCodeInOrder() throws {
+        let html = """
+        <div class="releaseT"><div class="releaseInfo">
+          <div class="releaseTitleT">Acorn 8.6</div>
+        </div>
+        <h3># Changes</h3><ul><li>Redrawing is much faster.</li></ul>
+        <h3># New Automation and JavaScript Things</h3>
+        <p>Lots of interesting JavaScript things this time around.</p>
+        <!-- <li>An unpublished interface change.</li> -->
+        <pre>print(JSON.stringify(documentPaths, null, 2));</pre>
+        <p>This opens up a whole layer of possibilities for automation.</p>
+        </div>
+        """
+        let log = try #require(app.changelog(for: Self.item("8.6", html: html), feedURL: app.stableFeed))
+        #expect(log.entries.first?.content == [
+            .heading("Changes"), .note("Redrawing is much faster."),
+            .heading("New Automation and JavaScript Things"),
+            .note("Lots of interesting JavaScript things this time around."),
+            .note("print(JSON.stringify(documentPaths, null, 2));"),
+            .note("This opens up a whole layer of possibilities for automation."),
+        ])
+    }
+
     private static func item(_ version: String, html: String) -> SparkleAppcastItem {
         SparkleAppcastItem(shortVersionString: version, descriptionHTML: html,
                            pubDate: "Mon, 09 Nov 2026 12:29:08 CDT")

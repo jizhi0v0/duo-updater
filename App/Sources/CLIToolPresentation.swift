@@ -351,7 +351,7 @@ enum CLIToolPresentation {
                          value: signature(agy.signature, signer: "Google LLC",
                                           team: AntigravityCLIInstall.teamIdentifier))]
         case .managed(let item): return facts(of: item, status: status, home: home)
-        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome, .terminalMac, .leaf, .fixStorage, .multica, .nospeaker: return []
+        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome, .terminalMac, .leaf, .fixStorage, .multica, .nospeaker, .kido: return []
         }
     }
 

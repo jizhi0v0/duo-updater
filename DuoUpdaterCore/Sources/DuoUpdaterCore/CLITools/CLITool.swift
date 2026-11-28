@@ -81,6 +81,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     /// Multica's standalone, GitHub-distributed agent CLI.
     case multica
     case nospeaker
+    /// Standalone kido from the vendor's script and release archive.
+    case kido
     /// Every item any manager keeps — mise's tools, uv's tools and Pythons,
     /// pipx venvs, nvm's and fnm's Nodes, pyenv's and rbenv's lines, cargo's
     /// and go's installs (`CLITools/Managed/`). Which manager is a value on
@@ -127,6 +129,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .fixStorage: return "fix-storage"
         case .multica: return "Multica"
         case .nospeaker: return "nospeaker"
+        case .kido: return "kido"
         case .pnpm: return "pnpm"
         case .yarn: return "Yarn"
         // Never a row's title: a managed row is named by its item, its group
@@ -223,11 +226,9 @@ public enum CLIToolWithheld: String, Sendable, Codable {
     /// The tool has already downloaded the update and installs it itself the next
     /// time it starts (Junie's `pending-update.json`).
     case staged
-    /// The update is the vendor's own upgrade command — `opencode upgrade` for
-    /// OpenCode 2, and `opencode upgrade --major` across from OpenCode 1. It runs
-    /// the installed binary and, across the major line, removes the old one, so
-    /// the row reports the version and hands the command over instead
-    /// (`OpencodeCheck`).
+    /// The tool manages its own multi-file upgrade. Both `opencode upgrade`
+    /// and `kido upgrade` run the installed binary. Show the vendor command
+    /// for the user to run from a terminal.
     case ownUpgrade
 }
 
@@ -316,6 +317,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         case fixStorage(FixStorageInstall)
         case multica(MulticaInstall)
         case nospeaker(NospeakerInstall)
+        case kido(KidoInstall)
         /// Any manager's item (`CLITools/Managed/`).
         case managed(ManagedItem)
     }
@@ -423,6 +425,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case fixStorage
         case multica
         case nospeaker
+        case kido
         case pnpm
         case yarn
         /// A manager and the installs of it the check found (`ManagedProvider`).

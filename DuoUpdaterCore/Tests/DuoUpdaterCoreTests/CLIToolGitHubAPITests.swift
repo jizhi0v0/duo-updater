@@ -13,7 +13,7 @@ struct CLIToolGitHubAPITests {
     @Test func exactlyExpectedStandaloneProvidersReadTheGitHubAPI() {
         let providers = CLITools.standaloneProviders()
         #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases).subtracting([.managed]))
-        #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm, .terminalMac, .multica, .nospeaker])
+        #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm, .terminalMac, .multica, .nospeaker, .kido])
     }
 
     /// No manager's check asks api.github.com from our process (design §3.4):

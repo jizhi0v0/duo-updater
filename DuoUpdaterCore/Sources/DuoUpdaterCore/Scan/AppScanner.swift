@@ -924,7 +924,7 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
-        // Mixxx's snapshot track is in the executable, not the Info.plist.
+        // Mixxx records its snapshot track in the main executable.
         if bundleID == MixxxBuild.bundleID,
            let channel = MixxxBuild.channel(bundleAt: bundleURL, version: shortVersion) {
             releaseChannel = channel

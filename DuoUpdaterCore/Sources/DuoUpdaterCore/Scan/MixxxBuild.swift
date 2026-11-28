@@ -8,8 +8,9 @@ public enum MixxxBuild {
     /// a Qt UTF-16 string, for example "2.6-beta-505-g…". A version-shaped ASCII
     /// string such as "2.6.0-beta" can be a database migration key in any build.
     public static func channel(bundleAt bundleURL: URL, version: String?) -> ReleaseChannel? {
-        guard let parts = version?.split(separator: "."), parts.count == 3,
-              parts.allSatisfy({ $0.utf8.allSatisfy { (48...57).contains($0) } })
+        guard let parts = version?.split(separator: ".", omittingEmptySubsequences: false),
+              parts.count == 3,
+              parts.allSatisfy({ !$0.isEmpty && $0.utf8.allSatisfy { (48...57).contains($0) } })
         else { return nil }
         let series = parts.prefix(2).joined(separator: ".")
         for channel in [ReleaseChannel.beta, .alpha] {
@@ -17,8 +18,12 @@ public enum MixxxBuild {
             // number after the channel separator. Match that prefix only.
             let prefix = "\0\(series)-\(channel.rawValue)-"
             let marker = prefix.map { "\($0)\0" }.joined()
-            if ExecutableMarker.found(marker, inMainExecutableOf: bundleURL) { return channel }
+            switch ExecutableMarker.presence(marker, inMainExecutableOf: bundleURL) {
+            case .present: return channel
+            case .absent: continue
+            case .unknown: return nil
+            }
         }
-        return nil
+        return .stable
     }
 }

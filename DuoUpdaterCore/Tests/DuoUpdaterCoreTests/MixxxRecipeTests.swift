@@ -43,6 +43,13 @@ struct MixxxRecipeTests {
         let checksumOutsideCard = entry.replacingOccurrences(of: #"<ul class="download-meta">"#,
             with: #"<ul class="download-meta"></ul><ul class="download-meta">"#)
         #expect(VendorProbeRecipe.extractVersion(from: checksumOutsideCard, pattern: checksum) == nil)
+        #expect(VendorProbeRecipe.extractVersion(from: checksumOutsideCard, pattern: recipe.versionPattern) == nil)
+
+        let staleDigest = entry.replacingOccurrences(
+            of: "\(stableURL).sha256sum", with: "https://downloads.mixxx.org/releases/2.5.4/mixxx-2.5.4-macosarm.dmg.sha256sum")
+        #expect(VendorProbeRecipe.extractVersion(from: staleDigest, pattern: recipe.versionPattern) == nil)
+        let missingDigest = entry.replacingOccurrences(of: sha256, with: "")
+        #expect(VendorProbeRecipe.extractVersion(from: missingDigest, pattern: recipe.versionPattern) == nil)
     }
 
     @Test func manualKeepsReleasedVersionsAndOriginalHeadings() throws {
@@ -93,7 +100,14 @@ struct MixxxRecipeTests {
         let beta = try bundle("2.6.0", gitDescribe: "2.6-beta-505-g71c5dee15c")
         let alpha = try bundle("2.7.0", gitDescribe: "2.7-alpha-450-gf8d7c4e818")
         let unrelated = try bundle("2.6.0", gitDescribe: "2.6-beta-505-g71c5dee15c", bundleID: "org.example.other")
-        #expect(scanner.readApp(at: stable)?.releaseChannel == .stable)
+        let missing = try bundle("2.6.0", gitDescribe: "2.6-beta-505-g71c5dee15c")
+        try FileManager.default.removeItem(at: missing.appendingPathComponent("Contents/MacOS/Mixxx"))
+        let stableCopy = try #require(scanner.readApp(at: stable))
+        let unclassifiedCopy = try #require(scanner.readApp(at: missing))
+        #expect(stableCopy.releaseChannel == .stable)
+        #expect(stableCopy.recipeBundleID == MixxxBuild.bundleID)
+        #expect(unclassifiedCopy.bundleID == MixxxBuild.bundleID)
+        #expect(unclassifiedCopy.recipeBundleID == nil)
         #expect(scanner.readApp(at: beta)?.releaseChannel == .beta)
         #expect(scanner.readApp(at: alpha)?.releaseChannel == .alpha)
         #expect(scanner.readApp(at: unrelated)?.releaseChannel == .stable)

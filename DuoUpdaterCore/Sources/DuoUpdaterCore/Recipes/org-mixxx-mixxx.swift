@@ -6,18 +6,26 @@ enum org_mixxx_mixxx {
     private static let armButton = #"<a\s+class="button button-primary package-macosarm"\s+href=""#
     private static let releaseDirectory = #"https://downloads\.mixxx\.org/releases/"#
     private static let version = #"[0-9]+\.[0-9]+\.[0-9]+"#
+    private static let archive = #"macosarm\.dmg"#
+    private static let cardMetadata = #"[^>]*>[^<]*</a>\s*<ul class="download-meta">(?:(?!</ul>)[\s\S])*?"#
+    private static let checksumTitle = #"<li title=""#
+    private static let checksumLink = #""\s*>\s*<img[^>]*alt="SHA256 Checksum"[^>]*>\s*<a href=""#
+    private static let checksum = #"[0-9a-f]{64}"#
 
     static let set = AppRecipeSet(
         family: "org-mixxx-mixxx",
         probes: [
             // History: docs/app-audits/org-mixxx-mixxx.md#历史与实测
-            // Use the ARM release button, and require the same version in both
-            // the directory and filename. Snapshot buttons use /snapshots/.
+            // Use the ARM release button. The download and the adjacent digest
+            // link must both repeat the same release version. If the digest
+            // disappears or refers to another DMG, the probe has no answer.
             VendorProbeRecipe(
                 bundleID: MixxxBuild.bundleID,
                 url: downloads,
                 mode: .responseBody,
-                versionPattern: #"\A\#(armButton)\#(releaseDirectory)(\#(version))/mixxx-\1-macosarm\.dmg""#,
+                versionPattern: #"\A\#(armButton)\#(releaseDirectory)(\#(version))/mixxx-\1-\#(archive)""#
+                    + cardMetadata + checksumTitle + checksum + checksumLink
+                    + #"\#(releaseDirectory)\1/mixxx-\1-\#(archive)\.sha256sum""#,
                 downloadURL: downloads,
                 changelogURL: notes,
                 entryStartPattern: armButton,
@@ -25,9 +33,9 @@ enum org_mixxx_mixxx {
                     urlSource: .versionTemplate(
                         "https://downloads.mixxx.org/releases/{version}/mixxx-{version}-macosarm.dmg"),
                     kind: .dmg,
-                    checksumPattern: #"\A\#(armButton)[^"]+"[^>]*>[^<]*</a>\s*<ul class="download-meta">"#
-                        + #"(?:(?!</ul>)[\s\S])*?<li title="([0-9a-f]{64})">\s*"#
-                        + #"<img[^>]*alt="SHA256 Checksum"[^>]*>\s*<a href="\#(releaseDirectory)\#(version)/mixxx-\#(version)-macosarm\.dmg\.sha256sum""#,
+                    checksumPattern: #"\A\#(armButton)[^"]+""# + cardMetadata + checksumTitle
+                        + "(\(checksum))" + checksumLink
+                        + #"\#(releaseDirectory)\#(version)/mixxx-\#(version)-\#(archive)\.sha256sum""#,
                     checksumFormat: .sha256Hex),
                 hostRequirement: .init(architectures: [.arm64]),
                 installedVersionPattern: #"\A\#(version)\z"#),

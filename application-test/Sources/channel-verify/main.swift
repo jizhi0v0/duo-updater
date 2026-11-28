@@ -524,7 +524,7 @@ let chainApp = InstalledApp(
     hasSparkleUpdater: FileManager.default.fileExists(
         atPath: appPath.appendingPathComponent("Contents/Frameworks/Sparkle.framework").path),
     releaseChannel: detected,
-    channelIsAuthoritative: bound != nil || weChatDevTools != nil || lapce != nil)
+    channelIsAuthoritative: bound != nil || weChatDevTools != nil || lapce != nil || mixxx != nil)
 
 // `SourceStack.make`, not a hand-copied list: a copy here once dropped
 // `ElectronManifestSource` and ran Homebrew/Sparkle in the wrong order, so an

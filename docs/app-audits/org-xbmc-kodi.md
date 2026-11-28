@@ -18,8 +18,12 @@
 - `changelog:org.xbmc.kodi:stable` 读取 [Kodi 官方 RSS](https://kodi.tv/rss.xml) 的完整文章正文。当前两篇 Omega 点更新文章以粗体段落命名变更类别，后接条目。没有条目的正文不会成为结构化条目。
 - [候选版、测试版](https://mirrors.kodi.tv/releases/osx/arm64/)及 [夜版](https://mirrors.kodi.tv/nightlies/osx/arm64/)与正式版分开分发。已验的 master 夜版和正式 Alpha 都使用 Alpha 版本后缀，不能靠该字段区分两者。本批只为官网正式版登记探测、安装和日志夜扫。
 
+2026-11-28，本批用签名 Release CLI 对正式轨运行 `duo verify --vendor --changelog` 和 `duo verify-install --full`，该应用的版本源、日志和安装包均为 `ok`。
+
 ## 历史与实测
 
 2026-11-28，官网 21.2 与 21.3 的真实 ARM64 DMG 均通过严格签名与公证检查，并与官网同名 `SHA256` 文件吻合。Team ID 为 `QR7RHK8K4X`。安装包文件名提供点分营销版本，包内 `CFBundleShortVersionString` 分别是 `21.2.`、`21.3.`，`CFBundleVersion` 则是日期与提交摘要。比较沿用现有版本比较器，末尾点不产生额外数值分量。
 
 同日检查官网候选版 [Piers RC 2](https://kodi.tv/article/kodi-22-piers-rc-2/) 与 master 夜版真实 ARM64 包，两者与正式版同 bundle ID 和 Team，营销版本分别为 `22.0.rc2` 和 `23.0.alpha1`。Beta 2 的后缀由 [厂商源码的版本标签](https://github.com/xbmc/xbmc/blob/22.0b2-Piers/version.txt)给出。RSS 使用生产 UA 读到 [21.3](https://kodi.tv/article/kodi-21-3-omega-release/) 与 [21.2](https://kodi.tv/article/kodi-21-2-omega-release/) 的正式版正文和日期，分别提取 25、35 个条目和 9、11 个章节。
+
+2026-11-28，在 Apple Silicon、macOS 27.3 上用签名 Release CLI 验证 21.2 → 21.3。官网下载 75,971,665 字节，停用副本实际原地替换成功。升级后复查为最新，bundle ID、原厂 Team、严格签名和公证均通过。生产日志路径读出 两个正式发布版本，21.3 的 25 条说明及 9 个原厂章节。已用官网 RC2 和 master 真包复查，分别识别为 RC 和 Alpha，正式轨未给出更新和日志。

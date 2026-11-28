@@ -19,8 +19,12 @@
 - `vendor:org.ppsspp.ppsspp:stable` 检测当前免费 DMG，`install:vendor:org.ppsspp.ppsspp:stable` 检查下载和包内身份。官网下载页没有提供独立的 DMG 摘要或 Sparkle 公钥。
 - `changelog:org.ppsspp.ppsspp:-` 检查官网发布索引和详细日志的提取。Gold 和开发包有独立的分发入口，未登记为免费正式版目标。
 
+2026-11-28，本批用签名 Release CLI 对正式轨运行 `duo verify --vendor --changelog` 和 `duo verify-install --full`，该应用的版本源、日志和安装包均为 `ok`。
+
 ## 历史与实测
 
 2026-11-28 核对官网免费版 DMG。1.20.3 和 1.20.4 均为 universal macOS app，bundle ID 为 `org.ppsspp.ppsspp`，Team ID 为 `97NS59EENG`，通过严格代码签名和 Gatekeeper 公证验证。GitHub 1.20.4 ZIP 的营销版本和构建版本也都是 1.20.4，但签名为 ad hoc。开发包的空版本字段使其在应用扫描阶段就被略过。
 
 [官网下载](https://www.ppsspp.org/download/) · [1.20.4 正式发布](https://www.ppsspp.org/news/release-1.20.4/) · [1.20 系列发布文章](https://www.ppsspp.org/news/release-1.20/) · [GitHub 1.20.4](https://github.com/hrydgard/ppsspp/releases/tag/v1.20.4) · [上游 Gold 包身份](https://github.com/hrydgard/ppsspp/blob/v1.20.4/macOS/InfoGold.plist) · [官网开发构建](https://www.ppsspp.org/devbuilds/) · [实查的上游 CI run](https://github.com/hrydgard/ppsspp/actions/runs/46021421909)
+
+2026-11-28，在 Apple Silicon、macOS 27.3 上用签名 Release CLI 验证 1.20.3 → 1.20.4。官网下载 37,090,805 字节，停用副本实际原地替换成功。升级后复查为最新，bundle ID、原厂 Team、严格签名和公证均通过。生产日志路径读出 1.20.4 的 30 条说明及 5 个原厂章节。

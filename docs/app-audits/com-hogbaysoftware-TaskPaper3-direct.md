@@ -19,8 +19,12 @@
 - `install:vendor:com.hogbaysoftware.TaskPaper3.direct:stable` 复用现有 vendor 安装验证，检查 DMG 下载和包内签名身份。该来源使用 Developer ID 验证。
 - `changelog:com.hogbaysoftware.TaskPaper3.direct:-` 在同一官网检查逐版原生日志。Preview 独立发行尚未纳入本批夜扫。
 
+2026-11-28，本批用签名 Release CLI 对正式轨运行 `duo verify --vendor --changelog` 和 `duo verify-install --full`，该应用的版本源、日志和安装包均为 `ok`。
+
 ## 历史与实测
 
 2026-11-28 核对官网下载的 TaskPaper 3.9.3（484）及 3.9.4（487）。两个包都包含 arm64 和 x86_64，bundle ID 为 `com.hogbaysoftware.TaskPaper3.direct`，Team ID 为 `64A5CLJP5W`，严格代码签名及 Gatekeeper 公证验证均通过。当前 Preview 3.9.4 Preview（487）与正式包共用 direct ID、Team 和构建号，预览标志来自包内短版本。两条轨有各自的下载入口。 [正式版发布页](https://www.taskpaper.com/releases/) · [厂商 Preview 说明](https://support.hogbaysoftware.com/t/what-is-the-difference-between-taskpaper-preview-and-normal-taskpaper/1632)
 
 实查 3.5（275）、3.5.1（276）和 3.6（285）旧官网下载仍使用相同 direct ID 和 Team，包为 pre-notarization 的 x86_64 Developer ID 签名。3.3.2（219）的官网包使用旧 ID `com.hogbaysoftware.TaskPaper3`。3.5 的发布说明把手工重新下载列为旧版变更 ID 后的迁移方式。 [厂商历史记录](https://www.taskpaper.com/releases/)
+
+2026-11-28，在 Apple Silicon、macOS 27.3 上用签名 Release CLI 验证 3.9.3 → 3.9.4。官网下载 4,740,572 字节，停用副本实际原地替换成功。升级后复查为最新，bundle ID、原厂 Team、严格签名和公证均通过。生产日志路径读出 40 个版本，3.9.4 有 4 条原厂说明。已用官网 3.9.4 Preview 真包复查，识别为 Preview，正式轨未给出更新和日志。

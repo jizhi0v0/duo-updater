@@ -43,7 +43,8 @@ public struct OneClickGate: Sendable {
         /// your own anchors). A copy without one is not admitted.
         case installedVersion(pattern: String)
         /// A source's offers at or above this major require a copy already on
-        /// that generation. Both sides must name a dotted marketing version.
+        /// that generation. A known installed major can establish this without
+        /// interpreting the offer's version format.
         case migratedMajor(source: String, firstMajor: Int)
         /// The file at `path` inside `Contents/Resources/app.asar` (a packed
         /// entry, read without unpacking) matches this pattern. A missing asar,
@@ -102,11 +103,13 @@ public struct OneClickGate: Sendable {
             return version.range(of: pattern, options: .regularExpression) != nil
         case .migratedMajor(let source, let firstMajor):
             guard let remote, remote.sourceName == source else { return true }
+            if let installed = Self.dottedMajor(app.shortVersion), installed >= firstMajor {
+                return true
+            }
             guard remote.marketingMatchesBundle,
-                  let installed = Self.dottedMajor(app.shortVersion),
                   let offered = Self.dottedMajor(remote.shortVersion)
             else { return false }
-            return offered < firstMajor || installed >= firstMajor
+            return offered < firstMajor
         case .asarEntry(let path, let pattern):
             let asar = app.path.appendingPathComponent("Contents/Resources/app.asar")
             guard let data = AsarEntryReader.packedEntry(path, inAsarAt: asar) else { return false }

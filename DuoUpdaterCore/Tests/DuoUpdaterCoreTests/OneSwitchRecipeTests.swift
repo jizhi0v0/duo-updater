@@ -65,13 +65,24 @@ import Testing
         }
     }
 
+    @Test func eitherKnownSideCanRuleOutCrossingTheMigrationBoundary() {
+        for result in [
+            offer(from: "2.0.0", to: "2.0.1-beta.1"),
+            offer(from: "2.0", to: "2.1", provenMarketing: false),
+            offer(from: nil, to: "1.35.4"),
+        ] {
+            #expect(OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil)
+        }
+    }
+
     @Test func sparkleMigrationGateFailsClosedForUnprovenVersionIdentity() {
         for result in [
             offer(from: nil, to: "2.0"),
             offer(from: "2.0/injected", to: "2.1"),
             offer(from: "1.35.2", to: nil),
             offer(from: "1.35.2", to: "2.0\n1.35.4"),
-            offer(from: "2.0", to: "2.1", provenMarketing: false),
+            offer(from: "1.35.2", to: "2.0.1-beta.1"),
+            offer(from: "1.35.2", to: "1.35.4", provenMarketing: false),
         ] {
             #expect(OneClickGateRegistry.withholding(result.app, offering: result.remote) != nil)
         }

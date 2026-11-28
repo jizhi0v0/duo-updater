@@ -15,7 +15,7 @@ Apple Silicon 上的官网正式复制包统一使用 ARM 下载。即使原副�
 
 ## 夜扫覆盖
 
-- 版本探针为 vendor:org.mixxx.mixxx:stable 及历史 Intel 探针 vendor:org.mixxx.mixxx:stable:legacy-intel，正式版完整 ARM 安装包为 install:vendor:org.mixxx.mixxx:stable。
+- 版本探针为 vendor:org.mixxx.mixxx:stable:arm64 及历史 Intel 探针 vendor:org.mixxx.mixxx:stable:legacy-intel，正式版完整 ARM 安装包为 install:vendor:org.mixxx.mixxx:stable:arm64。
 - 结构化日志为 changelog:org.mixxx.mixxx:stable。手册的未发布或跳过版本没有发布日期，解析时排除。
 - 快照轨没有登记为正式版目标。
 

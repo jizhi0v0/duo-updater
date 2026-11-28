@@ -38,6 +38,7 @@ enum org_mixxx_mixxx {
                         + "(\(checksum))" + checksumLink
                         + #"\#(releaseDirectory)\#(version)/mixxx-\#(version)-\#(archive)\.sha256sum""#,
                     checksumFormat: .sha256Hex),
+                variant: "arm64",
                 hostRequirement: .init(architectures: [.arm64]),
                 installedVersionPattern: #"\A(?!(?:\#(MixxxBuild.legacyVersionAlternatives))\z)\#(version)\z"#),
             // The old official Intel packages were signed by a different Team.

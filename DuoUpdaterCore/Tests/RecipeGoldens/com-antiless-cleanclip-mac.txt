@@ -1,0 +1,140 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-antiless-cleanclip-mac"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 2)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.antiless.cleanclip.mac"
+changelogs[0].source = URL("https://cleanclip.cc/docs/changelog")
+changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<h2\\b[^>]*>\\s*<a\\b[^>]*\\sclass=\"header-anchor\"[^>]*>\\s*#\\s*</a>\\s*(?<version>[0-9]+\\.[0-9]+\\.[0-9]+)\\s*</h2>\\s*<p>\\s*Date:\\s*(?<date>[^<]+)</p>(?<body>.*?)(?=<h2\\b|<footer\\b|\\z)"
+changelogs[0].itemPatterns = Array(count: 1)
+changelogs[0].itemPatterns[0] = "<li\\b[^>]*>\\s*(?:<p\\b[^>]*>\\s*)?(?<item>(?:(?!</?li\\b|</p>|<[ou]l\\b|<a\\b[^>]*\\shref=\"https://cleanclip\\.cc/releases/download/).)+?)(?=</li>|</p>|<[ou]l\\b|<a\\b[^>]*\\shref=\"https://cleanclip\\.cc/releases/download/)"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 40
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel? = .stable
+changelogs[0].includesPromotedStable = false
+changelogs[0].ordersByPublishedDate = false
+changelogs[0].excludedChannels = Array(count: 1)
+changelogs[0].excludedChannels[0] = .beta
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern? = "<h3\\b[^>]*>\\s*<a\\b[^>]*\\sclass=\"header-anchor\"[^>]*>\\s*#\\s*</a>\\s*(?<heading>.*?)</h3>"
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "com.antiless.cleanclip.mac"
+changelogs[1].source = URL("https://cleanclip.cc/docs/changelog")
+changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
+changelogs[1].mode = .html
+changelogs[1].entryPattern = "<h2\\b[^>]*>\\s*<a\\b[^>]*\\sclass=\"header-anchor\"[^>]*>\\s*#\\s*</a>\\s*(?<version>[0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+)\\s*</h2>\\s*<p>\\s*Date:\\s*(?<date>[^<]+)</p>(?<body>.*?)(?=<h2\\b|<footer\\b|\\z)"
+changelogs[1].itemPatterns = Array(count: 1)
+changelogs[1].itemPatterns[0] = "<li\\b[^>]*>\\s*(?:<p\\b[^>]*>\\s*)?(?<item>(?:(?!</?li\\b|</p>|<[ou]l\\b|<a\\b[^>]*\\shref=\"https://cleanclip\\.cc/releases/download/).)+?)(?=</li>|</p>|<[ou]l\\b|<a\\b[^>]*\\shref=\"https://cleanclip\\.cc/releases/download/)"
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 40
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel? = .beta
+changelogs[1].includesPromotedStable = false
+changelogs[1].ordersByPublishedDate = false
+changelogs[1].excludedChannels = Array(count: 1)
+changelogs[1].excludedChannels[0] = .stable
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern? = "<h3\\b[^>]*>\\s*<a\\b[^>]*\\sclass=\"header-anchor\"[^>]*>\\s*#\\s*</a>\\s*(?<heading>.*?)</h3>"
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].carriesOtherTrainEntries = false
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat = nil
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern = nil
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.antiless.cleanclip.mac"
+githubRules[0].owner = "CleanClip"
+githubRules[0].repo = "CleanClipApp"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^([0-9]+\\.[0-9]+\\.[0-9]+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^CleanClip-[0-9]+\\.[0-9]+\\.[0-9]+\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+githubRules[0].assetVersionPattern = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.antiless.cleanclip.mac"
+githubRules[1].owner = "CleanClip"
+githubRules[1].repo = "CleanClipApp"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^([0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+)$"
+githubRules[1].candidateScope = .highestVersion
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^CleanClip-[0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+\\.dmg$"
+githubRules[1].installerKind? = .dmg
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
+githubRules[1].assetVersionPattern = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.antiless.cleanclip.mac", channel: .beta)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.antiless.cleanclip.mac", channel: .beta)].0 = "/download/[0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+/"
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

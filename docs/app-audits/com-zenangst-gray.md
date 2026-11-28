@@ -19,6 +19,8 @@ GitHub 规则以正式标签比较营销版本，选择该发布的 `Gray.zip`�
 
 2026-11-28 对上述四份官方实包运行 `channel-verify --expect stable`。0.0.1、0.10.1、0.16.0 均由 GitHub 提示更新至 0.17.0，0.17.0 显示已是最新。四者的日志面板均显示 0.17.0 的一组版本记录、三条正文。
 
+macOS 27.2 Apple Silicon VM 使用签名 Release CLI，从 GitHub 实时检查并将运行中的 0.16.0 原地升级至 0.17.0。严格签名、公证及升级后复查通过。Gray 有窗口时，Duo 保留旧进程；退出后可启动新版。
+
 ## 夜扫覆盖
 
 正式规则由 GitHub 夜扫及安装包核验自动枚举，对应 `github:zenangst/Gray:stable` 和 `install:github:zenangst/Gray:stable`。两项均以当前正式发布为目标。

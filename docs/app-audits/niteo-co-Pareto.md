@@ -25,6 +25,8 @@
 
 选择 `ParetoSecurity.dmg`。安装时核对签名包的营销版本与所选标签，拒绝误挂到新发布下的旧 DMG。主程序、登录项及可选的 `ParetoSecurityHelper` 均在 app 内。后者以 SMAppService daemon 注册，LaunchDaemon 的 BundleProgram 指向 `Contents/MacOS/ParetoSecurityHelper`。Firewall 等特权检查会查询 helper 版本，必要时由应用重新注册。最新版的 GitHub 正文含 “What's Changed” 标题和五项变更。[厂商 helper 管理](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Extensions/HelperTool.swift) · [正式发布说明](https://github.com/ParetoSecurity/pareto-mac/releases/tag/1.50.0)
 
+macOS 27.2 Apple Silicon VM 使用签名 Release CLI，将运行中的官方 1.49.0 原地升级至 1.50.0，随后由 Duo 重启主进程。严格签名、公证及升级后复查通过。实测开启 Beta 的 1.49.1 也提示 1.50.0；两轨各显示五项结构化变更，面板省略通用标题。此次 VM 未注册可选的特权 daemon，其运行中交接尚未实测。
+
 ## 夜扫覆盖
 
 两条 GitHub 检测和安装规则随注册表自动枚举：

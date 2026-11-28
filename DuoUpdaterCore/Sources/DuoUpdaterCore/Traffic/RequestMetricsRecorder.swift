@@ -303,52 +303,24 @@ public extension URLSession {
     /// installers that are gigabytes on disk, which is exactly that hazard.
     /// Breaking out of the returned sequence cancels the transfer, and however the
     /// caller leaves it the request is recorded once — see ``CountedBytes``.
-    /// With `classifyGitHubErrors`, the caller uses only the status of error
-    /// responses. A 403 body prefix can then distinguish a secondary limit
-    /// from a permission error without buffering an unbounded response.
     func countedBytes(
         for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared,
-        gate: GitHubRateLimitGate.Store? = GitHubRateLimitGate.active,
-        classifyGitHubErrors: Bool = false
+        gate: GitHubRateLimitGate.Store? = GitHubRateLimitGate.active
     ) async throws -> (CountedBytes, URLResponse) {
+        // Behind the same gate as `countedData` when it is an API request; the
+        // answer's headers are all the gate reads, so the body is not waited for.
         let pass = try await GitHubRateLimitGate.Pass(admitting: request, gate: gate, probe: { probe in
             try? await self.recordedData(for: probe, purpose: .other, store: store)
         })
-        let bytes: AsyncBytes
-        let response: URLResponse
         do {
-            (bytes, response) = try await self.bytes(for: GitHubAPIMock.redirect(request), delegate: RequestMetricsRecorder(
+            let (bytes, response) = try await bytes(for: GitHubAPIMock.redirect(request), delegate: RequestMetricsRecorder(
                 purpose, appID: RequestAttribution.appID, store: store))
+            await pass?.complete(nil, response)
+            return (CountedBytes(bytes), response)
         } catch {
             await pass?.complete(nil, nil)
             throw error
         }
-
-        let stream = CountedBytes(bytes)
-        guard classifyGitHubErrors, let url = request.url, ChangelogService.isGitHubAPI(url),
-              let http = response as? HTTPURLResponse, http.statusCode >= 400, http.statusCode != 401 else {
-            await pass?.complete(nil, response)
-            return (stream, response)
-        }
-        var prefix = Data()
-        if http.statusCode == 403 {
-            var iterator = stream.makeAsyncIterator()
-            while prefix.count < 4096, let byte = try? await iterator.next() { prefix.append(byte) }
-            // The prefix may end partway through a UTF-8 character.
-            if prefix.count == 4096 { prefix = Data(String(decoding: prefix, as: UTF8.self).utf8) }
-        }
-        if let pass {
-            if let refusal = await pass.complete(prefix, response) { throw refusal }
-        } else {
-            let headers = GitHubRateLimitGate.Pass.headers(http)
-            if let closure = GitHubRateLimitGate.closure(status: http.statusCode, headers: headers, body: prefix,
-                                                        strikesBefore: 0, now: Date()) {
-                let sent: GitHubRateLimitGate.Credential = request.value(forHTTPHeaderField: "Authorization") == nil ? .anonymous : .token
-                throw GitHubRateLimitGate.Refused(credential: GitHubRateLimitGate.answered(sent, headers: headers), closure: closure)
-            }
-        }
-        try Task.checkCancellation()
-        return (stream, response)
     }
 
     /// The body of a ``countedBytes(for:purpose:store:)`` request: `AsyncBytes`

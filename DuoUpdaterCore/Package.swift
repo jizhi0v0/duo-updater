@@ -23,11 +23,9 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-subprocess", exact: "1.0.2"),
     ],
     targets: [
-        .systemLibrary(name: "CArchive"),
         .target(
             name: "DuoUpdaterCore",
             dependencies: [
-                "CArchive",
                 .product(name: "Subprocess", package: "swift-subprocess"),
             ]
         ),

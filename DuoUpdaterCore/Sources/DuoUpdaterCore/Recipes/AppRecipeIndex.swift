@@ -370,6 +370,7 @@ public enum AppRecipeIndex {
         net_whatsapp_WhatsApp.set,
         net_xmind_vana_app.set,
         netdcy_FlowVision.set,
+        niteo_co_Pareto.set,
         no_mifi_losslesscut_mac.set,
         notion_id.set,
         now_typeless_desktop.set,

@@ -169,6 +169,9 @@ struct GitHubListPageSizeTests {
         // 2026-11-11, the highest was at most at index 2 (1.1.0-RC under
         // v1.0.2 and v1.0.1), so 3. The rule keeps the default 20.
         "com.maestro.app/beta": 3,
+        // Across 229 public releases, the highest eligible Pareto DMG sat
+        // at most one position below the first row of a historical window.
+        "niteo.co.Pareto/beta": 2,
         // CleanClip Beta: among 59 public releases, the highest beta is at
         // index 7. The older beta at index 58 does not affect the offer.
         "com.antiless.cleanclip.mac/beta": 8,

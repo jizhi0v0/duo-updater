@@ -18,10 +18,10 @@ probes[0].headBuildPattern = nil
 probes[0].url = URL("https://anoma.ly/release/opencode/desktop-rune/dev.json")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
-probes[0].mode = .responseBody
-probes[0].versionPattern = "\"release\"\\s*:\\s*\\{(?=[^{}]*\"rollout_percent\"\\s*:\\s*100\\s*[,}])[^{}]*?\"version\"\\s*:\\s*\"([0-9]+\\.[0-9]+\\.[0-9]+-dev-[0-9]+)\""
+probes[0].mode = .opencodeRuneManifest
+probes[0].versionPattern = "\"version\"\\s*:\\s*\"([0-9]+\\.[0-9]+\\.[0-9]+-dev-[0-9]+)\""
 probes[0].transientBodyPattern = nil
-probes[0].trackClosedPattern? = "\"release\"\\s*:\\s*\\{[^{}]*?\"rollout_percent\"\\s*:\\s*[0-9]{1,2}\\s*[,}]"
+probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://github.com/anomalyco/opencode-rune/blob/dev/docs/trying-opencode-rune.md")
 probes[0].changelogURL? = URL("https://github.com/anomalyco/opencode-rune/releases")
 probes[0].selectHighest = false
@@ -35,11 +35,11 @@ probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPatternRelative(_:base:)
-probes[0].install?.urlSource.0 = "\"macos-arm64-dmg\"\\s*:\\s*\\{(?=[^{}]*\"sha256\"\\s*:\\s*\"[0-9a-f]{64}\")[^{}]*?\"url\"\\s*:\\s*\"(/release/opencode/files/[0-9a-f]{64}/OpenCode-Rune-[0-9]+\\.[0-9]+\\.[0-9]+-dev-[0-9]+-macos-arm64\\.dmg)\""
+probes[0].install?.urlSource.0 = "\"url\"\\s*:\\s*\"([^\"]+)\""
 probes[0].install?.urlSource.base = URL("https://anoma.ly")
 probes[0].install?.kind = .dmg
 probes[0].install?.installerApp = nil
-probes[0].install?.checksumPattern? = "\"macos-arm64-dmg\"\\s*:\\s*\\{[^{}]*?\"sha256\"\\s*:\\s*\"([0-9a-f]{64})\""
+probes[0].install?.checksumPattern? = "\"sha256\"\\s*:\\s*\"([0-9a-f]{64})\""
 probes[0].install?.checksumFormat = .sha256Hex
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil

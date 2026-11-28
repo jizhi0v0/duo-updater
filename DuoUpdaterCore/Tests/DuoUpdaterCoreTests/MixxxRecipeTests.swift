@@ -84,6 +84,12 @@ struct MixxxRecipeTests {
         #expect(entries.last?.items == ["Updated controller mappings."])
     }
 
+    @Test func snapshotChannelsDoNotFallBackToStableNotes() {
+        for channel in [ReleaseChannel.beta, .alpha, .nightly] {
+            #expect(ChangelogRecipeRegistry.recipe(forBundleID: MixxxBuild.bundleID, channel: channel) == nil)
+        }
+    }
+
     @Test func scannerSeparatesUtf16BuildDescriptionsFromSharedDatabaseKeys() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MixxxRecipeTests-\(UUID().uuidString)")

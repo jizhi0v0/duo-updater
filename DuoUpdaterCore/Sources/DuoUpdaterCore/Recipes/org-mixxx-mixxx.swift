@@ -51,6 +51,7 @@ enum org_mixxx_mixxx {
                     + #"(?<body>.*?)(?=<h2\b|\z)"#,
                 itemPatterns: [#"<li><p>(?<item>.*?)</p></li>"#],
                 channel: .stable,
+                excludedChannels: [.beta, .alpha, .nightly],
                 headingPattern: #"<h3>(?<heading>[^<]+)<a\b[^>]*class="headerlink""#),
         ])
 }

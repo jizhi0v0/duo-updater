@@ -87,7 +87,7 @@ struct OneClickGateTests {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
             == ["com.runningwithcrayons.Alfred", "org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
                 "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision", "org.ferdium.ferdium-app", "io.museeks.app", "com.rambox",
-                "com.mucommander.muCommander", "com.bitwarden.desktop"])
+                "com.mucommander.muCommander", "com.bitwarden.desktop", "net.xmind.vana.app"])
     }
 
     /// Versions of the real bundles: stable 7.2.3, 7.2.2, 6.0.0, the nightlies

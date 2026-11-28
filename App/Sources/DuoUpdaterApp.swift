@@ -280,7 +280,7 @@ private enum WindowSpaces {
 
 private struct CheckingMenuBarIcon: View {
     @State private var frame = 0
-    private static let frames = (0..<24).map(makeFrame)
+    private static let frames = (0..<24).map { makeFrame($0) }
 
     var body: some View {
         Image(nsImage: Self.frames[frame])

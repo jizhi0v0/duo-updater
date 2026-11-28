@@ -427,14 +427,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:burakgon\/OpenScreens:stable" : {
-      "consecutiveActionable" : 8,
+      "consecutiveActionable" : 9,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2219,
       "lastCommentedAt" : "2026-11-24T17:02:28Z",
       "lastSignature" : "identityChanged: Sparkle key none → Zah\/",
       "previousSignature" : "identityChanged: Sparkle key none → Zah\/",
-      "sweepsSinceComment" : 6
+      "sweepsSinceComment" : 7
     },
     "install:github:chekusu\/yomado:stable" : {
       "closedAt" : "2026-10-29T03:05:32Z",
@@ -1067,14 +1067,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:ollama\/ollama:stable" : {
-      "consecutiveActionable" : 7,
+      "consecutiveActionable" : 8,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2222,
       "lastCommentedAt" : "2026-11-25T02:21:34Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 5
+      "sweepsSinceComment" : 6
     },
     "install:github:onebadidea\/swiftquit:stable" : {
       "consecutiveActionable" : 0,
@@ -1427,14 +1427,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:wickenico\/WailBrew:stable" : {
-      "consecutiveActionable" : 6,
+      "closedAt" : "2026-11-28T01:20:17Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2227,
-      "lastCommentedAt" : "2026-11-25T16:46:30Z",
-      "lastSignature" : "identityChanged: architectures arm64+x86",
-      "previousSignature" : "identityChanged: architectures arm64+x86",
-      "sweepsSinceComment" : 4
+      "sweepsSinceComment" : 0
     },
     "install:github:wulkano\/kap:stable" : {
       "consecutiveActionable" : 0,
@@ -1551,14 +1549,14 @@
       "sweepsSinceComment" : 0
     },
     "install:sparkle:com.cindori.Backdrop:stable" : {
-      "consecutiveActionable" : 7,
+      "consecutiveActionable" : 8,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2221,
       "lastCommentedAt" : "2026-11-25T02:21:32Z",
       "lastSignature" : "identityChanged: architectures arm64+x86",
       "previousSignature" : "identityChanged: architectures arm64+x86",
-      "sweepsSinceComment" : 5
+      "sweepsSinceComment" : 6
     },
     "install:sparkle:com.coconut-flavour.coconutBattery:stable" : {
       "consecutiveActionable" : 0,
@@ -1969,14 +1967,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 34,
+      "consecutiveActionable" : 35,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-22T14:22:27Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 11
+      "sweepsSinceComment" : 12
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2655,10 +2653,11 @@
     "install:vendor:com.tencent.workbuddy.mac:stable:arm64" : {
       "closedAt" : "2026-10-14T16:03:36Z",
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
+      "consecutiveInfra" : 1,
       "consecutiveInstallTransient" : 0,
+      "infraSince" : "2026-11-28T01:20:11Z",
       "issueNumber" : 1297,
-      "sweepsSinceComment" : 0
+      "sweepsSinceComment" : 1
     },
     "install:vendor:com.tencent.workbuddy.mac:stable:x64" : {
       "closedAt" : "2026-10-14T16:03:37Z",
@@ -2754,9 +2753,10 @@
     },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:arm64" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
+      "consecutiveInfra" : 1,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "infraSince" : "2026-11-28T01:20:11Z",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:x64" : {
       "consecutiveActionable" : 0,
@@ -2771,14 +2771,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.youqu.todesk.mac:stable" : {
-      "consecutiveActionable" : 10,
+      "consecutiveActionable" : 11,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2201,
       "lastCommentedAt" : "2026-11-23T17:32:30Z",
       "lastSignature" : "install.content",
       "previousSignature" : "install.content",
-      "sweepsSinceComment" : 8
+      "sweepsSinceComment" : 9
     },
     "install:vendor:com.zarifpour.superconductor:nightly" : {
       "consecutiveActionable" : 0,
@@ -3138,5 +3138,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-27T16:18:46Z"
+  "updatedAt" : "2026-11-28T01:20:17Z"
 }

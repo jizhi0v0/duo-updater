@@ -76,9 +76,12 @@ import CryptoKit
     // three unrelated failures, one of them a channel crossing. Discord PTB and
     // Canary, rate-limited during `make release` on 2026-09-15.
     func probe(_ key: ChannelProofKey) async -> ProbeOutcome? {
-        // The Xmind Beta rule requires the installed copy's beta suffix.
-        let installedVersion = key.bundleID == net_xmind_vana_app.bundleID && key.channel == .beta
-            ? "25.07.01031-beta" : "0.0.0"
+        // Both recipes require the version suffix found on their own installed copies.
+        let installedVersion = switch (key.bundleID, key.channel) {
+        case (net_xmind_vana_app.bundleID, .beta): "25.07.01031-beta"
+        case ("anomaly.opencode-rune", .dev): "0.0.0-dev-502"
+        default: "0.0.0"
+        }
         let app = InstalledApp(
             name: key.bundleID, bundleID: key.bundleID,
             shortVersion: installedVersion, buildVersion: "0",

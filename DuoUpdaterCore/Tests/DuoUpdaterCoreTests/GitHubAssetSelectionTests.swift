@@ -308,6 +308,9 @@ struct GitHubAssetSelectionTests {
          ["mithka-1.10.3-20261103-macos-universal.zip", "mithka-1.12.8-20261115-macos-arm64.zip"],
          "Stable publishes a single universal zip through 1.10.3 and separate arm64 and x64 "
              + "zips starting at 1.11.8. The pattern admits one of those assets per tag"),
+        (#"^Rune-v(?:[2-9]|[1-9][0-9]+)\.[0-9]+\.[0-9]+-alpha\.[0-9]+-macOS\.dmg\z"#,
+         ["Rune-v2.0.0-alpha.16-macOS.dmg", "Rune-v2.0.0-alpha.17-macOS.dmg"],
+         "The GitHub source admits just the DMG for the selected tag. Each of these names belongs to a separate release"),
         (#"^zeabur-desktop-v[0-9]+\.[0-9]+\.[0-9]+(?:-(?:beta|rc)\.[0-9]+)?-darwin-arm64\.dmg$"#,
          ["zeabur-desktop-v0.3.0-beta.5-darwin-arm64.dmg", "zeabur-desktop-v0.3.0-darwin-arm64.dmg"],
          "desktopBuilds in scripts/desktop-release.ts generates one arm64 DMG for the release's tag. "

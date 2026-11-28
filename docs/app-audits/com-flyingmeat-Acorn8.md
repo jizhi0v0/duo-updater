@@ -27,3 +27,4 @@ Flying Meat 官网 ZIP 的 bundle ID 为 `com.flyingmeat.Acorn8`，Team ID 为 `
 
 - `feed:com.flyingmeat.Acorn8:stable`、`feed:com.flyingmeat.Acorn8:beta` 由渠道绑定枚举，检查两条公开 Sparkle feed。
 - `install:sparkle:com.flyingmeat.Acorn8:stable`、`install:sparkle:com.flyingmeat.Acorn8:beta` 通过安装验证清单检查滚动 ZIP、身份和 build。已明确记录厂商仅提供 DSA，当前实包有 Developer ID Team ID。
+- 2026-11-28，在本批 `duo verify --feed` 与 `duo verify-install --full` 中，正式、测试轨均通过，检查的 ZIP 分别为 18029 和 18043。已要求精确 build 的滚动包，若 build 与展示版本不同，增量扫描也会重新下载核对。

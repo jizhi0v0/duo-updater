@@ -18,6 +18,7 @@ appcast 的 3.7.1 内联 HTML 有漏闭合的 `<h2>`，同一条更新还包含 
 
 - `feed:org.sil.ukelele` 对目录中的官网 appcast 做 feed 健康检查。
 - `install:sparkle:org.sil.ukelele:stable` 覆盖稳定轨的官网下载包，公钥来自同组签名真包。历史 beta 仍可升级到有监控的稳定轨。`org.sil.ukelele:beta` 记为历史轨缺口，留在公开 feed 中的测试版下载均已失效。
+- 2026-11-28，在本批 `duo verify --feed` 与 `duo verify-install --full` 中均通过。正式版 3.7.1 的 DMG 通过整包 Ed25519 验签。
 
 ## 历史与实测
 

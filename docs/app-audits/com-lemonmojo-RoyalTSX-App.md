@@ -21,3 +21,4 @@
 
 - `duo verify-install` 在解析两个独立的 stable/beta 目标时读取各自的 feed。`duo verify --feed` 没有 Royal TSX 的单独条目。
 - 安装字节验证分别使用 `install:sparkle:com.lemonmojo.RoyalTSX.App:stable` 和 `install:sparkle:com.lemonmojo.RoyalTSX.App:beta`。v26 使用实包 `SUPublicEDKey` 检查 Ed25519；v6 只提供 DSA，因此夜扫只检查安装包身份和签名。
+- 2026-11-28，在本批 `duo verify-install --full` 中，stable 6.4.5 和 beta 26.0.20 均为 `ok`。beta 整包 Ed25519 校验通过。

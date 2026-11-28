@@ -110,13 +110,10 @@ private struct MenuBarLabel: View {
 
     var body: some View {
         Group {
-            // Badge the icon with the number of pending updates. Uses `badgeCount`
-            // (not `updateCount`) so a refresh's mid-flight `.unknown` rows don't
-            // flicker the badge to zero and back.
-            if model.badgeCount > 0 {
-                MenuBarBadgeIcon.image(count: model.badgeCount)
-            } else if model.prefs.animateMenuBarIcon && !reduceMotion && model.listActivity.isRoundInFlight {
+            if model.prefs.animateMenuBarIcon && !reduceMotion && model.listActivity.isRoundInFlight {
                 CheckingMenuBarIcon()
+            } else if model.badgeCount > 0 {
+                MenuBarBadgeIcon.image(count: model.badgeCount)
             } else {
                 Image(systemName: "arrow.triangle.2.circlepath")
             }

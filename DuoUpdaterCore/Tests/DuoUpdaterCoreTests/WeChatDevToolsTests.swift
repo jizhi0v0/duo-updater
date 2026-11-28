@@ -322,20 +322,27 @@ struct WeChatDevToolsProbeTests {
         #expect(remote?.vendorInstallerKind == .pkg)
     }
 
-    @Test func nightlyWithoutAnArm64PackageKeepsDetectionWithoutBorrowingAnotherChannel() async throws {
+    @Test(arguments: [true, false])
+    func nightlyDoesNotBorrowFieldsFromAChannelWhoseIDIsLast(hasVersion: Bool) async throws {
         let recipe = try self.recipe(.nightly)
         let noPackage = nightlySplitLinks.replacingOccurrences(
             of: "\"pkgurl\": \"\(nightlyArm64Pkg)\"", with: "\"pkgurl\": null")
-        let retired = nightlySplitLinks.replacingOccurrences(
-            of: "\"id\": \"nightly\"", with: "\"id\": \"nightly-old\"")
+        let nightly = hasVersion ? noPackage : noPackage.replacingOccurrences(
+            of: "\"version\": \"2.02.2611272\",", with: "")
+        let retiredFields = nightlySplitLinks.replacingOccurrences(of: "\"id\": \"nightly\",", with: "")
             .replacingOccurrences(of: "2.02.2611272", with: "2.01.2602282")
+        let retired = String(retiredFields.dropLast()) + ", \"id\": \"nightly-old\"}"
         let server = try RecipeVerificationTests.StubServer(
-            body: "{\"channels\":[\(noPackage),\(retired)]}", contentType: "application/json")
+            body: "{\"channels\":[\(nightly),\(retired)]}", contentType: "application/json")
         defer { server.stop() }
         let remote = await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url)).remote
-        #expect(remote?.shortVersion == "2.02.2611272")
-        #expect(remote?.vendorInstallerKind == nil)
-        #expect(remote?.downloadURL == recipe.downloadURL)
+        if hasVersion {
+            #expect(remote?.shortVersion == "2.02.2611272")
+            #expect(remote?.vendorInstallerKind == nil)
+            #expect(remote?.downloadURL == recipe.downloadURL)
+        } else {
+            #expect(remote == nil)
+        }
     }
 
     /// Every non-stable channel that can install must state how we know it isn't

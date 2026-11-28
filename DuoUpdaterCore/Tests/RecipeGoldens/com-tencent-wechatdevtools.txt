@@ -96,7 +96,7 @@ probes[2].url = URL("https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/ve
 probes[2].identities = Array(count: 0)
 probes[2].track = nil
 probes[2].mode = .responseBody
-probes[2].versionPattern = "\"id\"\\s*:\\s*\"nightly\"(?:(?!\"id\"\\s*:)[\\s\\S])*?\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""
+probes[2].versionPattern = "\\{\\s*(?=(?:\"(?:[^\"\\\\]|\\\\.)*\"\\s*:\\s*(?:\"(?:[^\"\\\\]|\\\\.)*\"|\\[(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\"|\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\})*\\]|\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\}|[0-9.eE+\\-]+|true|false|null)\\s*,\\s*)*\"id\"\\s*:\\s*\"nightly\"\\s*[,}])(?:\"(?:[^\"\\\\]|\\\\.)*\"\\s*:\\s*(?:\"(?:[^\"\\\\]|\\\\.)*\"|\\[(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\"|\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\})*\\]|\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\}|[0-9.eE+\\-]+|true|false|null)\\s*,\\s*)*?\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""
 probes[2].transientBodyPattern = nil
 probes[2].trackClosedPattern = nil
 probes[2].downloadURL? = URL("https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html")
@@ -112,7 +112,7 @@ probes[2].maximumSystemVersionPattern = nil
 probes[2].entryStartPattern = nil
 probes[2].install? = struct VendorInstallSpec
 probes[2].install?.urlSource = .bodyPattern(_:)
-probes[2].install?.urlSource.0 = "(?x)\n\"id\"\\s*:\\s*\"nightly\"(?:(?!\"id\"\\s*:)[\\s\\S])*?\"downloads\"\\s*:\\s*\\[\n[^\\]]*?\\{(?=[^{}]*\"os\"\\s*:\\s*\"macOS\")(?=[^{}]*\"arch\"\\s*:\\s*\"ARM64\")\n[^{}]*?\"(?:pkgurl|url)\"\\s*:\\s*\"(https://[^\"/]+/WechatWebDev/nightly/[^\"]+_darwin_arm64\\.pkg)\""
+probes[2].install?.urlSource.0 = "(?x)\n\\{\\s*(?=(?:\"(?:[^\"\\\\]|\\\\.)*\"\\s*:\\s*(?:\"(?:[^\"\\\\]|\\\\.)*\"|\\[(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\"|\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\})*\\]|\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\}|[0-9.eE+\\-]+|true|false|null)\\s*,\\s*)*\"id\"\\s*:\\s*\"nightly\"\\s*[,}])(?:\"(?:[^\"\\\\]|\\\\.)*\"\\s*:\\s*(?:\"(?:[^\"\\\\]|\\\\.)*\"|\\[(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\"|\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\})*\\]|\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\}|[0-9.eE+\\-]+|true|false|null)\\s*,\\s*)*?\"downloads\"\\s*:\\s*\\[\\s*\n(?:\\{(?:[^{}\\[\\]\"\\\\]|\"(?:[^\"\\\\]|\\\\.)*\")*\\}\\s*,\\s*)*?\\{(?=[^{}]*\"os\"\\s*:\\s*\"macOS\")(?=[^{}]*\"arch\"\\s*:\\s*\"ARM64\")\n[^{}]*?\"(?:pkgurl|url)\"\\s*:\\s*\"(https://[^\"/]+/WechatWebDev/nightly/[^\"]+_darwin_arm64\\.pkg)\""
 probes[2].install?.kind = .pkg
 probes[2].install?.installerApp = nil
 probes[2].install?.checksumPattern = nil

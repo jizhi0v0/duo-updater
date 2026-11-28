@@ -1881,7 +1881,8 @@ public struct GitHubReleasesSource: UpdateSource {
             guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern)
             else { return nil }
             // A release can omit this app's Mac installer.
-            if pinsDMGToTag || isCutter, let pattern = rule.installAssetPattern,
+            if pinsDMGToTag || isCutter || rule.bundleID == niteo_co_Pareto.bundleID,
+               let pattern = rule.installAssetPattern,
                !GitHubReleaseRule.carriesInstallableAsset(from: eligibleAssets(in: release), matching: pattern) {
                 return nil
             }

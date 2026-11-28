@@ -41,6 +41,8 @@ macOS 27.2 Apple Silicon VM 使用签名 Release CLI，将运行中的官方 1.4
 
 恢复方法已实测：在 Pareto Security → Preferences → Permissions 的 **System Checks Access** 一栏点击 **Authorize**，再运行检查。本次无需再次输入密码。新服务绑定构建 15908，以新 PID 48605 运行；应用确认 helper 1.0.5 已是最新。启动登录项仅负责在登录时打开主应用，随后退出。[登录启动器实现](https://github.com/sindresorhus/LaunchAtLogin/blob/v5.0.0/Sources/LaunchAtLoginHelper/main.swift)
 
+VM 另以官网 v1.7.74 / 5403 实包验证：只打开旧版实验界面（showBeta）时提示正式版 1.50.0；只打开旧版更新开关（betaChannel）时提示预发行 1.49.1，实际升级至该包并通过严格签名和公证检查。
+
 ## 夜扫覆盖
 
 两条 GitHub 检测和安装规则随注册表自动枚举：

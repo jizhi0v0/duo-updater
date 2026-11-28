@@ -99,6 +99,7 @@ struct FixedNameGitHubPackageTests {
         #expect(offer.downloadURL?.path.hasSuffix("/\(example.target)/ParetoSecurity.dmg") == true)
         #expect(offer.structuredChangelog?.entries.first?.version == example.target)
         #expect(offer.releaseHistory.map(\.version).contains("1.50.0") == (example.target == "1.50.0"))
+        #expect(!offer.releaseHistory.contains { $0.version == "1.50.1" })
     }
 
     @Test func paretoMatchesOnlyWholeReleaseTags() {

@@ -293,6 +293,7 @@ public enum AppRecipeIndex {
         com_youqu_todesk_mac.set,
         com_zarifpour_superconductor.set,
         com_zeabur_oss_desktop.set,
+        com_zenangst_Gray.set,
         com_zettlr_app.set,
         company_thebrowser_Browser.set,
         de_aketo_videoquetsche.set,

@@ -259,6 +259,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Single-channel — GitHub Releases
 
 - [x] [**Cutter**](re-rizin-cutter.md) · `re.rizin.cutter` — G（Stable，ARM64 DMG，结构化日志）· 正式版和手装 RC 均跟踪正式版，只比较三段数字 · 受测 ad-hoc RC 需手动更新 · 2026-11-28
+- [x] [**Gray**](com-zenangst-gray.md) · `com.zenangst.Gray` — G（Stable，universal ZIP，GitHub 结构化日志）· 2026-11-28
 - [x] [**Videoquetsche**](de-aketo-videoquetsche.md) · G + C · stable · 2026-11-27
 
 - [x] [**OpenScreens**](com-burakgon-openscreens.md) · `com.burakgon.openscreens` — G（Stable，universal DMG 一键更新）· 2026-11-23

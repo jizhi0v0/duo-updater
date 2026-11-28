@@ -1032,6 +1032,8 @@ final class AppListModel {
     /// `RowActionFacts.route`'s doc comment, and the note below on what changed
     /// inside that boundary.
     private func rowRoute(for result: UpdateResult) -> UpdateRoute {
+        let defers = defersToSelfUpdater(result)
+        if defers, UpdatePolicy.releasePageForDeferral(result) != nil { return .detectionOnly }
         // `requiresInstaller` is read twice below (the gate, and the installer
         // rung itself); computed once here rather than reasked. This does NOT
         // narrow when `stagedPackage(for:)` runs — with the ladder collapsed into
@@ -1047,7 +1049,7 @@ final class AppListModel {
         return UpdateRoute.resolve(RouteInputs(
             isToolboxManaged: result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged,
             isTestFlight: result.remote?.sourceName == "TestFlight",
-            defersToSelfUpdater: defersToSelfUpdater(result),
+            defersToSelfUpdater: defers,
             isMajorUpgrade: UpdatePolicy.installConfirmation(for: result) != nil,
             canAutoInstall: canAutoInstall(result),
             requiresInstaller: requiresInstaller,
@@ -4305,6 +4307,10 @@ final class AppListModel {
     /// (MAU, a daemon, Sparkle) applies the update on its own schedule.
     func openSelfUpdater(_ result: UpdateResult, activating: Bool = true) {
         installErrors[result.id] = nil
+        if let releasePage = UpdatePolicy.releasePageForDeferral(result) {
+            if activating { NSWorkspace.shared.open(releasePage) }
+            return
+        }
         if let url = result.remote?.pageURL, let scheme = url.scheme,
            scheme != "http", scheme != "https" {
             NSWorkspace.shared.open(
@@ -5871,7 +5877,9 @@ final class AppListModel {
             // focus repeatedly.
             installing[id] = nil
             if AutomaticInstall.active {
-                let reason = migration ?? "Automatic update deferred: the app is running its own updater."
+                let reason = migration ?? (UpdatePolicy.releasePageForDeferral(result) != nil
+                    ? "Automatic update deferred: the app is running."
+                    : "Automatic update deferred: the app is running its own updater.")
                 installNotes[id] = reason
                 return .deferred(reason: reason)
             }

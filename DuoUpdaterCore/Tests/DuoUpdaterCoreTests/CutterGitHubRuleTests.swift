@@ -13,14 +13,16 @@ struct CutterGitHubRuleTests {
             let latest = "/repos/rizinorg/cutter/releases/latest"
             let list = "/repos/rizinorg/cutter/releases"
             let stable = Self.release("v2.5.0", prerelease: false)
+            let intelOnly = Self.release("v2.6.0", prerelease: false, hasArm64: false)
             let body: String
             switch url.path {
             case latest:
-                body = Self.release("v2.6.0", prerelease: false, hasArm64: false)
+                body = intelOnly
             case list:
                 body = """
                 [
                   \(Self.release("v5.0.0-rc1", prerelease: true)),
+                  \(intelOnly),
                   \(Self.release("v2.4.1", prerelease: false)),
                   \(stable)
                 ]
@@ -45,6 +47,7 @@ struct CutterGitHubRuleTests {
             return """
             {
               "tag_name": "\(tag)", "prerelease": \(prerelease), "draft": false,
+              "published_at": "2026-06-30T18:37:00Z",
               "body": "- Use [Rizin v0.9.1](https://github.com/rizinorg/rizin/releases/tag/v0.9.1)",
               "assets": [
                 { "name": "Cutter-\(tag)-macOS-x86_64.dmg", "browser_download_url": "\(base)-x86_64.dmg" },
@@ -85,6 +88,7 @@ struct CutterGitHubRuleTests {
             "https://github.com/rizinorg/cutter/releases/download/v2.5.0/Cutter-v2.5.0-macOS-arm64.dmg")
         #expect(remote.vendorInstallerKind == .dmg && remote.installTrust == .developerID)
         #expect(remote.requiresExactPackageVersion)
+        #expect(remote.releaseHistory.map(\.version) == ["2.5.0", "2.4.1"])
         #expect(remote.structuredChangelog?.entries.first?.version == "2.5.0")
         #expect(UpdateChecker.evaluate(installed: older, remote: remote) == .updateAvailable(latest: "2.5.0"))
 

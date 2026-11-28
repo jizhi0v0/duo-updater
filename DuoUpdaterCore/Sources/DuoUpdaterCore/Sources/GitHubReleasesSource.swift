@@ -1871,8 +1871,8 @@ public struct GitHubReleasesSource: UpdateSource {
         let history: [ReleaseHistoryEntry] = releases.compactMap { release in
             guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern)
             else { return nil }
-            // A shared release can ship only the CLI, server or mobile app.
-            if pinsDMGToTag, let pattern = rule.installAssetPattern,
+            // A release can omit this app's Mac installer.
+            if pinsDMGToTag || isCutter, let pattern = rule.installAssetPattern,
                !GitHubReleaseRule.carriesInstallableAsset(from: eligibleAssets(in: release), matching: pattern) {
                 return nil
             }

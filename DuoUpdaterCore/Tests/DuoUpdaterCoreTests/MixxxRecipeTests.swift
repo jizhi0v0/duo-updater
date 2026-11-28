@@ -48,6 +48,17 @@ struct MixxxRecipeTests {
         let staleDigest = entry.replacingOccurrences(
             of: "\(stableURL).sha256sum", with: "https://downloads.mixxx.org/releases/2.5.4/mixxx-2.5.4-macosarm.dmg.sha256sum")
         #expect(VendorProbeRecipe.extractVersion(from: staleDigest, pattern: recipe.versionPattern) == nil)
+        let staleDigestBeforeCurrent = entry.replacingOccurrences(
+            of: #"<ul class="download-meta">"#,
+            with: """
+                <ul class="download-meta">
+                <li title="\(String(repeating: "a", count: 64))">
+                  <img alt="SHA256 Checksum" />
+                  <a href="https://downloads.mixxx.org/releases/2.5.4/mixxx-2.5.4-macosarm.dmg.sha256sum">SHA256</a>
+                </li>
+                """)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: staleDigestBeforeCurrent, pattern: recipe.versionPattern) == nil)
         let missingDigest = entry.replacingOccurrences(of: sha256, with: "")
         #expect(VendorProbeRecipe.extractVersion(from: missingDigest, pattern: recipe.versionPattern) == nil)
     }

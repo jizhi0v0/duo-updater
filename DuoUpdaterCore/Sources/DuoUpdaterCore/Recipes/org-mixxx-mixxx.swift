@@ -7,10 +7,11 @@ enum org_mixxx_mixxx {
     private static let releaseDirectory = #"https://downloads\.mixxx\.org/releases/"#
     private static let version = #"[0-9]+\.[0-9]+\.[0-9]+"#
     private static let archive = #"macosarm\.dmg"#
-    private static let cardMetadata = #"[^>]*>[^<]*</a>\s*<ul class="download-meta">(?:(?!</ul>)[\s\S])*?"#
+    private static let checksum = #"[0-9a-f]{64}"#
     private static let checksumTitle = #"<li title=""#
     private static let checksumLink = #""\s*>\s*<img[^>]*alt="SHA256 Checksum"[^>]*>\s*<a href=""#
-    private static let checksum = #"[0-9a-f]{64}"#
+    private static let cardMetadata = #"[^>]*>[^<]*</a>\s*<ul class="download-meta">"#
+        + #"(?:(?!</ul>|\#(checksumTitle)\#(checksum)")[\s\S])*"#
 
     static let set = AppRecipeSet(
         family: "org-mixxx-mixxx",

@@ -19,7 +19,7 @@ enum org_ppsspp_ppsspp {
                 bundleID: bundleID,
                 url: downloads,
                 mode: .responseBody,
-                versionPattern: button + assetBase + #"([0-9]+)_([0-9]+)(?:_([0-9]+))?"# + assetName + #"""#,
+                versionPattern: button + assetBase + #"([0-9]+)_([0-9]+)(?:_([0-9]+))?"# + assetName + "\"",
                 downloadURL: downloads,
                 changelogURL: releaseNews,
                 install: VendorInstallSpec(

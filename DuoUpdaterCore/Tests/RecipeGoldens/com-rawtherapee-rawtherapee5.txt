@@ -1,0 +1,230 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-rawtherapee-rawtherapee5"
+
+probes = Array(count: 4)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.rawtherapee.RawTherapee"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement? = struct VendorHostRequirement
+probes[0].hostRequirement?.minimumSystemVersion = nil
+probes[0].hostRequirement?.architectures = Array(count: 1)
+probes[0].hostRequirement?.architectures[0] = .arm64
+probes[0].installedVersionPattern? = "\\A[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\z"
+probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
+probes[0].url = URL("https://rawtherapee.com/shared/builds/mac/")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "<a href=\"RawTherapee_(?:macOS|MacOS)_[0-9]+\\.[0-9]+(?:\\.[0-9]+)?_Universal_([0-9]+\\.[0-9]+(?:\\.[0-9]+)?)\\.zip\">"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://rawtherapee.com/downloads/")
+probes[0].changelogURL = nil
+probes[0].selectHighest = true
+probes[0].selectsHighestPublishedBuild = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].minimumSystemVersionPattern? = "<a href=\"RawTherapee_(?:macOS|MacOS)_([0-9]+\\.[0-9]+(?:\\.[0-9]+)?)_Universal_[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\.zip\">"
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern? = "<a href=\"RawTherapee_(?:macOS|MacOS)_"
+probes[0].install = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+probes[1] = struct VendorProbeRecipe
+probes[1].bundleID = "com.rawtherapee.RawTherapee"
+probes[1].channel = .stable
+probes[1].variant? = "compatible-5.12"
+probes[1].hostRequirement? = struct VendorHostRequirement
+probes[1].hostRequirement?.minimumSystemVersion? = "15.4"
+probes[1].hostRequirement?.architectures = Array(count: 1)
+probes[1].hostRequirement?.architectures[0] = .arm64
+probes[1].installedVersionPattern? = "\\A[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\z"
+probes[1].buildLineage = nil
+probes[1].headBuildPattern = nil
+probes[1].url = URL("https://rawtherapee.com/shared/builds/mac/")
+probes[1].identities = Array(count: 0)
+probes[1].track = nil
+probes[1].mode = .responseBody
+probes[1].versionPattern = "<a href=\"RawTherapee_(?:macOS|MacOS)_15\\.4_Universal_(5\\.12)\\.zip\">"
+probes[1].transientBodyPattern = nil
+probes[1].trackClosedPattern = nil
+probes[1].downloadURL? = URL("https://rawtherapee.com/downloads/5.12/")
+probes[1].changelogURL = nil
+probes[1].selectHighest = false
+probes[1].selectsHighestPublishedBuild = false
+probes[1].versionIsBuild = false
+probes[1].buildNamespace = .bundle
+probes[1].displayVersionPattern = nil
+probes[1].publishedAtPattern = nil
+probes[1].minimumSystemVersionPattern = nil
+probes[1].maximumSystemVersionPattern = nil
+probes[1].entryStartPattern = nil
+probes[1].install = nil
+probes[1].requestBody = nil
+probes[1].followRedirects = true
+probes[1].requestHeaders = Dictionary(count: 0)
+probes[2] = struct VendorProbeRecipe
+probes[2].bundleID = "com.rawtherapee.RawTherapee"
+probes[2].channel = .stable
+probes[2].variant? = "compatible-5.11"
+probes[2].hostRequirement? = struct VendorHostRequirement
+probes[2].hostRequirement?.minimumSystemVersion? = "12.3"
+probes[2].hostRequirement?.architectures = Array(count: 1)
+probes[2].hostRequirement?.architectures[0] = .arm64
+probes[2].installedVersionPattern? = "\\A[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\z"
+probes[2].buildLineage = nil
+probes[2].headBuildPattern = nil
+probes[2].url = URL("https://rawtherapee.com/shared/builds/mac/")
+probes[2].identities = Array(count: 0)
+probes[2].track = nil
+probes[2].mode = .responseBody
+probes[2].versionPattern = "<a href=\"RawTherapee_(?:macOS|MacOS)_12\\.3_Universal_(5\\.11)\\.zip\">"
+probes[2].transientBodyPattern = nil
+probes[2].trackClosedPattern = nil
+probes[2].downloadURL? = URL("https://rawtherapee.com/downloads/5.11/")
+probes[2].changelogURL = nil
+probes[2].selectHighest = false
+probes[2].selectsHighestPublishedBuild = false
+probes[2].versionIsBuild = false
+probes[2].buildNamespace = .bundle
+probes[2].displayVersionPattern = nil
+probes[2].publishedAtPattern = nil
+probes[2].minimumSystemVersionPattern = nil
+probes[2].maximumSystemVersionPattern = nil
+probes[2].entryStartPattern = nil
+probes[2].install = nil
+probes[2].requestBody = nil
+probes[2].followRedirects = true
+probes[2].requestHeaders = Dictionary(count: 0)
+probes[3] = struct VendorProbeRecipe
+probes[3].bundleID = "com.rawtherapee.rawtherapee5"
+probes[3].channel = .stable
+probes[3].variant = nil
+probes[3].hostRequirement? = struct VendorHostRequirement
+probes[3].hostRequirement?.minimumSystemVersion = nil
+probes[3].hostRequirement?.architectures = Array(count: 1)
+probes[3].hostRequirement?.architectures[0] = .arm64
+probes[3].installedVersionPattern? = "\\A[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\z"
+probes[3].buildLineage = nil
+probes[3].headBuildPattern = nil
+probes[3].url = URL("https://rawtherapee.com/shared/builds/mac/")
+probes[3].identities = Array(count: 0)
+probes[3].track = nil
+probes[3].mode = .responseBody
+probes[3].versionPattern = "<a href=\"RawTherapee_(?:macOS|MacOS)_[0-9]+\\.[0-9]+(?:\\.[0-9]+)?_Universal_([0-9]+\\.[0-9]+(?:\\.[0-9]+)?)\\.zip\">"
+probes[3].transientBodyPattern = nil
+probes[3].trackClosedPattern = nil
+probes[3].downloadURL? = URL("https://rawtherapee.com/downloads/")
+probes[3].changelogURL = nil
+probes[3].selectHighest = true
+probes[3].selectsHighestPublishedBuild = false
+probes[3].versionIsBuild = false
+probes[3].buildNamespace = .bundle
+probes[3].displayVersionPattern = nil
+probes[3].publishedAtPattern = nil
+probes[3].minimumSystemVersionPattern? = "<a href=\"RawTherapee_(?:macOS|MacOS)_([0-9]+\\.[0-9]+(?:\\.[0-9]+)?)_Universal_[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\.zip\">"
+probes[3].maximumSystemVersionPattern = nil
+probes[3].entryStartPattern? = "<a href=\"RawTherapee_(?:macOS|MacOS)_"
+probes[3].install = nil
+probes[3].requestBody = nil
+probes[3].followRedirects = true
+probes[3].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 2)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.rawtherapee.RawTherapee"
+changelogs[0].source = URL("https://rawtherapee.com/downloads/")
+changelogs[0].sourceTemplate? = "https://rawtherapee.com/downloads/{version}/"
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<h1 class=\"page-title\">RawTherapee v(?<version>[0-9]+\\.[0-9]+(?:\\.[0-9]+)?)</h1>.*?Download RawTherapee version \\k<version> released on\\s+(?<date>[A-Za-z]+ \\d{1,2}, \\d{4})\\..*?(?<body><h2 id=\"new-features\">.*?)(?=<h2 id=\"(?:installation-instructions|sha-256)\")"
+changelogs[0].itemPatterns = Array(count: 1)
+changelogs[0].itemPatterns[0] = "<(?:li|p)\\b[^>]*>(?<item>.*?)(?=</(?:li|p)>|<[uo]l\\b)"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 40
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel? = .stable
+changelogs[0].includesPromotedStable = false
+changelogs[0].ordersByPublishedDate = false
+changelogs[0].excludedChannels = Array(count: 0)
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern? = "<h2\\b[^>]*>\\s*<a\\b[^>]*\\baria-label=\"Permalink to (?<heading>[^\"]+)\""
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "com.rawtherapee.rawtherapee5"
+changelogs[1].source = URL("https://rawtherapee.com/downloads/")
+changelogs[1].sourceTemplate? = "https://rawtherapee.com/downloads/{version}/"
+changelogs[1].versionFromTemplate = false
+changelogs[1].mode = .html
+changelogs[1].entryPattern = "<h1 class=\"page-title\">RawTherapee v(?<version>[0-9]+\\.[0-9]+(?:\\.[0-9]+)?)</h1>.*?Download RawTherapee version \\k<version> released on\\s+(?<date>[A-Za-z]+ \\d{1,2}, \\d{4})\\..*?(?<body><h2 id=\"new-features\">.*?)(?=<h2 id=\"(?:installation-instructions|sha-256)\")"
+changelogs[1].itemPatterns = Array(count: 1)
+changelogs[1].itemPatterns[0] = "<(?:li|p)\\b[^>]*>(?<item>.*?)(?=</(?:li|p)>|<[uo]l\\b)"
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 40
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel? = .stable
+changelogs[1].includesPromotedStable = false
+changelogs[1].ordersByPublishedDate = false
+changelogs[1].excludedChannels = Array(count: 0)
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern? = "<h2\\b[^>]*>\\s*<a\\b[^>]*\\baria-label=\"Permalink to (?<heading>[^\"]+)\""
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].carriesOtherTrainEntries = false
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat = nil
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

@@ -158,6 +158,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — VendorProbe + optional Changelog
 
+- [x] [**RawTherapee**](com-rawtherapee-rawtherapee5.md) · `com.rawtherapee.RawTherapee`、`com.rawtherapee.rawtherapee5` — P+C · 两代官网正式版按 macOS 兼容范围检测，版本化结构日志 · 一键缺口为 ZIP 内套 DMG 与 bundle ID 迁移 · 2026-11-28
+
 - [x] [**Dataflare**](app-dataflare-desktop.md) · `app.dataflare.desktop` — P+C · 官方正式版更新接口、版本化 arm64 DMG 和 Markdown 日志 · 2026-11-28
 - [x] [**LICEcap**](com-cockos-LICEcap.md) · `com.cockos.LICEcap` — P+C · Cockos 官网正式版 DMG 和保留平台标记的历史日志 · 2026-11-28
 - [x] [**Sigil**](com-sigil-ebook-Sigil-app.md) · `com.sigil-ebook.Sigil.app` — P+C · 官网 arm64 TXZ 和分版本的官方发布记录 · 2026-11-28

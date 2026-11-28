@@ -423,6 +423,7 @@ public enum AppRecipeIndex {
         pl_maketheweb_cleanshotx.set,
         pro_affine_app.set,
         pro_betterdisplay_BetterDisplay.set,
+        re_rizin_cutter.set,
         rocks_spotifast_Spotifast.set,
         ru_starmel_OpenSuperWhisper.set,
         run_kuvo_app.set,

@@ -491,23 +491,32 @@ public actor VendorInstaller {
         )
         let installedApp = result.app.path, finalTrust = trust
         let stagedApp = newApp
+        let expectedBundleID = result.app.recipeBundleID
         let archiveAlone = try await offCooperativePool {
-            try Self.verifyOfferedPackageVersion(app: stagedApp, remote: remote)
+            try Self.verifyOfferedPackageVersion(
+                app: stagedApp, remote: remote, expectedBundleID: expectedBundleID)
             return SignatureVerifier.originRestsOnArchiveAlone(trust: finalTrust, installedApp: installedApp)
         }
         return (newApp, stagedCheck, archiveAlone)
     }
 
-    /// A route that publishes an exact bundle version checks it against the
-    /// signed payload. Routes that publish the build check that field too. Run
-    /// off the cooperative pool, after verifying the bundle's seal.
-    static func verifyOfferedPackageVersion(app: URL, remote: RemoteVersion) throws {
+    /// Match the offered release against the signed payload. Routes that
+    /// publish the build check that field too. Run off the cooperative pool,
+    /// after verifying the bundle's seal.
+    static func verifyOfferedPackageVersion(
+        app: URL, remote: RemoteVersion, expectedBundleID: String?
+    ) throws {
         guard remote.requiresExactPackageVersion
                 || (remote.sourceName == "GitHub" && remote.marketingMatchesBundle)
         else { return }
         let expected = remote.versionSide
         let downloaded = StagedRelaunch.diskVersionSide(app)
-        guard let marketing = expected.marketing, downloaded.marketing == marketing,
+        let downloadedMarketing = if expectedBundleID == re_rizin_cutter.bundleID, remote.sourceName == "GitHub" {
+            downloaded.marketing.flatMap(re_rizin_cutter.stablePackageVersion)
+        } else {
+            downloaded.marketing
+        }
+        guard let marketing = expected.marketing, downloadedMarketing == marketing,
               expected.build == nil || downloaded.build == expected.build else {
             throw InstallError.packageVersionMismatch(expected: expected, downloaded: downloaded)
         }

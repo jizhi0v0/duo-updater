@@ -43,10 +43,10 @@ public enum GitHubCandidateScope: String, Sendable, Equatable {
     /// version before taking the first row, and whose prerelease line is
     /// published ahead of later stable patches: Maestro's `1.1.0-RC` came out
     /// before 1.0.1 and 1.0.2, and with RCs on the app offers it to a 1.0.2
-    /// copy. `.newest` would take 1.0.2, the first row. A release without the
-    /// macOS asset is walked past to the next-highest, as `.newest` walks to
-    /// the next row. Never probed with a one-row page: one row cannot say
-    /// which version is highest.
+    /// copy. `.newest` would take 1.0.2, the first row. Cutter uses this when
+    /// its stable endpoint lacks the ARM64 DMG and we fall back to the list.
+    /// A release without the macOS asset is walked past to the next-highest.
+    /// Never probed with a one-row list page: it cannot establish the highest version.
     case highestVersion
 }
 
@@ -149,9 +149,8 @@ public struct GitHubReleaseRule: Sendable {
     /// (e.g. strip a leading `v`, or a `.stable_00` suffix).
     public let versionPattern: String
 
-    /// How to choose among the releases this rule fetched. `.newest` for every
-    /// rule but UTM beta (`.installedMajorLineOrNewestStable`) and Maestro RC
-    /// (`.highestVersion`) — see `GitHubCandidateScope` for why each differs.
+    /// How to choose among the releases this rule fetched. Defaults to
+    /// `.newest`; see `GitHubCandidateScope` for the other policies.
     public let candidateScope: GitHubCandidateScope
 
     /// Whether a `usePrereleases` rule with `.newest` scope first asks for a
@@ -1763,12 +1762,20 @@ public struct GitHubReleasesSource: UpdateSource {
         let isZeaburDesktop = rule.bundleID == com_zeabur_oss_desktop.bundleID
         let isCleanClip = rule.bundleID == com_antiless_cleanclip_mac.bundleID
         let isRune = rule.bundleID == ci_not_rune.bundleID
+        let isCutter = rule.bundleID == re_rizin_cutter.bundleID
         let pinsDMGToTag = isZeaburDesktop || isCleanClip || isRune
             || rule.bundleID == com_burakgon_openscreens.bundleID
 
         // These publishers generate exactly one Mac DMG named from the tag.
         // A signed DMG from another release cannot establish this version.
         func eligibleAssets(in release: Release) -> [(name: String, url: URL, size: Int64?)] {
+            if isCutter {
+                // The tag pins the archive name. Cutter appends a build suffix
+                // inside the bundle, so its full marketing version is separate.
+                let file = "Cutter-\(release.tag)-macOS-arm64.dmg"
+                let url = URL(string: "https://github.com/\(rule.slug)/releases/download/\(release.tag)/\(file)")
+                return release.assets.filter { $0.name == file && $0.url == url }
+            }
             guard pinsDMGToTag else { return release.assets }
             if isCleanClip {
                 return release.assets.filter { $0.name == "CleanClip-\(release.tag).dmg" }
@@ -1864,8 +1871,8 @@ public struct GitHubReleasesSource: UpdateSource {
         let history: [ReleaseHistoryEntry] = releases.compactMap { release in
             guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern)
             else { return nil }
-            // A shared release can ship only the CLI, server or mobile app.
-            if pinsDMGToTag, let pattern = rule.installAssetPattern,
+            // A release can omit this app's Mac installer.
+            if pinsDMGToTag || isCutter, let pattern = rule.installAssetPattern,
                !GitHubReleaseRule.carriesInstallableAsset(from: eligibleAssets(in: release), matching: pattern) {
                 return nil
             }
@@ -1960,7 +1967,10 @@ public struct GitHubReleasesSource: UpdateSource {
                     offeredBuild = build
                 }
 
-                let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
+                let releasesPage = "https://github.com/\(rule.slug)/releases"
+                let page = isCutter
+                    ? URL(string: "\(releasesPage)/tag/\(release.tag)")
+                    : release.htmlURL ?? URL(string: releasesPage)
                 let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
                 // Rune's notes and skipped releases use tags; its bundle
                 // version orders installs, not releases on GitHub.
@@ -2004,7 +2014,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     version: offeredBuild,
                     marketingMatchesBundle: offeredBuild != nil || pinsDMGToTag,
                     downloadURL: asset?.url
-                        ?? URL(string: "https://github.com/\(rule.slug)/releases"),
+                        ?? URL(string: releasesPage),
                     // The release page — an asset URL would download the archive.
                     pageURL: page,
                     downloadSize: asset?.size,
@@ -2012,6 +2022,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     sourceName: name,
                     requiresManualInstaller: !installable,
                     vendorInstallerKind: installable ? rule.installerKind : nil,
+                    requiresExactPackageVersion: isCutter,
                     expectedSHA256: digest,
                     installTrust: rule.installTrust,
                     releaseNotesHTML: structured == nil ? body : nil,

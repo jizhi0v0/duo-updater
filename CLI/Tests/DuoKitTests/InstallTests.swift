@@ -56,6 +56,34 @@ import DuoUpdaterCore
             stagedSelfUpdates: [:])
     }
 
+    @Test(arguments: [false, true])
+    func runningCutterLinksToReleasePageWhenInstallationIsDeferred(noTeamID: Bool) throws {
+        let page = try #require(URL(string: "https://github.com/rizinorg/cutter/releases/tag/v2.5.0"))
+        let cutter = InstalledApp(
+            name: "Cutter", bundleID: "re.rizin.cutter", shortVersion: "2.4.1-HEAD-a5f88d1",
+            buildVersion: "2.4.1-HEAD-a5f88d1", path: URL(fileURLWithPath: fixturePath),
+            isMASApp: false, sparkleFeedURL: nil)
+        var update = UpdateResult(
+            app: cutter,
+            remote: RemoteVersion(
+                shortVersion: "2.5.0", version: nil, downloadURL: page,
+                pageURL: page, sourceName: "GitHub", vendorInstallerKind: .dmg),
+            status: .updateAvailable(latest: "2.5.0"))
+        update.installedLacksTeamIdentifier = noTeamID
+        let running = environment(running: true)
+        #expect(Check.route(update, settings: settings(), environment: running) == "manual")
+        #expect(Check.route(update, settings: settings(), environment: environment())
+            == (noTeamID ? "manual" : "in-place"))
+        #expect(Check.route(update, settings: settings(vendorPolicy: .alwaysOverwrite), environment: running)
+            == (noTeamID ? "manual" : "in-place"))
+        guard case .refuse(let reason, _) = Install.classify(
+            update, settings: settings(), environment: running) else {
+            Issue.record("a running Cutter must stay deferred")
+            return
+        }
+        #expect(reason.contains(noTeamID ? "no developer Team ID" : page.absoluteString))
+    }
+
     /// TinyWeb 2026-09-22: Sparkle had staged the latest, so `canAutoInstall` and
     /// `requiresInstaller` both said no and the refusal blamed the source
     /// ("detection only"). The staged build is the real reason.

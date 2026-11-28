@@ -608,6 +608,16 @@ public enum UpdatePolicy {
         return sparklePackageExtensions.contains(ext)
     }
 
+    /// The web handoff for a result whose installation is already deferred.
+    /// Cutter's own checker only links to its release page.
+    public static func releasePageForDeferral(_ result: UpdateResult) -> URL? {
+        guard result.app.bundleID == re_rizin_cutter.bundleID,
+              result.remote?.sourceName == "GitHub",
+              let url = result.remote?.pageURL,
+              url.scheme == "https", url.host == "github.com" else { return nil }
+        return url
+    }
+
     /// A recipe may require the app's own updater for a migration. Otherwise
     /// running self-updating apps defer when the policy is `.deferWhenRunning`.
     /// Detection-only vendor apps already offer their own update path.

@@ -299,15 +299,16 @@ public enum Install {
             }
             if !started.isEmpty {
                 for planned in started {
+                    let reason = UpdatePolicy.releasePageForDeferral(planned.result).map {
+                        "started while waiting for confirmation (quit it to install, or download from \($0.absoluteString))"
+                    } ?? "started while waiting for confirmation, and your vendor policy defers to its own updater"
                     if options.json {
                         NDJSON.emit(skippedPayload(
                             name: planned.result.app.name, route: planned.route,
-                            reason: "started while waiting for confirmation, and your vendor "
-                                + "policy defers to its own updater.",
+                            reason: reason + ".",
                             outcome: .skipped))
                     } else {
-                        print("Skipping \(planned.result.app.name): started while waiting for confirmation, "
-                              + "and your vendor policy defers to its own updater.")
+                        print("Skipping \(planned.result.app.name): \(reason).")
                     }
                 }
                 plan.removeAll { planned in
@@ -575,6 +576,10 @@ public enum Install {
         }
         if UpdatePolicy.defersToSelfUpdater(
             result, settings: settings.updateSettings, environment: environment) {
+            if let releasePage = UpdatePolicy.releasePageForDeferral(result) {
+                return .refuse("running, and your vendor policy defers installation. "
+                    + "Quit it to install, or download from \(releasePage.absoluteString)", nil)
+            }
             return .refuse("running, and your vendor policy defers to its own updater "
                 + "(quit it, or set Always download & replace)", nil)
         }

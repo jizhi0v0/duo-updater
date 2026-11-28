@@ -1,0 +1,31 @@
+enum re_rizin_cutter {
+    static let bundleID = "re.rizin.cutter"
+    private static let triplet = #"[0-9]+\.[0-9]+\.[0-9]+"#
+
+    static let set = AppRecipeSet(
+        family: "re-rizin-cutter",
+        githubRules: [
+            // Stable and RC copies both follow GitHub's latest stable release.
+            // Signed installations use the usual Developer ID gate. Older
+            // ad-hoc RC copies have no Team ID and only get the release link.
+            GitHubReleaseRule(
+                bundleID: bundleID,
+                owner: "rizinorg", repo: "cutter",
+                versionPattern: #"\Av(\#(triplet))\z"#,
+                candidateScope: .highestVersion,
+                installAssetPattern: #"\ACutter-v\#(triplet)-macOS-arm64\.dmg\z"#,
+                installerKind: .dmg),
+        ])
+
+    static func upstreamVersion(from bundleVersion: String) -> String? {
+        VendorProbeRecipe.extractVersion(
+            from: bundleVersion, pattern: #"\A(\#(triplet))(?:-.+)?\z"#)
+    }
+
+    static func stablePackageVersion(from bundleVersion: String) -> String? {
+        // Accept the number alone and the measured stable branch and commit
+        // forms. An explicit prerelease suffix cannot pin a DMG.
+        VendorProbeRecipe.extractVersion(
+            from: bundleVersion, pattern: #"\A(\#(triplet))(?:-(?:HEAD|stable)-[0-9a-f]{7,40})?\z"#)
+    }
+}

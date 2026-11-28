@@ -6,8 +6,9 @@
 
 | 副本 | Sparkle | GitHub | VendorProbe | 一键安装 | Changelog |
 |---|---|---|---|---|---|
-| 厂商正式版 | 无 feed | 未接入 | — | 未接入 | 厂商有 GitHub 发布说明。Duo 尚未结构化 |
-| 厂商 RC | 无 feed | 未接入 | — | 未接入 | 厂商有独立的 GitHub 发布说明。Duo 尚未结构化 |
+| 厂商正式版 | 无 feed | 检查最新正式版 | — | ARM64 DMG，按已安装副本的 Developer ID 验证 | 最新正式版的 GitHub 正文结构化 |
+| 手动安装的厂商 RC | 无 feed | 同样检查最新正式版 | — | 受测 RC 无 Team ID，有更新时从正式发布页手动安装 | 同一份正式版说明 |
+| radare2 时代的 1.x（`org.radare.cutter`） | — | 停更 | — | 迁移到 Rizin 版需手动安装 | — |
 
 ## 官方实包
 
@@ -22,25 +23,31 @@
 | [2.4.0-rc1](https://github.com/rizinorg/cutter/releases/tag/v2.4.0-rc1) | `2.4.0-HEAD-ec6a6fb` | Ad-hoc，无 Team，严格签名校验通过，Gatekeeper 拒绝 |
 | [2.3.4](https://github.com/rizinorg/cutter/releases/tag/v2.3.4) | `2.3.4-stable-209c26b` | Team `7C89959B9X`，严格签名校验通过，Gatekeeper 识别为已公证 |
 
-主要可执行文件的 Mach-O 最低系统版本为 11.0（2.4.x 和 2.5.0 的受测包）或 13.0（2.3.4 的受测包）。发布页还提供独立的 Intel DMG，本次只验证 arm64 实包。
+主要可执行文件的 Mach-O 最低系统版本为 11.0（2.4.x 和 2.5.0 的受测包）或 13.0（2.3.4 的受测包）。发布页还提供独立的 Intel DMG。上述 2.x 实测针对 arm64 包。
 
-## 渠道识别与更新检测
+1.12.0 的官方 x64 包仍使用 `org.radare.cutter`，没有代码签名。2.0.0 换用 Rizin 后端，上游同时宣布停止维护 radare2 分支。Duo 的规则覆盖后续 `re.rizin.cutter` 副本。依赖 radare2 后端的用户可以保留旧版，改用 Rizin 版时需手动安装。[1.12.0 bundle 定义](https://github.com/rizinorg/cutter/blob/v1.12.0/src/macos/Info.plist) · [2.0.0 发布说明](https://github.com/rizinorg/cutter/releases/tag/v2.0.0)
 
-- **同一个包内版本曾用在两个公开发布轨。** 官方 2.4.0 和 2.4.0-rc1 的 `Info.plist` 字节相同，两个 tag 指向同一个 commit `ec6a6fb`。2.3.4、2.3.0 也各有与正式 tag 同 commit 的公开 RC。2.5.0 的正式 tag 与 RC4 tag 共用 commit，但 GitHub API 对 RC4 的 Release 查询返回 404。[2.4 的 tag refs](https://api.github.com/repos/rizinorg/cutter/git/matching-refs/tags/v2.4) · [2.3 的 tag refs](https://api.github.com/repos/rizinorg/cutter/git/matching-refs/tags/v2.3) · [2.5 的 tag refs](https://api.github.com/repos/rizinorg/cutter/git/matching-refs/tags/v2.5)
-- 上游构建用版本、可选打包后缀、Git 分支与短 commit 生成包内版本。厂商自带更新器查询 GitHub 的 `releases/latest`、比较三段数字并给出正式发布页链接。Duo 若照搬该端点，2.4.0-rc1 会收到后续正式版的提示。现有 GitHub tag 反查和 VendorProbe 安装版本筛选均依赖可区分的本地版本，无法分开这两个包。受测样本的 Team 差异可供安装签名校验使用，未找到厂商为各发布轨承诺这个签名分界的规则。[构建版本逻辑](https://github.com/rizinorg/cutter/blob/v2.5.0/CMakeLists.txt#L30-L61) · [厂商更新器](https://github.com/rizinorg/cutter/blob/v2.5.0/src/common/UpdateWorker.cpp)
-- 在 Apple Silicon macOS 27.2 VM 用生产来源链的 `channel-verify` 核对 2.4.0、2.4.0-rc1、2.4.1、2.5.0 和 2.5.0-rc1。五份均显示 `detected channel → stable`（默认值）、`winning source <none>`、`status unknown (no source answered)`。2.4.0 正式版与 RC 的 `Info.plist` 在 VM 中也通过了逐字节比较。两条轨均保留当前覆盖缺口。
+## 更新检测
+
+- Stable 和 RC 的内置检查都查询 GitHub 的 `releases/latest`，只在远端的三段数字更高时提示并给出正式发布页链接。RC 是 GitHub 上可手动下载安装的预发布包。Duo 沿用同一个正式版来源，2.4.0-rc1 可看到 2.5.0，2.5.0-rc1 等到三段数字更高的正式版才会收到提示。[正式版检查](https://github.com/rizinorg/cutter/blob/v2.5.0/src/common/UpdateWorker.cpp) · [RC 检查](https://github.com/rizinorg/cutter/blob/v2.5.0-rc1/src/common/UpdateWorker.cpp) · [RC 版本比较](https://github.com/rizinorg/cutter/blob/v2.5.0-rc1/src/Main.cpp#L90-L102)
+- 官方 2.4.0 和 2.4.0-rc1 的 `Info.plist` 字节相同，两个 tag 指向同一个 commit `ec6a6fb`。包内版本由版本号、可选打包后缀、Git 分支与短 commit 生成。Duo 比较 GitHub 或 Homebrew 的版本时取包内开头的三段数字，显示和安装检查仍用原始包内版本。[2.4 的 tag refs](https://api.github.com/repos/rizinorg/cutter/git/matching-refs/tags/v2.4) · [构建版本逻辑](https://github.com/rizinorg/cutter/blob/v2.5.0/CMakeLists.txt#L30-L61)
+- VM 的 `channel-verify` 在 2.4.1、2.4.0-rc1、2.5.0 和 2.5.0-rc1 上都选中 GitHub 正式来源。前两者提示升级到 2.5.0，后两者显示已是最新。
 
 ## 一键安装
 
-2.4.1 与 2.5.0 的 arm64 DMG 可作为同 Team 旧新对。厂商的包内版本带 commit，正式发布 tag 只包含三段版本。安装信任检查无法决定发布轨归属，`OneClickGate` 也仅能限制安装，因此本次未登记安装规则，未做原位升级。
+GitHub 规则只选择文件名和下载 URL 与正式 tag 对应的 ARM64 DMG。最新正式发布缺少这样的 DMG 时，在 GitHub 正式发布列表中选可用的最高版本。安装包通过现有签名和 Team ID 校验，签名包内的三段数字也必须等于发布版本。版本字段接受纯数字及实测的 `-HEAD-<hash>`、`-stable-<hash>` 后缀格式。已测正式版的 Team 为 `7C89959B9X`。受测 RC 是无 Team ID 的 ad-hoc 包，更新时需手动安装。
+
+开启「运行时暂缓」时，运行中的 Cutter 提供正式发布页，可在手动退出后用 Duo 一键更新有 Team ID 的副本。
+
+2026-11-28 在 Apple Silicon macOS 27.2（26B123）VM 用签名版 `duo` 将 2.4.1 原地升级到 2.5.0，下载安装了官方 120,445,928 字节的 DMG。落盘版本为 `2.5.0-HEAD-a6f6ad7`、Team 为 `7C89959B9X`，严格代码签名验证和 Gatekeeper 公证检查通过。2.4.0-rc1 对同一正式版的安装请求被无 Team ID 闸拒绝，原副本保持 `2.4.0-HEAD-ec6a6fb`。VM 的匿名 GitHub API 配额已用完，测试通过 Duo 的开发验证入口重放宿主机捕获的正式发布响应。安装器字节从 GitHub 下载。
 
 ## Changelog
 
-正式版和 RC 的说明随各自 Release 发布。用包内短 hash 选择说明会遇到同一 commit 对应两篇说明的情况。上述五份副本的 `channel-verify` 均显示 `changelog pane none — the pane says there are no release notes`。
+复用 GitHub Releases 的结构化解析。VM 的四个样本均显示 2.5.0 的正式发布说明，其中有 27 条变更。[2.5.0 发布说明](https://github.com/rizinorg/cutter/releases/tag/v2.5.0)
 
 ## 夜扫覆盖
 
-未登记 Cutter 的检测或安装规则，无夜扫 recipe ID。GitHub 的 release 记录可以区分远端条目，现有本地信号无法把受测副本可靠配到这些条目。
+GitHub 规则由夜扫枚举，检测 ID 为 `github:rizinorg/cutter:stable`，安装检查 ID 为 `install:github:rizinorg/cutter:stable`。2026-11-28，宿主机直连运行 `duo verify --github --only re.rizin.cutter` 及 `duo verify-install --full --only re.rizin.cutter`。两项各检查一个目标并通过。全量安装检查首次观察到 2.5.0、Bundle ID `re.rizin.cutter`、Team `7C89959B9X`。
 
 ## 如何复验
 

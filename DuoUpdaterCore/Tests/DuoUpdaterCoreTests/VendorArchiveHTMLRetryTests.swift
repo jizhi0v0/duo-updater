@@ -222,6 +222,43 @@ struct VendorArchiveHTMLRetryTests {
         }
     }
 
+    @Test(arguments: [
+        (bundled: "2.5.0", accepted: true),
+        (bundled: "2.5.0-HEAD-a6f6ad7", accepted: true),
+        (bundled: "2.5.0-stable-a6f6ad7", accepted: true),
+        (bundled: "2.4.1-HEAD-a5f88d1", accepted: false),
+        (bundled: "2.5.0-rc1-HEAD-2f053dd", accepted: false),
+    ])
+    func verifyInstallChecksCuttersNumericPackageVersion(
+        fixture: (bundled: String, accepted: Bool)
+    ) async throws {
+        let bundleID = "re.rizin.cutter"
+        let dir = try DigestOnlyInstallTests.scratch("cutter-version")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = try await DigestOnlyInstallTests.makeApp(
+            at: dir.appendingPathComponent("src/Cutter.app"), bundleID: bundleID,
+            version: fixture.bundled, build: fixture.bundled, signing: .sealed(identifier: nil))
+        let archive = dir.appendingPathComponent("Cutter.zip")
+        try await DigestOnlyInstallTests.zip(app, to: archive)
+        let server = try Server(bodies: [Data(contentsOf: archive)])
+        let workDir = dir.appendingPathComponent("work")
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        let remote = RemoteVersion(
+            shortVersion: "2.5.0", version: nil, downloadURL: server.url,
+            sourceName: "GitHub", vendorInstallerKind: .zip, requiresExactPackageVersion: true)
+
+        switch await ArtifactInspection.inspect(
+            remote, bundleName: "Cutter", workDir: workDir, expectedBundleID: bundleID) {
+        case .success(let inspected):
+            #expect(fixture.accepted)
+            #expect(inspected.identity?.shortVersion == fixture.bundled)
+        case .failure(let failure):
+            #expect(!fixture.accepted)
+            #expect(failure.stage == .signature)
+            #expect(failure.message.contains("expected 2.5.0"))
+        }
+    }
+
     @Test(arguments: [200, 403])
     func onlyHTMLPatchContentEarnsFullArchiveFallback(status: Int) async throws {
         let dir = try DigestOnlyInstallTests.scratch("html-patch")

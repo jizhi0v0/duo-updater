@@ -1763,12 +1763,20 @@ public struct GitHubReleasesSource: UpdateSource {
         let isZeaburDesktop = rule.bundleID == com_zeabur_oss_desktop.bundleID
         let isCleanClip = rule.bundleID == com_antiless_cleanclip_mac.bundleID
         let isRune = rule.bundleID == ci_not_rune.bundleID
+        let isCutter = rule.bundleID == re_rizin_cutter.bundleID
         let pinsDMGToTag = isZeaburDesktop || isCleanClip || isRune
             || rule.bundleID == com_burakgon_openscreens.bundleID
 
         // These publishers generate exactly one Mac DMG named from the tag.
         // A signed DMG from another release cannot establish this version.
         func eligibleAssets(in release: Release) -> [(name: String, url: URL, size: Int64?)] {
+            if isCutter {
+                // The tag pins the archive name. Cutter appends a build suffix
+                // inside the bundle, so its full marketing version is separate.
+                let file = "Cutter-\(release.tag)-macOS-arm64.dmg"
+                let url = URL(string: "https://github.com/\(rule.slug)/releases/download/\(release.tag)/\(file)")
+                return release.assets.filter { $0.name == file && $0.url == url }
+            }
             guard pinsDMGToTag else { return release.assets }
             if isCleanClip {
                 return release.assets.filter { $0.name == "CleanClip-\(release.tag).dmg" }

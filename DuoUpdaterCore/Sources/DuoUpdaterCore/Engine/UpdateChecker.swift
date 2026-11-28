@@ -942,9 +942,18 @@ public struct UpdateChecker: Sendable {
         // "27.0 (27A266a)" — the third parts are 1 and 27 — so a store point
         // release of Xcode showed as up to date. Only Xcode is named that way, so
         // only Xcode's label is taken back to its marketing version.
-        let isv = installed.bundleID == AppScanner.xcodeBundleID
-            ? UpdateResult.droppingTrailingBuild(labelled, build: installed.buildVersion)
-            : labelled
+        let isv: String
+        if installed.bundleID == AppScanner.xcodeBundleID {
+            isv = UpdateResult.droppingTrailingBuild(labelled, build: installed.buildVersion)
+        } else if installed.bundleID == re_rizin_cutter.bundleID,
+                  remote.sourceName == "GitHub" || remote.sourceName == "Homebrew",
+                  let version = re_rizin_cutter.upstreamVersion(from: labelled) {
+            // Cutter compares the three numeric components. Both stable and
+            // RC bundles append build metadata to that same version.
+            isv = version
+        } else {
+            isv = labelled
+        }
         if !VersionComparator.isNewer(rs, than: isv) {
             return .upToDate
         }

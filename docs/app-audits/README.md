@@ -158,6 +158,10 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — VendorProbe + optional Changelog
 
+- [x] [**Dataflare**](app-dataflare-desktop.md) · `app.dataflare.desktop` — P+C · 官方正式版更新接口、版本化 arm64 DMG 和 Markdown 日志 · 2026-11-28
+- [x] [**LICEcap**](com-cockos-LICEcap.md) · `com.cockos.LICEcap` — P+C · Cockos 官网正式版 DMG 和保留平台标记的历史日志 · 2026-11-28
+- [x] [**Sigil**](com-sigil-ebook-Sigil-app.md) · `com.sigil-ebook.Sigil.app` — P+C · 官网 arm64 TXZ 和分版本的官方发布记录 · 2026-11-28
+
 - [x] [**OpenCode (Rune)**](anomaly-opencode-rune.md) · `anomaly.opencode-rune` — P+C · 官方 dev 轨，arm64 DMG 和 SHA-256 · 2026-11-28
 
 - [x] [**Mixxx**](org-mixxx-mixxx.md) · `org.mixxx.mixxx` — P+C · 官网 ARM 正式版 DMG 和手册结构化日志 · 2026-11-28

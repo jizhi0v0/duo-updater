@@ -89,6 +89,31 @@ private let wechatDevToolsConfigFixture = """
 }
 """
 
+/// Official 2026-11-27 Nightly row, trimmed to both macOS downloads. The x64
+/// PKG is listed first. ARM64's primary link is the DMG.
+private let nightlyArm64Pkg = "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/electron-36.6.0/wechat_devtools_2.02.2611272_darwin_arm64.pkg"
+private let nightlySplitLinks = """
+{
+    "id": "nightly",
+    "version": "2.02.2611272",
+    "downloads": [
+        {
+            "os": "macOS",
+            "arch": "x64",
+            "url": "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/electron-36.6.0/wechat_devtools_2.02.2611272_darwin_x64.dmg",
+            "pkgurl": "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/electron-36.6.0/wechat_devtools_2.02.2611272_darwin_x64.pkg"
+        },
+        {
+            "os": "macOS",
+            "arch": "ARM64",
+            "url": "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/electron-36.6.0/wechat_devtools_2.02.2611272_darwin_arm64.dmg",
+            "dmgurl": "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/electron-36.6.0/wechat_devtools_2.02.2611272_darwin_arm64.dmg",
+            "pkgurl": "\(nightlyArm64Pkg)"
+        }
+    ]
+}
+"""
+
 /// The real `logs/rc_v2.02.2608031.json`, trimmed to three of its eight items.
 /// The item shapes are verbatim: every line is numbered "1." (they are authored as
 /// markdown lists, so the ordinal is decoration) and carries a backticked marker
@@ -253,8 +278,10 @@ struct WeChatDevToolsProbeTests {
     /// the prefix can't be read as a match.
     @Test func nightlyDoesNotMatchTheRetiredNightlyOldTrain() throws {
         let recipe = try self.recipe(.nightly)
+        let withoutNightlyVersion = wechatDevToolsConfigFixture.replacingOccurrences(
+            of: "\"version\": \"2.02.2608182\",", with: "")
         #expect(VendorProbeRecipe.extractVersion(
-            from: wechatDevToolsConfigFixture, pattern: recipe.versionPattern) != "2.01.2602282")
+            from: withoutNightlyVersion, pattern: recipe.versionPattern) == nil)
     }
 
     /// Each channel's install must resolve ITS arm64 pkg. Stable and RC are served
@@ -282,6 +309,33 @@ struct WeChatDevToolsProbeTests {
             // is what keeps the Intel build out.
             #expect(!url.contains("_darwin_x64."))
         }
+    }
+
+    @Test func nightlyReadsTheArm64PackageWhenThePrimaryURLIsADiskImage() async throws {
+        let recipe = try self.recipe(.nightly)
+        let server = try RecipeVerificationTests.StubServer(
+            body: "{\"channels\":[\(nightlySplitLinks)]}", contentType: "application/json")
+        defer { server.stop() }
+        let remote = await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url)).remote
+        #expect(remote?.shortVersion == "2.02.2611272")
+        #expect(remote?.downloadURL?.absoluteString == nightlyArm64Pkg)
+        #expect(remote?.vendorInstallerKind == .pkg)
+    }
+
+    @Test func nightlyWithoutAnArm64PackageKeepsDetectionWithoutBorrowingAnotherChannel() async throws {
+        let recipe = try self.recipe(.nightly)
+        let noPackage = nightlySplitLinks.replacingOccurrences(
+            of: "\"pkgurl\": \"\(nightlyArm64Pkg)\"", with: "\"pkgurl\": null")
+        let retired = nightlySplitLinks.replacingOccurrences(
+            of: "\"id\": \"nightly\"", with: "\"id\": \"nightly-old\"")
+            .replacingOccurrences(of: "2.02.2611272", with: "2.01.2602282")
+        let server = try RecipeVerificationTests.StubServer(
+            body: "{\"channels\":[\(noPackage),\(retired)]}", contentType: "application/json")
+        defer { server.stop() }
+        let remote = await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url)).remote
+        #expect(remote?.shortVersion == "2.02.2611272")
+        #expect(remote?.vendorInstallerKind == nil)
+        #expect(remote?.downloadURL == recipe.downloadURL)
     }
 
     /// Every non-stable channel that can install must state how we know it isn't

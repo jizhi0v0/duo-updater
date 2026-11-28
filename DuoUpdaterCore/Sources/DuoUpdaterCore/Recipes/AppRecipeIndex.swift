@@ -109,6 +109,7 @@ public enum AppRecipeIndex {
         com_flyingmeat_Acorn8.set,
         com_generalarcade_flycut.set,
         com_getdropbox_dropbox.set,
+        com_gitbutler_app.set,
         com_github_CopilotForXcode.set,
         com_github_githubapp.set,
         com_github_GitHubClient.set,

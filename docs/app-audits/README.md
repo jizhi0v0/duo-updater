@@ -151,6 +151,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — VendorProbe + optional Changelog
 
+- [ ] [**GitButler**](com-gitbutler-app.md) · `com.gitbutler.app` — P+C · 官网 ARM64 正式轨与版本化 tar.gz
+
 - [x] [**Backblaze Computer Backup**](com-backblaze-Backblaze.md) · `com.backblaze.Backblaze` — P · 验证版本化 DMG 后以灰色 Update 打开厂商安装器 · 2026-11-22
 - [x] [**小麥注音 McBopomofo**](org-openvanilla-inputmethod-McBopomofo.md) · `org.openvanilla.inputmethod.McBopomofo` — P · 用户级副本以灰色 Update 打开官方安装器 · 2026-11-22
 - [x] [**BlockBlock**](com-objective-see-blockblock-helper.md) · `com.objective-see.blockblock.helper` — P · 官网 ZIP 摘要校验后从灰色 Update 打开厂商安装器 · 2026-11-22

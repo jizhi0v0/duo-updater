@@ -1,0 +1,109 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "studio-fireball-OneSwitch"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 2)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "studio.fireball.OneSwitch"
+changelogs[0].source = URL("https://fireball.studio/api/release_manager/studio.fireball.OneSwitchOfficial.xml")
+changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<title>\\s*(?<title>One Switch Official)\\s*</title>.*?<div\\s+class=\"content\">(?<body>.*?)</div>"
+changelogs[0].itemPatterns = Array(count: 1)
+changelogs[0].itemPatterns[0] = "<(li|p)\\b[^>]*>(?![^<]*[:\u{FF1A}]\\s*</p>\\s*<[uo]l\\b)(?<item>.*?)</\\1>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 1
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern? = "^https://fireball\\.studio/api/release_manager/releasenotes/[0-9]+/[A-Za-z]{2,3}(?:-[A-Za-z0-9]+)*/studio\\.fireball\\.OneSwitchOfficial\\.xml$"
+changelogs[0].channel? = .stable
+changelogs[0].includesPromotedStable = false
+changelogs[0].ordersByPublishedDate = false
+changelogs[0].excludedChannels = Array(count: 0)
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern? = "<p\\b[^>]*>\\s*(?<heading>[^<]+?[:\u{FF1A}])\\s*</p>\\s*(?=<[uo]l\\b)"
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "studio.fireball.OneSwitch"
+changelogs[1].source = URL("https://fireball.studio/api/release_manager/studio.fireball.OneSwitchOfficial.xml?beta=1")
+changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
+changelogs[1].mode = .html
+changelogs[1].entryPattern = "<title>\\s*(?<title>One Switch Official)\\s*</title>.*?<div\\s+class=\"content\">(?<body>.*?)</div>"
+changelogs[1].itemPatterns = Array(count: 1)
+changelogs[1].itemPatterns[0] = "<(li|p)\\b[^>]*>(?![^<]*[:\u{FF1A}]\\s*</p>\\s*<[uo]l\\b)(?<item>.*?)</\\1>"
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 1
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern? = "^https://fireball\\.studio/api/release_manager/releasenotes/[0-9]+/[A-Za-z]{2,3}(?:-[A-Za-z0-9]+)*/studio\\.fireball\\.OneSwitchOfficial\\.xml$"
+changelogs[1].channel? = .beta
+changelogs[1].includesPromotedStable = false
+changelogs[1].ordersByPublishedDate = false
+changelogs[1].excludedChannels = Array(count: 0)
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern? = "<p\\b[^>]*>\\s*(?<heading>[^<]+?[:\u{FF1A}])\\s*</p>\\s*(?=<[uo]l\\b)"
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].carriesOtherTrainEntries = false
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat = nil
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 1)
+bindingProofs[ChannelProofKey(bundleID: "studio.fireball.OneSwitch", channel: .beta)] = .recipeAnchor(_:in:)
+bindingProofs[ChannelProofKey(bundleID: "studio.fireball.OneSwitch", channel: .beta)].0 = "^https://fireball\\.studio/api/release_manager/studio\\.fireball\\.OneSwitchOfficial\\.xml\\?beta=1$"
+bindingProofs[ChannelProofKey(bundleID: "studio.fireball.OneSwitch", channel: .beta)].in = Set(count: 1)
+bindingProofs[ChannelProofKey(bundleID: "studio.fireball.OneSwitch", channel: .beta)].in{0} = "feedOverride"
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 1)
+oneClickGates[0] = struct OneClickGate
+oneClickGates[0].bundleID = "studio.fireball.OneSwitch"
+oneClickGates[0].requirement = .migratedMajor(source:firstMajor:)
+oneClickGates[0].requirement.source = "Sparkle"
+oneClickGates[0].requirement.firstMajor = 2
+oneClickGates[0].reason = "open One Switch and use Check for Updates to migrate its Keep Awake helper"
+oneClickGates[0].offering = nil
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

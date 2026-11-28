@@ -158,6 +158,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — VendorProbe + optional Changelog
 
+- [x] [**RawTherapee**](com-rawtherapee-rawtherapee5.md) · `com.rawtherapee.RawTherapee`、`com.rawtherapee.rawtherapee5` — P+C · 两代官网正式版按 macOS 兼容范围检测，版本化结构日志 · 一键缺口为 ZIP 内套 DMG 与 bundle ID 迁移 · 2026-11-28
+
 - [x] [**Dataflare**](app-dataflare-desktop.md) · `app.dataflare.desktop` — P+C · 官方正式版更新接口、版本化 arm64 DMG 和 Markdown 日志 · 2026-11-28
 - [x] [**LICEcap**](com-cockos-LICEcap.md) · `com.cockos.LICEcap` — P+C · Cockos 官网正式版 DMG 和保留平台标记的历史日志 · 2026-11-28
 - [x] [**Sigil**](com-sigil-ebook-Sigil-app.md) · `com.sigil-ebook.Sigil.app` — P+C · 官网 arm64 TXZ 和分版本的官方发布记录 · 2026-11-28
@@ -454,6 +456,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
+- [x] [**One Switch**](studio-fireball-OneSwitch.md) · `studio.fireball.OneSwitch` — S+B（官网正式版与显式开启的 Beta）+ C（所选版本和语言的发布页）· VM 一键升级 429 → 440 及主进程和 XPC 重启通过 · 1.x → 2.x 由厂商更新器处理 · 2026-11-28
+
 - [x] [**ONLYOFFICE**](asc-onlyoffice-ONLYOFFICE.md) · `asc.onlyoffice.ONLYOFFICE` — S（官网包内 ARM、Intel 和旧 Intel appcast）+ C（官方版本历史与迁移提示）· 2026-11-28
 
 - [x] [**Royal TSX**](com-lemonmojo-RoyalTSX-App.md) · `com.lemonmojo.RoyalTSX.App` — S（v6 stable、v26 beta 各用包内 feed）· v6 一键 DMG 实测 · Sparkle HTML 日志保留标题和首条 · 2026-11-28
@@ -513,6 +517,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Investigated — blocked safely
 
+- [ ] [**Cutter**](re-rizin-cutter.md) · `re.rizin.cutter` · 官方 2.4.0 正式版与 RC 的包内版本及 Info.plist 相同，发布轨无法可靠区分 · 检测、一键、日志待接入 · 2026-11-28
 - [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — P(stable/beta) B · **两轨全接（GitHub 两条规则 + ChannelBinding，一键 ✓，Team HT3Z3A72WZ 两轨真包核对）**；appcast **故意不读**——它只留一个预发布名额，旧 beta 副本找不到自己会被推 `7.0.9` 这个 marketing 降级包（守卫见 #368），换 GitHub 后渠道由 tag 和 `checksUpdatesForBeta` 决定，盲区消失 · 2026-09-06
 - [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — P（官网下载 API，arm64 / x64 各一条，一键 dmg ✓ 端到端）· 跟随官网，领先应用内分配 · 3.5.87 → 3.5.104 检测 ✓ · changelog 结构化 ✓（docs 页，2026-10-10）· 2026-10-08
 - [x] [**macFUSE**](io-macfuse-preferencepanes-macfuse.md) · `io.macfuse.preferencepanes.macfuse` — 装的是 `.prefPane` + `/Library/Filesystems/macfuse.fs`（嵌套的 `macfuse.app` 自报 `1.0`），都不在 `AppScanner` 的扫描目录里；GitHub 侧可行但接不到检查，是扫描模型的缺口不是 recipe 缺口 · 2026-09-14 复核

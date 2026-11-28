@@ -4319,7 +4319,7 @@ final class AppListModel {
             // is what the user actually waits on, and it lands immediately either way.
             let path = result.app.path
             Task { await AppRestarter.launchApp(path, activates: activating) }
-            let note = String(localized: "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly.")
+            let note = result.nativeUpdaterRequirementReason ?? String(localized: "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly.")
             installNotes[result.id] = note
             inFlightNotes[result.id] = note
         }
@@ -5860,7 +5860,9 @@ final class AppListModel {
         // `PostInstallDisposition.preInstallProcessStillRunning`).
         let preInstallPIDs = AppRestarter.runningInstances(of: result.app).map(\.processIdentifier)
         if defersToSelfUpdater(result) {
-            Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
+            let migration = result.nativeUpdaterRequirementReason
+            let detail = migration ?? "running, policy=deferWhenRunning"
+            Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (\(detail, privacy: .public))")
             // Don't pull the app forward when this deferral came from Update All.
             // A single row's Open is something the user just asked for, so the
             // foreground is what they want; a batch can hit this branch for every
@@ -5869,7 +5871,7 @@ final class AppListModel {
             // focus repeatedly.
             installing[id] = nil
             if AutomaticInstall.active {
-                let reason = "Automatic update deferred: the app is running its own updater."
+                let reason = migration ?? "Automatic update deferred: the app is running its own updater."
                 installNotes[id] = reason
                 return .deferred(reason: reason)
             }

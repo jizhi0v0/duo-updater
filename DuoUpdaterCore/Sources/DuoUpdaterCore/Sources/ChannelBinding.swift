@@ -200,6 +200,7 @@ public enum ChannelBinding {
         AthasChannel.bundleID,
         MacMouseFixChannel.bundleID.lowercased(),
         CuaDriverChannel.bundleID.lowercased(),
+        studio_fireball_OneSwitch.bundleID.lowercased(),
         CindyChannel.globalBundleID.lowercased(),
         CindyChannel.chinaBundleID.lowercased(),
         OBSChannel.bundleID.lowercased(),
@@ -546,6 +547,8 @@ public enum ChannelBinding {
         case MacMouseFixChannel.bundleID.lowercased():
             return { _, _ in MacMouseFixChannel.resolveCurrent() }
         case CuaDriverChannel.bundleID.lowercased(): return { _, _ in CuaDriverChannel.resolveCurrent() }
+        case studio_fireball_OneSwitch.bundleID.lowercased():
+            return { feeds, _ in studio_fireball_OneSwitch.resolveCurrent(declaredFeed: feeds["SUFeedURL"]) }
         case CindyChannel.globalBundleID.lowercased():
             return { _, _ in CindyChannel.resolveCurrent(bundleID: CindyChannel.globalBundleID) }
         case CindyChannel.chinaBundleID.lowercased():
@@ -687,6 +690,10 @@ public enum ChannelBinding {
     + [true, false].compactMap { flag in
         ITerm2Channel.resolve(checkTestRelease: flag, bundleFeeds: ITerm2Channel.stableBundleFeeds)
             .map { (bundleID: ITerm2Channel.bundleID, resolved: $0) }
+    }
+    + [true, false].compactMap { flag in
+        studio_fireball_OneSwitch.resolve(includeBeta: flag)
+            .map { (bundleID: studio_fireball_OneSwitch.bundleID, resolved: $0) }
     }
     + [true, false].compactMap { flag in
         MonitorControlChannel.resolve(isBetaChannel: flag)

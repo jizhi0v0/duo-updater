@@ -159,6 +159,8 @@ struct RecipeCodableTests {
                 tags: OneClickGate.Requirement.CodingKind.allCases.map(\.rawValue),
                 samples: [
                     (.installedVersion(pattern: "^4"), #"{"kind":"installedVersion","pattern":"^4"}"#),
+                    (.migratedMajor(source: "Sparkle", firstMajor: 2),
+                     #"{"kind":"migratedMajor","source":"Sparkle","firstMajor":2}"#),
                     (.asarEntry(path: "a/b.js", pattern: "N"), #"{"kind":"asarEntry","path":"a\/b.js","pattern":"N"}"#),
                     (.executableContains(marker: "m.json"), #"{"kind":"executableContains","marker":"m.json"}"#),
                     (.executableLacks(marker: "m.json"), #"{"kind":"executableLacks","marker":"m.json"}"#),
@@ -172,6 +174,8 @@ struct RecipeCodableTests {
                 samples: [
                     (.redirectFilename, #"{"kind":"redirectFilename"}"#),
                     (.responseBody, #"{"kind":"responseBody"}"#),
+                    (.hostCompatibleEntries(releasePageBase: URL(string: "https://example.invalid/releases/")!),
+                     #"{"kind":"hostCompatibleEntries","releasePageBase":"https://example.invalid/releases/"}"#),
                     (.installedVersionJSONURL(queryParameter: "version"),
                      #"{"kind":"installedVersionJSONURL","queryParameter":"version"}"#),
                     (.longbridgeManifest, #"{"kind":"longbridgeManifest"}"#),

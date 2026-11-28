@@ -612,6 +612,14 @@ public struct VendorProbeSource: UpdateSource {
             let release = com_jetbrains_intellij.eapReleaseBody(from: body)
             return Scope(text: release ?? "", fellBack: false)
         }
+        if case .hostCompatibleEntries = recipe.mode {
+            guard let start = recipe.entryStartPattern, let minimum = recipe.minimumSystemVersionPattern
+            else { return Scope(text: "", fellBack: false) }
+            let entry = VendorProbeRecipe.highestVersionEntry(
+                in: body, entryStartPattern: start, versionPattern: recipe.versionPattern,
+                selectHighest: recipe.selectHighest, compatibleOn: (hostOSVersion, minimum))
+            return Scope(text: entry ?? "", fellBack: false)
+        }
         guard let pattern = recipe.entryStartPattern else {
             return Scope(text: body, fellBack: false)
         }
@@ -1323,7 +1331,7 @@ public struct VendorProbeSource: UpdateSource {
                     status: http.statusCode))
             }
 
-        case .responseBody, .installedVersionJSONURL, .longbridgeManifest,
+        case .responseBody, .hostCompatibleEntries, .installedVersionJSONURL, .longbridgeManifest,
              .opencodeRuneManifest, .dockerAppcast, .jetBrainsIdeaEAP:
             return await fetchResponseBody(recipe, endpoint: endpoint)
 
@@ -1716,6 +1724,12 @@ public struct VendorProbeSource: UpdateSource {
         let namespace: InstalledApp.BuildNamespace =
             recipe.versionIsBuild || headBuild != nil ? recipe.buildNamespace : .bundle
 
+        let page: URL? = if case .hostCompatibleEntries(let base) = recipe.mode {
+            base.appendingPathComponent(version, isDirectory: true)
+        } else {
+            recipe.downloadURL
+        }
+
         if let spec, let plan, spec.installerApp == nil || plan.checksum != nil {
             return RemoteVersion(
                 shortVersion: shortVersion,
@@ -1724,11 +1738,9 @@ public struct VendorProbeSource: UpdateSource {
                 marketingMatchesBundle: marketingMatchesBundle,
                 downloadURL: plan.url,
                 // The install plan's URL is the artifact we fetch — handing it to
-                // a browser downloads a pkg instead of opening a page. The recipe's
-                // own `downloadURL` is the vendor's human-facing download page, and
-                // it used to be dropped entirely on this branch, so "Open page"
-                // silently started a download (ToDesk, UU Remote).
-                pageURL: recipe.downloadURL,
+                // a browser downloads a pkg instead of opening a page. Keep the
+                // curated human-facing page for "Open page" (ToDesk, UU Remote).
+                pageURL: page,
                 sourceName: sourceName,
                 requiresManualInstaller: spec.kind == .pkg || spec.installerApp != nil,
                 vendorInstallerKind: spec.kind,
@@ -1758,11 +1770,10 @@ public struct VendorProbeSource: UpdateSource {
             version: buildVersion,
             buildNamespace: namespace,
             marketingMatchesBundle: marketingMatchesBundle,
-            downloadURL: recipe.downloadURL ?? resolvedDownload,
-            // Only the curated `downloadURL` is a page. `resolvedDownload` falls
-            // back to the probe endpoint, which is an API/redirect that serves a
-            // file — never something to open in a browser.
-            pageURL: recipe.downloadURL,
+            downloadURL: page ?? resolvedDownload,
+            // `resolvedDownload` can be an API or artifact redirect. Only use
+            // the curated download page for "Open page".
+            pageURL: page,
             sourceName: sourceName,
             // No install spec: detection only — the user downloads by hand.
             requiresManualInstaller: true,

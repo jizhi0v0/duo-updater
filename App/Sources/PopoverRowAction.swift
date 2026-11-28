@@ -718,7 +718,7 @@ struct PopoverRowAction: View {
         Button { actions.openSelfUpdater() } label: { Text("Open").rowButtonLabel() }
             .controlSize(.small)
             .buttonStyle(.bordered)
-            .help("\(result.app.name) is running — open it and let its own updater apply \(result.offeredDisplay ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly.")
+            .help(result.nativeUpdaterRequirementReason ?? String(localized: "\(result.app.name) is running — open it and let its own updater apply \(result.offeredDisplay ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly."))
     }
 
     /// JetBrains Toolbox manages this app's updates. Toolbox registers no URL

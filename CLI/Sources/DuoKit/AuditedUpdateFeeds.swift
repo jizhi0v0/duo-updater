@@ -85,6 +85,7 @@ enum AuditedUpdateFeeds {
     }
 
     private static let rogueAmoebaAudit = "docs/app-audits/com-rogueamoeba-airfoil.md"
+    private static let oneSwitchPublicKey = "z2lwSPpfFZuIZGl/+GHlMOyf7SmeKV0IbVvvs6rF4Xg="
     private static let rogueAmoebaStable: [(name: String, id: String)] = [
         ("Airfoil", "com.rogueamoeba.Airfoil"),
         ("Airfoil Satellite", "com.rogueamoeba.AirfoilSpeakers"),
@@ -116,6 +117,14 @@ enum AuditedUpdateFeeds {
         sparkle("Audio Hijack", "com.rogueamoeba.audiohijack", .stable,
                 feed: SparkleFeedCatalog.feed(forBundleID: "com.rogueamoeba.audiohijack")!.absoluteString,
                 audit: "docs/app-audits/com-rogueamoeba-audiohijack.md"),
+        sparkle("One Switch", "studio.fireball.OneSwitch", .stable,
+                feed: "https://fireball.studio/api/release_manager/studio.fireball.OneSwitchOfficial.xml",
+                publicKey: oneSwitchPublicKey,
+                audit: "docs/app-audits/studio-fireball-OneSwitch.md"),
+        sparkle("One Switch Beta", "studio.fireball.OneSwitch", .beta,
+                feed: "https://fireball.studio/api/release_manager/studio.fireball.OneSwitchOfficial.xml?beta=1",
+                publicKey: oneSwitchPublicKey,
+                audit: "docs/app-audits/studio-fireball-OneSwitch.md"),
         // Audit: docs/app-audits/com-moonshot-kimichat.md
         electron("Kimi", "com.moonshot.kimichat", .stable,
                  url: "https://kimi-img.moonshot.cn/app/upgrade/", channel: "latest",

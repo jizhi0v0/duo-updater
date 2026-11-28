@@ -42,6 +42,10 @@ public struct OneClickGate: Sendable {
         /// `CFBundleShortVersionString` matches this pattern (searched; write
         /// your own anchors). A copy without one is not admitted.
         case installedVersion(pattern: String)
+        /// A source's offers at or above this major require a copy already on
+        /// that generation. A known installed major can establish this without
+        /// interpreting the offer's version format.
+        case migratedMajor(source: String, firstMajor: Int)
         /// The file at `path` inside `Contents/Resources/app.asar` (a packed
         /// entry, read without unpacking) matches this pattern. A missing asar,
         /// entry or match is not admitted: failing closed costs one manual
@@ -92,11 +96,20 @@ public struct OneClickGate: Sendable {
     /// Whether `app` meets the requirement. `fresh` reads the executable for
     /// `.executableContains` again instead of trusting the cached verdict —
     /// for the install-time gate, which runs once, off the main actor.
-    public func admits(_ app: InstalledApp, fresh: Bool = false) -> Bool {
+    public func admits(_ app: InstalledApp, offering remote: RemoteVersion? = nil, fresh: Bool = false) -> Bool {
         switch requirement {
         case .installedVersion(let pattern):
             guard let version = app.shortVersion else { return false }
             return version.range(of: pattern, options: .regularExpression) != nil
+        case .migratedMajor(let source, let firstMajor):
+            guard let remote, remote.sourceName == source else { return true }
+            if let installed = Self.marketingMajor(app.shortVersion), installed >= firstMajor {
+                return true
+            }
+            guard remote.marketingMatchesBundle,
+                  let offered = Self.marketingMajor(remote.shortVersion)
+            else { return false }
+            return offered < firstMajor
         case .asarEntry(let path, let pattern):
             let asar = app.path.appendingPathComponent("Contents/Resources/app.asar")
             guard let data = AsarEntryReader.packedEntry(path, inAsarAt: asar) else { return false }
@@ -107,6 +120,15 @@ public struct OneClickGate: Sendable {
         case .executableLacks(let marker):
             return ExecutableMarker.presence(marker, inMainExecutableOf: app.path, fresh: fresh) == .absent
         }
+    }
+
+    private static func marketingMajor(_ version: String?) -> Int? {
+        let identifiers = #"[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*"#
+        let pattern = #"\A(?:0|[1-9][0-9]*)(?:\.[0-9]+)+(?:-\#(identifiers))?(?:\+\#(identifiers))?\z"#
+        guard let version,
+              version.range(of: pattern, options: .regularExpression) != nil
+        else { return nil }
+        return VersionComparator.majorComponent(version)
     }
 }
 
@@ -256,7 +278,7 @@ public enum OneClickGateRegistry {
         if !scoped.isEmpty, !scoped.contains(where: { $0.applies(toOffer: identity) }) {
             return .unnamedOffer(bundleID: candidates[0].bundleID)
         }
-        return candidates.first { $0.applies(toOffer: identity) && !$0.admits(app, fresh: fresh) }
+        return candidates.first { $0.applies(toOffer: identity) && !$0.admits(app, offering: remote, fresh: fresh) }
     }
 
     /// `"<source>:<package>"` for an offer: the Homebrew cask token, else the
@@ -298,7 +320,7 @@ public enum OneClickGateRegistry {
             switch gate.requirement {
             case .executableContains(let marker): return PackageMarker(marker: marker, present: true)
             case .executableLacks(let marker): return PackageMarker(marker: marker, present: false)
-            case .installedVersion, .asarEntry: return nil
+            case .installedVersion, .migratedMajor, .asarEntry: return nil
             }
         }
     }

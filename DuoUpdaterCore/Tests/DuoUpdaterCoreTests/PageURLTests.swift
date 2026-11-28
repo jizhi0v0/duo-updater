@@ -20,12 +20,18 @@ import Foundation
         "dmg", "pkg", "zip", "xip", "tar", "gz", "tgz", "bz2", "appx", "exe", "msi",
     ]
 
-    /// A recipe's `downloadURL` is documented as where to send the user to
-    /// download by hand — i.e. a page. If one ever points straight at an archive,
-    /// the "Open page" button downloads a file, which is the whole defect.
+    private func downloadPageBase(for recipe: VendorProbeRecipe) -> URL? {
+        if case .hostCompatibleEntries(let releasePageBase) = recipe.mode {
+            return releasePageBase
+        }
+        return recipe.downloadURL
+    }
+
+    /// The curated destination for "Open page" must be an HTTPS page.
+    /// Host-compatible listings append the selected version to their page base.
     @Test func recipeDownloadURLsArePagesNotArtifacts() {
         for recipe in VendorProbeRegistry.recipes {
-            guard let url = recipe.downloadURL else { continue }
+            guard let url = downloadPageBase(for: recipe) else { continue }
             let ext = url.pathExtension.lowercased()
             #expect(
                 !Self.artifactExtensions.contains(ext),
@@ -36,15 +42,12 @@ import Foundation
         }
     }
 
-    /// A detection-only recipe has no install path, so the page link is the ONLY
-    /// action its row can offer. `pageURL` is now strictly the curated
-    /// `downloadURL` (never the probe endpoint, which serves a file), so a
-    /// detection-only recipe without one leaves the user with a dead row.
+    /// A detection-only recipe needs a curated destination to offer Open page.
     @Test func detectionOnlyRecipesCarryAPage() {
         for recipe in VendorProbeRegistry.recipes where recipe.install == nil {
             #expect(
-                recipe.downloadURL != nil,
-                "\(recipe.bundleID): detection-only recipe has no downloadURL, so its row has no page to open")
+                downloadPageBase(for: recipe) != nil,
+                "\(recipe.bundleID): detection-only recipe has no page to open")
         }
     }
 

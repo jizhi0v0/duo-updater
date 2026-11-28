@@ -273,6 +273,12 @@ public struct VendorProbeRecipe: Sendable {
         /// `url` is a small text/JSON endpoint whose body contains the version;
         /// we GET it and apply `versionPattern` to the response text.
         case responseBody
+        /// GET a release listing and select its highest compatible entry. The
+        /// entry start and minimum system version patterns are required. Invalid
+        /// entries are skipped, and if none are compatible the highest valid
+        /// entry is retained for the ordinary OS refusal. The selected version
+        /// is appended to `releasePageBase` for the human-facing download page.
+        case hostCompatibleEntries(releasePageBase: URL)
         /// GET with the installed marketing version in the named query
         /// parameter. Patterns read the top-level JSON URL from a 200 reply.
         /// HTTP 204 means no offer. Registry verification omits the parameter.
@@ -1252,9 +1258,13 @@ public struct VendorProbeRecipe: Sendable {
     /// Those two apps are named because a test pins them
     /// (`EntryStartPatternRegistryClaims.onlyTheDocumentedRecipesCombineSelectHighestWithEntryStartPattern`),
     /// so a third one cannot appear without this paragraph being revisited.
+    /// A host-aware caller requires a valid minimum from each entry and ranks
+    /// compatible entries before incompatible entries, then by version within
+    /// either group. An incompatible winner lets the caller report its OS bound.
     public static func highestVersionEntry(
         in text: String, entryStartPattern: String, versionPattern: String,
-        selectHighest: Bool = false
+        selectHighest: Bool = false,
+        compatibleOn host: (osVersion: String, minimumPattern: String)? = nil
     ) -> String? {
         guard let startRegex = try? NSRegularExpression(pattern: entryStartPattern)
         else { return nil }
@@ -1265,14 +1275,24 @@ public struct VendorProbeRecipe: Sendable {
         guard !starts.isEmpty else { return nil }
 
         let extractor = selectHighest ? Self.highestVersion : Self.extractVersion
-        var best: (entry: String, version: String)?
+        var best: (entry: String, version: String, compatible: Bool)?
         for (index, start) in starts.enumerated() {
             let end = index + 1 < starts.count ? starts[index + 1] : ns.length
             let entry = ns.substring(with: NSRange(location: start, length: end - start))
             guard let candidate = extractor(entry, versionPattern) else { continue }
-            if best == nil || VersionComparator.isNewer(candidate, than: best!.version) {
-                best = (entry, candidate)
+            var compatible = true
+            if let host {
+                guard let minimum = extractVersion(from: entry, pattern: host.minimumPattern),
+                      minimum.range(of: #"\A[0-9]+(?:\.[0-9]+)*\z"#, options: .regularExpression) != nil
+                else { continue }
+                compatible = SignatureVerifier.canRun(minimumSystemVersion: minimum, on: host.osVersion)
             }
+            if let best {
+                let outranks = (compatible && !best.compatible)
+                    || (compatible == best.compatible && VersionComparator.isNewer(candidate, than: best.version))
+                guard outranks else { continue }
+            }
+            best = (entry, candidate, compatible)
         }
         guard let winner = best else { return nil }
 

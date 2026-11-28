@@ -188,6 +188,8 @@ private let raycastChangelogFixture = #"""
             "vendor:com.trae.app:stable:x64",
             // GitHub Desktop stable uses the official Apple silicon download.
             "vendor:com.github.GitHubClient:stable",
+            "vendor:com.rawtherapee.RawTherapee:stable",
+            "vendor:com.rawtherapee.rawtherapee5:stable",
         ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }
         #expect(unrestricted.count == VendorProbeRegistry.recipes.count - restricted.count)

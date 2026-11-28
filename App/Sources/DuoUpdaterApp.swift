@@ -99,6 +99,8 @@ struct DuoUpdaterApp: App {
 /// gets: the label View renders as soon as the status item appears (before any popover
 /// opens), so its `.task` is where we trigger first-run onboarding.
 private struct MenuBarLabel: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// Held here so the notification observers outlive the `.task` that starts them.
     @State private var backupVolumeWatcher = BackupVolumeWatcher()
 
@@ -108,10 +110,9 @@ private struct MenuBarLabel: View {
 
     var body: some View {
         Group {
-            // Badge the icon with the number of pending updates. Uses `badgeCount`
-            // (not `updateCount`) so a refresh's mid-flight `.unknown` rows don't
-            // flicker the badge to zero and back.
-            if model.badgeCount > 0 {
+            if model.prefs.animateMenuBarIcon && !reduceMotion && model.listActivity.isRoundInFlight {
+                CheckingMenuBarIcon()
+            } else if model.badgeCount > 0 {
                 MenuBarBadgeIcon.image(count: model.badgeCount)
             } else {
                 Image(systemName: "arrow.triangle.2.circlepath")
@@ -271,5 +272,37 @@ private enum WindowSpaces {
               !window.collectionBehavior.contains(.canJoinAllSpaces)
         else { return }
         window.collectionBehavior.insert(.moveToActiveSpace)
+    }
+}
+
+private struct CheckingMenuBarIcon: View {
+    @State private var frame = 0
+    private static let frames = (0..<24).map { makeFrame($0) }
+
+    var body: some View {
+        Image(nsImage: Self.frames[frame])
+            .accessibilityLabel("DuoUpdater")
+            .task {
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .milliseconds(125)) }
+                    catch { return }
+                    frame = (frame + 1) % Self.frames.count
+                }
+            }
+    }
+
+    private static func makeFrame(_ index: Int) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let symbol = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)!
+        let result = NSImage(size: size, flipped: false) { _ in
+            let transform = NSAffineTransform()
+            transform.translateX(by: 9, yBy: 9)
+            transform.rotate(byDegrees: CGFloat(-index * 15))
+            transform.concat()
+            symbol.draw(in: NSRect(x: -8, y: -7, width: 16, height: 14))
+            return true
+        }
+        result.isTemplate = true
+        return result
     }
 }

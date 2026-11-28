@@ -49,6 +49,7 @@ enum SettingsSearch {
         return [
             Setting(anchor: .launchAtLogin, title: String(localized: "Launch at login"), card: nil),
             Setting(anchor: .checkFrequency, title: String(localized: "Check for updates"), card: nil),
+            Setting(anchor: .animateMenuBarIcon, title: String(localized: "Animate the menu bar icon during update checks"), card: nil),
             Setting(anchor: .hideDockIcon, title: String(localized: "Hide the Dock icon"), card: nil),
             Setting(anchor: .appRuntimeTags, title: String(localized: "Show what each app is built with"), card: nil),
             Setting(anchor: .cliRuntimeTags, title: String(localized: "Show what each command-line tool is built with"), card: nil),

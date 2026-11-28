@@ -88,6 +88,7 @@ final class Preferences {
         static let automaticRelaunchKeys = "AutomaticUpdateRelaunchKeys"
         static let automaticUpdateExcludedKeys = "AutomaticUpdateExcludedKeys"
         static let runningAppUpdateLedger = "RunningAppAutoUpdateLedger"
+        static let animateMenuBarIcon = "AnimateMenuBarIcon"
         static let hideDockIcon = "HideDockIcon"
         static let appStoreUpdateStrategy = UpdateSettings.appStoreUpdateStrategyKey
         static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
@@ -374,6 +375,10 @@ final class Preferences {
 
     func automaticUpdateObservation(_ app: InstalledApp) -> AutomaticUpdateSuggestion.Observation? {
         automaticUpdateObservations[key(for: app)]
+    }
+
+    var animateMenuBarIcon: Bool {
+        didSet { defaults.set(animateMenuBarIcon, forKey: Key.animateMenuBarIcon) }
     }
 
     /// Run without a Dock icon — menu bar only. **On by default**: this is a
@@ -790,6 +795,7 @@ final class Preferences {
         self.automaticUpdateObservations = AutomaticUpdateChoices.observations(from: defaults)
         self.runningAppUpdateLedger = defaults.data(forKey: Key.runningAppUpdateLedger)
             .flatMap { try? JSONDecoder().decode(RunningAppAutoUpdate.Ledger.self, from: $0) } ?? .init()
+        self.animateMenuBarIcon = defaults.object(forKey: Key.animateMenuBarIcon) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true
         self.showCLIRuntimeTags = defaults.object(forKey: Key.showCLIRuntimeTags) as? Bool ?? true

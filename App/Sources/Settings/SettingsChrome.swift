@@ -46,7 +46,7 @@ enum SettingsAnchor: Hashable, Sendable {
     case backups
 
     // General
-    case launchAtLogin, checkFrequency, hideDockIcon, appRuntimeTags, cliRuntimeTags
+    case launchAtLogin, checkFrequency, animateMenuBarIcon, hideDockIcon, appRuntimeTags, cliRuntimeTags
     case automaticUpdates, autoRelaunch, concurrency, appStoreUpdates, selfUpdatingApps, setappBackgroundUpdates, brewFallback, digestOnlyInstalls
     // Notifications
     case notifyApps, notifyCLITools, notifyHomebrew
@@ -75,7 +75,7 @@ enum SettingsAnchor: Hashable, Sendable {
     /// and it is the compiler's reminder to put a new card somewhere real.
     var section: SettingsSection {
         switch self {
-        case .testFlightDetection, .launchAtLogin, .checkFrequency, .hideDockIcon,
+        case .testFlightDetection, .launchAtLogin, .checkFrequency, .animateMenuBarIcon, .hideDockIcon,
              .appRuntimeTags, .cliRuntimeTags, .autoRelaunch, .concurrency,
              .appStoreUpdates, .selfUpdatingApps, .setappBackgroundUpdates, .brewFallback, .digestOnlyInstalls: .general
         case .automaticUpdates: .automaticUpdates

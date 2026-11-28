@@ -41,6 +41,30 @@ struct FixedNameGitHubPackageTests {
         }
     }
 
+    private final class ParetoBackport: Releases, @unchecked Sendable {
+        override class func rows(gray: Bool, list: Bool) -> [(tag: String, prerelease: Bool, file: String)] {
+            let backport = ("1.48.2", false, "ParetoSecurity.dmg")
+            return list ? [backport, ("1.51.0", true, "ParetoSecurity.dmg"),
+                           ("1.50.0", false, "ParetoSecurity.dmg")] : [backport]
+        }
+    }
+
+    @Test func paretoStableRanksTheSameListAsItsUpdater() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ParetoBackport.self]
+        let source = GitHubReleasesSource(
+            rules: niteo_co_Pareto.set.githubRules, token: "fixture", session: URLSession(configuration: config))
+        let app = InstalledApp(
+            name: "Pareto Security", bundleID: niteo_co_Pareto.bundleID, shortVersion: "1.49.0",
+            buildVersion: nil, path: URL(fileURLWithPath: "/Applications/Pareto Security.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+        let offer = try #require(try await source.latestVersion(for: app))
+        #expect(offer.shortVersion == "1.50.0")
+        #expect(offer.downloadURL?.path.hasSuffix("/1.50.0/ParetoSecurity.dmg") == true)
+        #expect(offer.structuredChangelog?.entries.first?.version == "1.50.0")
+        #expect(offer.releaseHistory.map(\.version) == ["1.50.0", "1.48.2"])
+    }
+
     @Test(arguments: [
         ("com.zenangst.Gray", ReleaseChannel.stable, "0.17.0", "0.16.0"),
         ("niteo.co.Pareto", .stable, "v1.22.0", "1.21.0"),

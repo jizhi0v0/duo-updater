@@ -602,6 +602,12 @@ public extension GitHubReleaseRule {
         let base = "github:\(slug):\(channel.rawValue)"
         return variant.map { "\(base):\($0)" } ?? base
     }
+
+    // Pareto's /api/updates redirects both channels to the releases list.
+    // Its updater filters by prerelease flag before taking the highest version.
+    fileprivate var ranksStableList: Bool {
+        bundleID == niteo_co_Pareto.bundleID && channel == .stable
+    }
 }
 
 /// Resolves updates for apps distributed through GitHub Releases. Kept separate
@@ -1622,7 +1628,7 @@ public struct GitHubReleasesSource: UpdateSource {
             if first.remote != nil || first.archIncompatible { return first }
             Log.source.debug("GitHub \(rule.slug, privacy: .public): the newest release could not answer, paying for the full page of \(rule.listPageSize, privacy: .public)")
         }
-        guard let releases = try await fetchReleases(rule, list: rule.usePrereleases) else {
+        guard let releases = try await fetchReleases(rule, list: rule.usePrereleases || rule.ranksStableList) else {
             return Resolution(remote: nil, tags: [], archIncompatible: false)
         }
         return try await settle(
@@ -1734,7 +1740,7 @@ public struct GitHubReleasesSource: UpdateSource {
         var releases = releases
         // Drafts are never releases, even when an authenticated token can see
         // them, and no scope should be able to offer one.
-        releases = releases.filter { !$0.isDraft }
+        releases = rule.ranksStableList ? Self.stableOnly(releases) : releases.filter { !$0.isDraft }
         if rule.bundleID == niteo_co_Pareto.bundleID, rule.channel == .beta,
            niteo_co_Pareto.betaRequiresPrerelease(installedVersion: installedVersion) {
             // Apply this before history, notes and install-asset walk-back.
@@ -1831,9 +1837,10 @@ public struct GitHubReleasesSource: UpdateSource {
         // what the unauthenticated 60/hour budget can afford.
         if let pattern = rule.installAssetPattern, !rule.usePrereleases,
            !releases.contains(where: {
-               GitHubReleaseRule.carriesInstallableAsset(from: eligibleAssets(in: $0), matching: pattern)
+               (!rule.ranksStableList || VendorProbeRecipe.extractVersion(from: $0.tag, pattern: rule.versionPattern) != nil)
+                   && GitHubReleaseRule.carriesInstallableAsset(from: eligibleAssets(in: $0), matching: pattern)
            }) {
-            Log.source.debug("GitHub \(rule.slug, privacy: .public): latest release carries no macOS asset, falling back to the releases list")
+            Log.source.debug("GitHub \(rule.slug, privacy: .public): initial endpoint has no eligible Mac release, checking the alternate endpoint")
             // The list endpoint is not the latest endpoint with more rows: GitHub
             // computes `/releases/latest` with prereleases excluded, and every
             // stable rule depends on that. Walking the raw list would let a
@@ -1842,8 +1849,10 @@ public struct GitHubReleasesSource: UpdateSource {
             // reintroducing exactly the cross-channel mixing the channel gate
             // exists to prevent. Drafts go too: they are visible on this endpoint
             // to a token with push access and are not released at all.
-            if let list = try await fetchReleases(rule, list: true) {
-                releases = Self.stableOnly(list)
+            // Pareto starts from the list. A full page of previews (or releases
+            // without the Mac DMG) must not hide the published stable installer.
+            if let fallback = try await fetchReleases(rule, list: !rule.ranksStableList) {
+                releases = Self.stableOnly(fallback)
             }
         }
         // The same single-object problem for a release this host may not be

@@ -17,7 +17,7 @@
 
 0.0.19–0.0.21 和 1.21.2 起的更新器在开启 Beta 后接受较新的正式版。0.0.22 至 1.21.1 开启后只选 GitHub 标记的预发行。以当前发布为例，开启对应开关的 v1.7.74 副本应提示 1.49.1，开启 Beta 的 1.49.1 则应提示 1.50.0。[早期选择](https://github.com/ParetoSecurity/pareto-mac/commit/9aefd1c) · [恢复合并两类候选](https://github.com/ParetoSecurity/pareto-mac/commit/622a2cf)
 
-厂商按 GitHub 的 prerelease 标记过滤，不能只按数字推测历史渠道。Homebrew cask 引用同一个直接发行的 DMG。[厂商偏好设置](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Defaults.swift) · [Setapp 版 ID](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Config/App-SetApp.xcconfig)
+厂商更新接口重定向至 GitHub releases 列表，默认一页 30 条。正式规则按同一页过滤预发行、草稿及没有 Mac DMG 的条目，按版本取最高正式版；整页没有合格正式包时再查 GitHub 指定的 latest。厂商按 GitHub 的 prerelease 标记过滤，不能只按数字推测历史渠道。Homebrew cask 引用同一个直接发行的 DMG。[厂商偏好设置](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Defaults.swift) · [Setapp 版 ID](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Config/App-SetApp.xcconfig)
 
 | 官方包 | short / build | 实测或已核实的渠道信息 |
 |---|---|---|

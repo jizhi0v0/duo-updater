@@ -42,7 +42,7 @@ enum niteo_co_Pareto {
                 owner: "ParetoSecurity", repo: "pareto-mac",
                 usePrereleases: channel == .beta,
                 // The longest measured run before a usable prerelease was 31 rows.
-                listPageSize: channel == .beta ? 40 : 20,
+                listPageSize: channel == .beta ? 40 : 30,
                 versionPattern: #"\A(v?[0-9]+\.[0-9]+\.[0-9]+)\z"#,
                 candidateScope: .highestVersion,
                 installAssetPattern: #"\AParetoSecurity\.dmg\z"#,

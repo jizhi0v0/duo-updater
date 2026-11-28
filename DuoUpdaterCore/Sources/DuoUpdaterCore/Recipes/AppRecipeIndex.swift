@@ -432,6 +432,7 @@ public enum AppRecipeIndex {
         sh_paseo_desktop.set,
         sh_waku.set,
         so_pen_herdr_gpui.set,
+        studio_fireball_OneSwitch.set,
         top_kyleye_swifty_download_manager_app.set,
         tv_plex_desktop.set,
         uk_co_bzwrd_macperfmonitor.set,

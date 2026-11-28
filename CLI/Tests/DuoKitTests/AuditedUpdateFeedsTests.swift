@@ -78,7 +78,7 @@ import Testing
     }
 
     @Test func allCatalogURLsArePublicHTTPSWithoutCredentials() {
-        #expect(AuditedUpdateFeeds.entries.count == 93)
+        #expect(AuditedUpdateFeeds.entries.count == 95)
         for entry in AuditedUpdateFeeds.entries {
             let url: URL?
             if case .electron(let config) = entry.source {
@@ -110,10 +110,33 @@ import Testing
                 let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
                 #expect(items?.first(where: { $0.name == "bundleid" })?.value == entry.bundleID)
                 #expect(items?.first(where: { $0.name == "version" })?.value != nil)
+            } else if entry.recipeID == "sparkle:studio.fireball.OneSwitch:beta" {
+                #expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems == [
+                    URLQueryItem(name: "beta", value: "1"),
+                ])
             } else {
                 #expect(url.query == nil, "query in catalog URL: \(entry.recipeID)")
             }
         }
+    }
+
+    @Test func oneSwitchMonitorsBothOfficialFeeds() throws {
+        let bundleID = "studio.fireball.OneSwitch"
+        let entries = AuditedUpdateFeeds.entries.filter {
+            $0.bundleID.lowercased().hasPrefix(bundleID.lowercased())
+        }
+        #expect(Set(entries.map(\.recipeID)) == [
+            "sparkle:studio.fireball.OneSwitch:stable", "sparkle:studio.fireball.OneSwitch:beta",
+        ])
+        let stable = try #require(entries.first { $0.channel == .stable }.flatMap(sparkleDetails))
+        let beta = try #require(entries.first { $0.channel == .beta }.flatMap(sparkleDetails))
+        let bindings = ChannelBinding.feedVerificationCases.filter { $0.bundleID == bundleID }
+        #expect(Set(bindings.map(\.feed)) == [stable.feed, beta.feed])
+        #expect(bindings.contains { $0.resolution?.channel == .stable && $0.feed == stable.feed })
+        #expect(bindings.contains { $0.resolution?.channel == .beta && $0.feed == beta.feed })
+        #expect(stable.publicKey == "z2lwSPpfFZuIZGl/+GHlMOyf7SmeKV0IbVvvs6rF4Xg=")
+        #expect(stable.publicKey == beta.publicKey)
+        #expect(stable.channelNames.isEmpty && beta.channelNames.isEmpty)
     }
 
     @Test func catalogCoversEveryIndexedRowOrNamesAWholeRowGap() throws {
@@ -126,7 +149,7 @@ import Testing
         let excludedDocuments = Set(AuditedUpdateFeeds.uncoveredRows.map(\.auditDocument))
 
         #expect(electronEntries.count == 12)
-        #expect(sparkleEntries.count == 81)
+        #expect(sparkleEntries.count == 83)
         #expect(electronDocuments == electronRows)
         #expect(sparkleDocuments.isDisjoint(with: excludedDocuments))
         #expect(sparkleDocuments.union(excludedDocuments) == sparkleRows)
@@ -342,7 +365,7 @@ import Testing
         let gaps = AuditedUpdateFeeds.unavailablePublicKeys
         let gapBundleIDs = Set(gaps.map(\.bundleID))
 
-        #expect(keyedBundleIDs.count == 26)
+        #expect(keyedBundleIDs.count == 27)
         #expect(missingBundleIDs.count == 36)
         #expect(gapBundleIDs == missingBundleIDs)
         #expect(gaps.count == gapBundleIDs.count)

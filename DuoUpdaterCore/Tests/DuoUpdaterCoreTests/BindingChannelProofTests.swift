@@ -36,6 +36,7 @@ import Foundation
             ChannelProofKey("com.superlogical.rex", .nightly),
             ChannelProofKey("pro.betterdisplay.BetterDisplay", .beta),
             ChannelProofKey("pro.betterdisplay.BetterDisplay", .unstable),
+            ChannelProofKey("studio.fireball.OneSwitch", .beta),
         ]), "the binding population changed: \(needing.map(\.description).sorted())")
         // Deduplicated: BetterDisplay reaches `.unstable` from two preference
         // combinations, and the population is a set of keys, not of routes to one.

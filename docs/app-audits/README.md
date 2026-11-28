@@ -456,6 +456,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
+- [x] [**One Switch**](studio-fireball-OneSwitch.md) · `studio.fireball.OneSwitch` — S+B（补全官网正式 appcast，按应用自己的偏好切换 Beta）+ C（解析所选版本和语言的发布页）· Setapp 版由其目录托管 · 2026-11-28
+
 - [x] [**ONLYOFFICE**](asc-onlyoffice-ONLYOFFICE.md) · `asc.onlyoffice.ONLYOFFICE` — S（官网包内 ARM、Intel 和旧 Intel appcast）+ C（官方版本历史与迁移提示）· 2026-11-28
 
 - [x] [**Royal TSX**](com-lemonmojo-RoyalTSX-App.md) · `com.lemonmojo.RoyalTSX.App` — S（v6 stable、v26 beta 各用包内 feed）· v6 一键 DMG 实测 · Sparkle HTML 日志保留标题和首条 · 2026-11-28

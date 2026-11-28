@@ -46,6 +46,10 @@
   两者不是 ID 迁移。NSH 新增检测、结构化日志与 digest-only 原生 arm64 一键，
   VM 0.1.7→0.1.8 通过，见 [审计](docs/app-audits/com-huacnlee-disktree.md)。
 
+### 共享 bundle id，以编译版本分流
+
+- **Rune Player** `ci.not.rune`：Stable 与 2.x Alpha 两轨，按装机版本末段分流。GitHub 有官方 universal DMG 及结构化日志。历史 0.x/1.x 测试线转正到 Stable，Mac App Store 使用独立 ID。见 [审计](docs/app-audits/ci-not-rune.md)。
+
 ### 共享 bundle id，以显示名区分主发布轨与 Nightly
 
 - **T3 Code**：`com.t3tools.t3code`。主发布序列的历史名称为 Alpha，当前真包为

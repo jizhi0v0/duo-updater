@@ -103,6 +103,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Multi-channel families (audit covers all channels)
 
+- [x] [**Rune Player**](ci-not-rune.md) · `ci.not.rune` — G(stable/alpha) C · 官方 universal DMG，按实际 bundle 版本分流 · 2026-11-28
+
 - [x] [**Xmind**](net-xmind-vana-app.md) · `net.xmind.vana.app` — P(stable/beta) C · 官网两轨 versioned DMG 与结构化日志 · 2026-11-28
 
 - [x] [**CleanClip**](com-antiless-cleanclip-mac.md) · `com.antiless.cleanclip.mac` — G(stable/beta) C · 官网两轨 universal DMG 与结构化日志 · 2026-11-28

@@ -477,6 +477,12 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return stage.hasPrefix("beta") ? .beta : .alpha
         }
 
+        // Rune shares its direct bundle ID between Stable and Alpha. The
+        // vendor warns that the 2.x Alpha database can be incompatible with Stable.
+        if bundleID == ci_not_rune.bundleID, let version, ci_not_rune.isAlpha(version) {
+            return .alpha
+        }
+
         // The TaskPaper preview shares the direct stable bundle ID and name;
         // its marketing version is the signal (3.9.4 Preview).
         if bundleID == "com.hogbaysoftware.TaskPaper3.direct",

@@ -41,6 +41,7 @@ public enum AppRecipeIndex {
         bot_cline_app.set,
         build_miguel_Exo.set,
         cc_ffitch_shottr.set,
+        ci_not_rune.set,
         co_fluder_FSNotes.set,
         co_gitup_mac.set,
         co_palokaj_battery.set,

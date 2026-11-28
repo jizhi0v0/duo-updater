@@ -29,6 +29,25 @@ import Foundation
             """)
     }
 
+    @Test func hostCompatibleModeRequiresACheckableMinimumInTheSameEntry() async throws {
+        let body = #"""
+            <entry version="4.0" minimum="unknown">
+            <entry version="3.0">
+            <entry minimum="12.0">
+            """#
+        let server = try RecipeVerificationTests.StubServer(body: body, contentType: "text/html")
+        defer { server.stop() }
+        let recipe = VendorProbeRecipe(
+            bundleID: "test.bundle", url: server.url,
+            mode: .hostCompatibleEntries(releasePageBase: URL(string: "https://example.invalid/releases/")!),
+            versionPattern: #"version="([0-9.]+)""#,
+            minimumSystemVersionPattern: #"minimum="([^"]+)""#,
+            entryStartPattern: "<entry ")
+        let result = await VendorProbeSource(hostOSVersion: "15.0").probeDiagnostic(recipe)
+        #expect(result.remote == nil)
+        #expect(result.failure?.kind == "versionPatternNoMatch")
+    }
+
     /// The warning on `entryStartPattern`: slicing re-anchors `^`/`$` to entry
     /// boundaries, so a recipe pinning its `versionPattern` to the whole document
     /// must not adopt slicing without re-deriving that pattern first. Nothing

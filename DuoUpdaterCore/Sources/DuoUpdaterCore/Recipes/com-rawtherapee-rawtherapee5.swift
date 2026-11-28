@@ -12,44 +12,20 @@ enum com_rawtherapee_rawtherapee5 {
     // History: docs/app-audits/com-rawtherapee-rawtherapee5.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-rawtherapee-rawtherapee5",
-        probes: [
-            newestStable(legacyID),
-            // The latest stable Universal archive may have a newer Apple
-            // Silicon floor than this Mac. The exact published Sequoia
-            // fallbacks stay eligible only while their archives are listed.
-            fallback(version: "5.12", floor: "15.4"),
-            fallback(version: "5.11", floor: "12.3"),
-            newestStable(currentID),
-        ],
+        probes: [stable(legacyID), stable(currentID)],
         changelogs: [notes(legacyID), notes(currentID)])
 
-    private static func newestStable(_ id: String) -> VendorProbeRecipe {
+    private static func stable(_ id: String) -> VendorProbeRecipe {
         // The version and Apple Silicon minimum come from the same Universal
         // package link. The directory is alphabetical, not version-ordered.
         VendorProbeRecipe(
             bundleID: id,
             url: archives,
-            mode: .responseBody,
+            mode: .hostCompatibleEntries(releasePageBase: downloads),
             versionPattern: #"\#(link)\#(number)_Universal_(\#(number))\.zip">"#,
-            downloadURL: downloads,
-            selectHighest: true,
             minimumSystemVersionPattern: #"\#(link)(\#(number))_Universal_\#(number)\.zip">"#,
             entryStartPattern: link,
             hostRequirement: .init(architectures: [.arm64]),
-            installedVersionPattern: stableVersion)
-    }
-
-    private static func fallback(version: String, floor: String) -> VendorProbeRecipe {
-        let escapedVersion = NSRegularExpression.escapedPattern(for: version)
-        let escapedFloor = NSRegularExpression.escapedPattern(for: floor)
-        return VendorProbeRecipe(
-            bundleID: legacyID,
-            url: archives,
-            mode: .responseBody,
-            versionPattern: #"\#(link)\#(escapedFloor)_Universal_(\#(escapedVersion))\.zip">"#,
-            downloadURL: downloads.appendingPathComponent(version, isDirectory: true),
-            variant: "compatible-\(version)",
-            hostRequirement: .init(minimumSystemVersion: floor, architectures: [.arm64]),
             installedVersionPattern: stableVersion)
     }
 

@@ -189,8 +189,6 @@ private let raycastChangelogFixture = #"""
             // GitHub Desktop stable uses the official Apple silicon download.
             "vendor:com.github.GitHubClient:stable",
             "vendor:com.rawtherapee.RawTherapee:stable",
-            "vendor:com.rawtherapee.RawTherapee:stable:compatible-5.11",
-            "vendor:com.rawtherapee.RawTherapee:stable:compatible-5.12",
             "vendor:com.rawtherapee.rawtherapee5:stable",
         ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }

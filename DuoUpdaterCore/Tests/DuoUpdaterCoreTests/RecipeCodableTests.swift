@@ -172,6 +172,8 @@ struct RecipeCodableTests {
                 samples: [
                     (.redirectFilename, #"{"kind":"redirectFilename"}"#),
                     (.responseBody, #"{"kind":"responseBody"}"#),
+                    (.hostCompatibleEntries(releasePageBase: URL(string: "https://example.invalid/releases/")!),
+                     #"{"kind":"hostCompatibleEntries","releasePageBase":"https://example.invalid/releases/"}"#),
                     (.installedVersionJSONURL(queryParameter: "version"),
                      #"{"kind":"installedVersionJSONURL","queryParameter":"version"}"#),
                     (.longbridgeManifest, #"{"kind":"longbridgeManifest"}"#),

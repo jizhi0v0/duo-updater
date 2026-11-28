@@ -138,14 +138,15 @@ extension VendorProbeRecipe: Codable {
 
 extension VendorProbeRecipe.Mode: Codable {
     enum CodingKind: String, CaseIterable {
-        case redirectFilename, responseBody, installedVersionJSONURL, longbridgeManifest, opencodeRuneManifest, dockerAppcast,
-             jetBrainsIdeaEAP, versionedDirectory, zipEntryPlist, redirectArchiveInfoPlist
+        case redirectFilename, responseBody, hostCompatibleEntries, installedVersionJSONURL, longbridgeManifest,
+             opencodeRuneManifest, dockerAppcast, jetBrainsIdeaEAP, versionedDirectory, zipEntryPlist, redirectArchiveInfoPlist
     }
 
     public init(from decoder: Decoder) throws {
         let (kind, c) = try RecipeCoding.taggedObject(CodingKind.self, in: decoder) {
             switch $0 {
             case .redirectFilename, .responseBody, .longbridgeManifest, .opencodeRuneManifest, .dockerAppcast, .jetBrainsIdeaEAP: return []
+            case .hostCompatibleEntries: return ["releasePageBase"]
             case .installedVersionJSONURL: return ["queryParameter"]
             case .versionedDirectory: return ["linkPattern"]
             case .zipEntryPlist: return ["entry", "key"]
@@ -155,6 +156,8 @@ extension VendorProbeRecipe.Mode: Codable {
         switch kind {
         case .redirectFilename: self = .redirectFilename
         case .responseBody: self = .responseBody
+        case .hostCompatibleEntries:
+            self = .hostCompatibleEntries(releasePageBase: try c.decode(URL.self, forKey: .init("releasePageBase")))
         case .installedVersionJSONURL:
             self = .installedVersionJSONURL(
                 queryParameter: try c.decode(String.self, forKey: .init("queryParameter")))
@@ -181,6 +184,9 @@ extension VendorProbeRecipe.Mode: Codable {
             try c.encode(CodingKind.redirectFilename.rawValue, forKey: .init("kind"))
         case .responseBody:
             try c.encode(CodingKind.responseBody.rawValue, forKey: .init("kind"))
+        case .hostCompatibleEntries(let base):
+            try c.encode(CodingKind.hostCompatibleEntries.rawValue, forKey: .init("kind"))
+            try c.encode(base, forKey: .init("releasePageBase"))
         case .installedVersionJSONURL(let queryParameter):
             try c.encode(CodingKind.installedVersionJSONURL.rawValue, forKey: .init("kind"))
             try c.encode(queryParameter, forKey: .init("queryParameter"))

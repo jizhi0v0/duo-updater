@@ -50,9 +50,7 @@ struct RawTherapeeRecipeTests {
         #expect(result.remote?.vendorInstallerKind == nil)
         #expect(result.remote?.requiresManualInstaller == true)
         #expect(await checker.check(Self.copy(expected)).status == .upToDate)
-        if expected != "5.13" {
-            #expect(result.remote?.pageURL?.absoluteString == "https://rawtherapee.com/downloads/\(expected)/")
-        }
+        #expect(result.remote?.pageURL?.absoluteString == "https://rawtherapee.com/downloads/\(expected)/")
     }
 
     @Test func currentIDIsLatestAndNightlyCannotUseTheStableArchive() async throws {
@@ -79,6 +77,23 @@ struct RawTherapeeRecipeTests {
             name: "Another App", bundleID: "com.example.other", keystoneChannel: nil, version: nightlyVersion) == .stable)
     }
 
+    @Test(arguments: [legacyID, currentID])
+    func aNewCompatiblePatchWinsOverIncompatibleHigherVersions(id: String) async throws {
+        let body = """
+            \(Self.release513)
+            <a href="RawTherapee_macOS_15.4_Universal_5.12.1.zip">5.12.1</a>
+            <a href="RawTherapee_macOS_15.5_Universal_5.12.2.zip">5.12.2</a>
+            \(Self.release512)
+            <a href="RawTherapee_macOS_unknown_Universal_5.99.zip">Invalid minimum</a>
+            """
+        let server = try RecipeVerificationTests.StubServer(body: body, contentType: "text/html")
+        defer { server.stop() }
+        let selected = await Self.checker(os: "15.4.2", url: server.url).check(Self.copy("5.12", id: id))
+        #expect(selected.status == .updateAvailable(latest: "5.12.1"))
+        #expect(selected.remote?.pageURL?.absoluteString == "https://rawtherapee.com/downloads/5.12.1/")
+        #expect(selected.remote?.vendorInstallerKind == nil)
+    }
+
     @Test func absentCompatibleArchivesCannotBorrowAChecksumOrAnIncompatibleRelease() async throws {
         let server = try RecipeVerificationTests.StubServer(
             body: [Self.release513, Self.checksum512, Self.release511].joined(separator: "\n"),
@@ -88,17 +103,18 @@ struct RawTherapeeRecipeTests {
         #expect(await checker.check(Self.copy("5.10")).status == .updateAvailable(latest: "5.11"))
         #expect(await checker.check(Self.copy("5.11")).status == .upToDate)
 
+        let release514 = #"<a href="RawTherapee_macOS_27.0_Universal_5.14.zip">5.14</a>"#
         let noCompatible = try RecipeVerificationTests.StubServer(
-            body: [Self.release513, Self.checksum512, Self.otherAssets].joined(separator: "\n"),
+            body: [Self.release513, Self.checksum512, release514, Self.otherAssets].joined(separator: "\n"),
             contentType: "text/html")
         defer { noCompatible.stop() }
         let missing = await Self.checker(os: "15.7.9", url: noCompatible.url).check(Self.copy("5.11"))
         guard case .outsideOSWindow(let refusal) = missing.status else {
-            Issue.record("Expected the newer 5.13 release to be refused on Sequoia, got \(missing.status)")
+            Issue.record("Expected the newer 5.14 release to be refused on Sequoia, got \(missing.status)")
             return
         }
-        #expect(refusal.bound == .floor(minimum: "26.0"))
-        #expect(refusal.version == "5.13")
+        #expect(refusal.bound == .floor(minimum: "27.0"))
+        #expect(refusal.version == "5.14")
         #expect(missing.remote == nil)
     }
 

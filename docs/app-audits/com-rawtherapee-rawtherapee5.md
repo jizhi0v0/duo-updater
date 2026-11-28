@@ -10,7 +10,7 @@
 
 ## 更新检测
 
-官网稳定包无 `SUFeedURL`。VendorProbe 从[官网 macOS 下载目录](https://rawtherapee.com/shared/builds/mac/)选版本号最大的正式 Universal ZIP，包名中的系统下限按 Apple Silicon 解释。页面按文件名排序，版本和系统下限在同一个链接内读取。两代正式版都参与检测。旧 ID 在 macOS 15.0–15.3 上采用仍列出的 5.11，在 15.4–15.x 上优先采用仍列出的 5.12。26.0 以上可检测 5.13。兼容包链接从目录消失后，探针不会拿校验文件或被系统门槛拒绝的新包填充。
+官网稳定包无 `SUFeedURL`。VendorProbe 一次读取[官网 macOS 下载目录](https://rawtherapee.com/shared/builds/mac/)，对两代正式版都选出本机可运行的最新正式 Universal ZIP。目录按文件名排序，版本与 Apple Silicon 系统下限取自同一条包链接。以当前发布为例，macOS 15.0–15.3 对应 5.11，15.4–15.x 对应 5.12，macOS 26.0 及以上对应 5.13。出现新版或某包下架后，下一次检查重新比较目录内容。若现有正式包均不兼容，按目录中的最高版本列出其系统要求。手动更新入口指向所选版本的发布页。
 
 [Automated Builds](https://github.com/RawTherapee/RawTherapee/releases/tag/nightly-github-actions) 的 arm64 开发包也使用旧 ID。两份版本字段都带 `-42-g3458b9a18` 这样的 Git 后缀。在旧 ID 上识别为 Nightly，跳过正式版检测和日志。正式版探针另外要求纯数字点分版本。开发包使用滚动 GitHub release 和提交版本，未接入该轨的更新。GitHub 上 5.12 和 5.13 的 RC 条目没有 macOS 安装资产。
 
@@ -24,7 +24,7 @@
 
 ## 夜扫覆盖
 
-- VendorProbe 自动枚举 `vendor:com.rawtherapee.RawTherapee:stable`、`vendor:com.rawtherapee.RawTherapee:stable:compatible-5.11`、`vendor:com.rawtherapee.RawTherapee:stable:compatible-5.12` 和 `vendor:com.rawtherapee.rawtherapee5:stable`。5.12 兼容项的最低验证宿主为 Apple Silicon macOS 15.4，其余探针至少需要受支持的 Apple Silicon 宿主。
+- VendorProbe 自动枚举 `vendor:com.rawtherapee.RawTherapee:stable` 与 `vendor:com.rawtherapee.rawtherapee5:stable`。两项都读当次验证宿主能运行的最高版本，兼容范围随目录内容变化。
 - 对应日志监控为 `changelog:com.rawtherapee.RawTherapee:stable` 和 `changelog:com.rawtherapee.rawtherapee5:stable`。夜扫按找到的首个正式版本检查对应页面。macOS 26+ 正常发布时检查当前版日志，5.11 与 5.12 的归档日志不各自占一个独立夜扫项。仅检测的 recipe 无 `install` spec，因此安装字节夜扫无目标。滚动开发包不在本次监控覆盖内。
 
 ## 历史与实测

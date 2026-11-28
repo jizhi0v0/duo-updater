@@ -324,6 +324,20 @@ enum AuditedUpdateFeeds {
         sparkle("OpenClaw arm64", "ai.openclaw.mac", .stable,
                 feed: "https://raw.githubusercontent.com/openclaw/openclaw/main/appcast-arm64.xml",
                 copyGroup: "arm64", audit: "docs/app-audits/ai-openclaw-mac.md"),
+        // Audit: docs/app-audits/asc-onlyoffice-ONLYOFFICE.md. The old Intel
+        // appcast still supplies the bridge to the current Intel feed.
+        sparkle("ONLYOFFICE Apple Silicon", "asc.onlyoffice.ONLYOFFICE", .stable,
+                feed: "https://download.onlyoffice.com/install/desktop/editors/mac/arm/onlyoffice.xml",
+                publicKey: "N2LfKoNN6LkD5qNMjt+lEh6LYrQMEFNCEXQ3Kk6nTlM=",
+                copyGroup: "arm64", audit: "docs/app-audits/asc-onlyoffice-ONLYOFFICE.md"),
+        sparkle("ONLYOFFICE Intel", "asc.onlyoffice.ONLYOFFICE", .stable,
+                feed: "https://download.onlyoffice.com/install/desktop/editors/mac/x86_64/onlyoffice.xml",
+                publicKey: "N2LfKoNN6LkD5qNMjt+lEh6LYrQMEFNCEXQ3Kk6nTlM=",
+                copyGroup: "intel", audit: "docs/app-audits/asc-onlyoffice-ONLYOFFICE.md"),
+        sparkle("ONLYOFFICE Legacy Intel", "asc.onlyoffice.ONLYOFFICE", .stable,
+                feed: "https://download.onlyoffice.com/install/desktop/editors/mac/onlyoffice.xml",
+                publicKey: "N2LfKoNN6LkD5qNMjt+lEh6LYrQMEFNCEXQ3Kk6nTlM=",
+                copyGroup: "legacy-intel", audit: "docs/app-audits/asc-onlyoffice-ONLYOFFICE.md"),
         // Audit: docs/app-audits/com-superduper-superwhisper.md. Beta feed and
         // preference mapping were not established; see uncoveredTracks.
         sparkle("Superwhisper", "com.superduper.superwhisper", .stable,

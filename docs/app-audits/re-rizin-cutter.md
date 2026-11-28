@@ -35,7 +35,7 @@
 
 ## 一键安装
 
-GitHub 规则只选择文件名和下载 URL 与正式 tag 对应的 ARM64 DMG。最新正式发布缺少这样的 DMG 时，在 GitHub 正式发布列表中选可用的最高版本。已安装副本需有可验证的 Developer ID。安装包通过现有签名和 Team ID 校验，签名包内的三段数字也必须等于发布版本。已测正式版的 Team 为 `7C89959B9X`。受测 RC 是无 Team ID 的 ad-hoc 包，更新时需手动安装。
+GitHub 规则只选择文件名和下载 URL 与正式 tag 对应的 ARM64 DMG。最新正式发布缺少这样的 DMG 时，在 GitHub 正式发布列表中选可用的最高版本。安装包通过现有签名和 Team ID 校验，签名包内的三段数字也必须等于发布版本。版本字段接受纯数字及实测的 `-HEAD-<hash>`、`-stable-<hash>` 后缀格式。已测正式版的 Team 为 `7C89959B9X`。受测 RC 是无 Team ID 的 ad-hoc 包，更新时需手动安装。
 
 开启「运行时暂缓」时，运行中的 Cutter 提供正式发布页，可在手动退出后用 Duo 一键更新有 Team ID 的副本。
 

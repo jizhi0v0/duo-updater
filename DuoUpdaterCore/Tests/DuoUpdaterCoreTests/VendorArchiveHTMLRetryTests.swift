@@ -223,8 +223,11 @@ struct VendorArchiveHTMLRetryTests {
     }
 
     @Test(arguments: [
+        (bundled: "2.5.0", accepted: true),
         (bundled: "2.5.0-HEAD-a6f6ad7", accepted: true),
+        (bundled: "2.5.0-stable-a6f6ad7", accepted: true),
         (bundled: "2.4.1-HEAD-a5f88d1", accepted: false),
+        (bundled: "2.5.0-rc1-HEAD-2f053dd", accepted: false),
     ])
     func verifyInstallChecksCuttersNumericPackageVersion(
         fixture: (bundled: String, accepted: Bool)

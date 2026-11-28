@@ -48,6 +48,7 @@ struct CutterGitHubRuleTests {
             {
               "tag_name": "\(tag)", "prerelease": \(prerelease), "draft": false,
               "published_at": "2026-06-30T18:37:00Z",
+              "html_url": "https://github.com/unrelated/cutter/releases/tag/\(tag)",
               "body": "- Use [Rizin v0.9.1](https://github.com/rizinorg/rizin/releases/tag/v0.9.1)",
               "assets": [
                 { "name": "Cutter-\(tag)-macOS-x86_64.dmg", "browser_download_url": "\(base)-x86_64.dmg" },
@@ -86,6 +87,7 @@ struct CutterGitHubRuleTests {
         #expect(remote.shortVersion == "2.5.0")
         #expect(remote.downloadURL?.absoluteString ==
             "https://github.com/rizinorg/cutter/releases/download/v2.5.0/Cutter-v2.5.0-macOS-arm64.dmg")
+        #expect(remote.pageURL?.absoluteString == "https://github.com/rizinorg/cutter/releases/tag/v2.5.0")
         #expect(remote.vendorInstallerKind == .dmg && remote.installTrust == .developerID)
         #expect(remote.requiresExactPackageVersion)
         #expect(remote.releaseHistory.map(\.version) == ["2.5.0", "2.4.1"])

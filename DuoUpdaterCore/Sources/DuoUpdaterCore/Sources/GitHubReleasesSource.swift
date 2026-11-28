@@ -1967,7 +1967,10 @@ public struct GitHubReleasesSource: UpdateSource {
                     offeredBuild = build
                 }
 
-                let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
+                let releasesPage = "https://github.com/\(rule.slug)/releases"
+                let page = isCutter
+                    ? URL(string: "\(releasesPage)/tag/\(release.tag)")
+                    : release.htmlURL ?? URL(string: releasesPage)
                 let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
                 // Rune's notes and skipped releases use tags; its bundle
                 // version orders installs, not releases on GitHub.
@@ -2011,7 +2014,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     version: offeredBuild,
                     marketingMatchesBundle: offeredBuild != nil || pinsDMGToTag,
                     downloadURL: asset?.url
-                        ?? URL(string: "https://github.com/\(rule.slug)/releases"),
+                        ?? URL(string: releasesPage),
                     // The release page — an asset URL would download the archive.
                     pageURL: page,
                     downloadSize: asset?.size,

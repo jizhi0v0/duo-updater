@@ -21,4 +21,11 @@ enum re_rizin_cutter {
         VendorProbeRecipe.extractVersion(
             from: bundleVersion, pattern: #"\A(\#(triplet))(?:-.+)?\z"#)
     }
+
+    static func stablePackageVersion(from bundleVersion: String) -> String? {
+        // Accept the number alone and the measured stable branch and commit
+        // forms. An explicit prerelease suffix cannot pin a DMG.
+        VendorProbeRecipe.extractVersion(
+            from: bundleVersion, pattern: #"\A(\#(triplet))(?:-(?:HEAD|stable)-[0-9a-f]{7,40})?\z"#)
+    }
 }

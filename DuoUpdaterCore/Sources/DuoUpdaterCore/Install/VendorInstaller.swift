@@ -512,7 +512,7 @@ public actor VendorInstaller {
         let expected = remote.versionSide
         let downloaded = StagedRelaunch.diskVersionSide(app)
         let downloadedMarketing = if expectedBundleID == re_rizin_cutter.bundleID, remote.sourceName == "GitHub" {
-            downloaded.marketing.flatMap(re_rizin_cutter.upstreamVersion)
+            downloaded.marketing.flatMap(re_rizin_cutter.stablePackageVersion)
         } else {
             downloaded.marketing
         }

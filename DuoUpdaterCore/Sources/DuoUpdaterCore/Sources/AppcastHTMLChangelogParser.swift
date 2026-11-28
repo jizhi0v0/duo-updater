@@ -88,7 +88,9 @@ enum AppcastHTMLChangelogParser {
     /// Returns nil (never throws) when `isStructured` is false, `version` is
     /// empty, or no `<li>` survives cleaning — the caller falls back to the raw
     /// HTML path in every one of those cases.
-    static func entry(html: String, version: String, date: String?) -> Changelog.Entry? {
+    static func entry(
+        html: String, version: String, date: String?, preserveSingleHeading: Bool = false
+    ) -> Changelog.Entry? {
         guard !version.isEmpty, isStructured(html) else { return nil }
 
         // `</h\1>` — a BACKREFERENCE, so the closing level must match the opening
@@ -98,7 +100,9 @@ enum AppcastHTMLChangelogParser {
         // glued blob. Requiring the same level means a mistyped closer simply
         // doesn't match: the heading is dropped and its items survive, which is the
         // right way to fail.
-        let pattern = #"<h([234])[^>]*>(.*?)</h\1>|<li[^>]*>(.*?)</li>"#
+        // The list tag must end at its name boundary. Royal TSX includes a
+        // stylesheet <link> above its notes, before the real list begins.
+        let pattern = #"<h([234])[^>]*>(.*?)</h\1>|<li\b[^>]*>(.*?)</li\s*>"#
         guard let regex = try? NSRegularExpression(
             pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive])
         else { return nil }
@@ -179,7 +183,7 @@ enum AppcastHTMLChangelogParser {
         for piece in pieces {
             switch piece {
             case .heading(let text):
-                pendingHeading = (text, styled && piece.isSectionLabel)
+                pendingHeading = (text, (styled || preserveSingleHeading) && piece.isSectionLabel)
             case .text(let text, _):
                 if styled && piece.isSectionLabel {
                     pendingHeading = (text, true)

@@ -19,6 +19,14 @@ struct SparkleDiagnosticTests {
                 <enclosure url="https://rogueamoeba.com/audiohijack/download.php"/>
                 </item></channel></rss>
                 """
+            } else if url.path.hasSuffix("acorn8update.xml") {
+                """
+                <?xml version="1.0"?><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>
+                <sparkle:minimumSystemVersion>$(MACOSX_DEPLOYMENT_TARGET)</sparkle:minimumSystemVersion>
+                <enclosure sparkle:version="18029" sparkle:shortVersionString="8.7.3"
+                  url="https://s3.amazonaws.com/flyingmeat/Acorn8.zip" length="0"/>
+                </item></channel></rss>
+                """
             } else if url.path.contains("malformed") {
                 "not an appcast; token=secret"
             } else {
@@ -77,5 +85,27 @@ struct SparkleDiagnosticTests {
         let reading = try await source.readFeed(feed, bundleID: bundleID).get()
         #expect(reading.headEnclosure == remote.downloadURL)
         #expect(reading.headDownloadHeaders == remote.downloadHeaders)
+    }
+
+    @Test func acornOffersTheRollingArchiveWithAnExactBuildCheck() async throws {
+        let acorn = com_flyingmeat_Acorn8.self
+        let source = source()
+        let cases = [
+            (acorn.bundleID, acorn.stableFeed, true),
+            (acorn.bundleID, acorn.betaFeed, true),
+            (acorn.bundleID, URL(string: "https://flyingmeat.com/other/acorn8update.xml")!, false),
+            ("com.example.OtherApp", acorn.stableFeed, false),
+        ]
+        for (bundleID, feed, requiresMatch) in cases {
+            let app = InstalledApp(name: "Acorn", bundleID: bundleID,
+                                   shortVersion: "8.7.2", buildVersion: "18025",
+                                   path: URL(fileURLWithPath: "/nonexistent/Acorn.app"),
+                                   isMASApp: false, sparkleFeedURL: feed)
+            let remote = try #require(try await source.latestVersion(for: app))
+            #expect(remote.downloadURL?.absoluteString == "https://s3.amazonaws.com/flyingmeat/Acorn8.zip")
+            #expect(remote.version == "18029")
+            #expect(remote.requiresMatchingSparkleBuild == requiresMatch)
+            #expect(remote.downloadHeaders.isEmpty)
+        }
     }
 }

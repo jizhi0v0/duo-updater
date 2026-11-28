@@ -78,7 +78,7 @@ import Testing
     }
 
     @Test func allCatalogURLsArePublicHTTPSWithoutCredentials() {
-        #expect(AuditedUpdateFeeds.entries.count == 83)
+        #expect(AuditedUpdateFeeds.entries.count == 90)
         for entry in AuditedUpdateFeeds.entries {
             let url: URL?
             if case .electron(let config) = entry.source {
@@ -126,7 +126,7 @@ import Testing
         let excludedDocuments = Set(AuditedUpdateFeeds.uncoveredRows.map(\.auditDocument))
 
         #expect(electronEntries.count == 12)
-        #expect(sparkleEntries.count == 71)
+        #expect(sparkleEntries.count == 78)
         #expect(electronDocuments == electronRows)
         #expect(sparkleDocuments.isDisjoint(with: excludedDocuments))
         #expect(sparkleDocuments.union(excludedDocuments) == sparkleRows)
@@ -151,6 +151,20 @@ import Testing
         #expect(trackGapIDs.count == Set(trackGapIDs).count)
     }
 
+    @Test func acornInventoryCoversBothBindingFeeds() {
+        let entries = AuditedUpdateFeeds.entries.filter { $0.bundleID == "com.flyingmeat.Acorn8" }
+        let bindings = ChannelBinding.feedVerificationCases.filter { $0.bundleID == "com.flyingmeat.Acorn8" }
+        #expect(Set(entries.map(\.recipeID)) == [
+            "sparkle:com.flyingmeat.Acorn8:stable", "sparkle:com.flyingmeat.Acorn8:beta",
+        ])
+        for entry in entries {
+            #expect(bindings.contains {
+                $0.resolution?.channel == entry.channel && $0.feed == sparkleDetails(entry)?.feed
+            })
+            #expect(sparkleDetails(entry)?.publicKey == nil)
+        }
+    }
+
     @Test func rexInventoryCoversBothBindingFeeds() {
         let entries = AuditedUpdateFeeds.entries.filter { $0.bundleID == "com.superlogical.rex" }
         let bindings = ChannelBinding.feedVerificationCases.filter { $0.bundleID == "com.superlogical.rex" }
@@ -162,6 +176,54 @@ import Testing
                 $0.resolution?.channel == entry.channel && $0.feed == sparkleDetails(entry)?.feed
             })
         }
+    }
+
+    @Test func ukeleleInventoryMonitorsThePublicStablePackage() throws {
+        let entries = AuditedUpdateFeeds.entries.filter { $0.bundleID == "org.sil.ukelele" }
+        #expect(Set(entries.map(\.recipeID)) == ["sparkle:org.sil.ukelele:stable"])
+        let stable = try #require(entries.first)
+        let details = try #require(sparkleDetails(stable))
+        #expect(details.feed == SparkleFeedCatalog.feed(forBundleID: stable.bundleID))
+        #expect(details.publicKey == "akGj2v0tJZhSIxt8IgV4Xx5lr7paN6sIshhWKJLPkVw=")
+        #expect(AuditedUpdateFeeds.uncoveredTracks.contains { $0.id == "org.sil.ukelele:beta" })
+    }
+
+    @Test func magicQuitInventoryKeepsLegacyAndEd25519TrustSeparate() throws {
+        let bundleID = "com.MagicQuit"
+        let entries = AuditedUpdateFeeds.entries.filter { $0.bundleID == bundleID }
+        #expect(Set(entries.map(\.recipeID)) == [
+            "sparkle:com.MagicQuit:stable:ed25519",
+            "sparkle:com.MagicQuit:stable:legacy-no-key",
+        ])
+        let current = try #require(entries.first { $0.copyGroup == "ed25519" })
+        let legacy = try #require(entries.first { $0.copyGroup == "legacy-no-key" })
+        let currentSource = try #require(sparkleDetails(current))
+        let legacySource = try #require(sparkleDetails(legacy))
+        #expect(currentSource.publicKey == "wFrCgZt+qwG6/UbxYscLbW9m2ttAS5AvQMC9ROCZr7g=")
+        #expect(legacySource.publicKey == nil)
+        #expect(currentSource.feed == SparkleFeedCatalog.feed(forBundleID: bundleID))
+        #expect(legacySource.feed == currentSource.feed)
+        #expect(currentSource.channelNames.isEmpty && legacySource.channelNames.isEmpty)
+    }
+
+    @Test func royalTSXInventoryKeepsTheTwoDeclaredFeedsSeparate() throws {
+        let bundleID = "com.lemonmojo.RoyalTSX.App"
+        let rows = AuditedUpdateFeeds.entries.filter { $0.bundleID == bundleID }
+        #expect(Set(rows.map(\.recipeID)) == [
+            "sparkle:com.lemonmojo.RoyalTSX.App:stable",
+            "sparkle:com.lemonmojo.RoyalTSX.App:beta",
+        ])
+
+        let stable = try #require(entry(bundleID, trackID: "stable"))
+        let beta = try #require(entry(bundleID, trackID: "beta"))
+        let stableDetails = try #require(sparkleDetails(stable))
+        let betaDetails = try #require(sparkleDetails(beta))
+        #expect(stableDetails.feed.absoluteString == "https://royaltsx-v6.royalapps.com/updates_stable")
+        #expect(stableDetails.channelNames.isEmpty)
+        #expect(stableDetails.publicKey == nil)
+        #expect(betaDetails.feed.absoluteString == "https://royaltsx-v26.royalapps.com/app/updates")
+        #expect(betaDetails.channelNames == ["beta"])
+        #expect(betaDetails.publicKey != nil)
     }
 
     @Test func criticalElectronAndSparkleConfigurationsKeepTheirTracks() throws {
@@ -264,8 +326,8 @@ import Testing
         let gaps = AuditedUpdateFeeds.unavailablePublicKeys
         let gapBundleIDs = Set(gaps.map(\.bundleID))
 
-        #expect(keyedBundleIDs.count == 22)
-        #expect(missingBundleIDs.count == 33)
+        #expect(keyedBundleIDs.count == 25)
+        #expect(missingBundleIDs.count == 36)
         #expect(gapBundleIDs == missingBundleIDs)
         #expect(gaps.count == gapBundleIDs.count)
 

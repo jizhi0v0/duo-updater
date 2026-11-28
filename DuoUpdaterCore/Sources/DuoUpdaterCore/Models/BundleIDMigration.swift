@@ -155,6 +155,11 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "com.objective-see.TaskExplorer", to: "com.objective-see.taskexplorer",
             teamID: "VBG97UB4TA", lastFromVersion: "2.1.0", firstToVersion: "3.0.0"),
+        // The same public Ukelele feed serves both signed spellings.
+        // History: docs/app-audits/org-sil-ukelele.md#历史与实测
+        BundleIDMigration(
+            from: "org.sil.Ukelele", to: "org.sil.ukelele",
+            teamID: "3YE4W86L3G", lastFromVersion: "3.4.2", firstToVersion: "3.5.12"),
         // AFFiNE's 2023 desktop previews shipped as `com.electron.affine`:
         // v0.5.2 ("AFFiNE Desktop App Preview") says CFBundleShortVersionString
         // 0.0.0, the v0.5.3 prerelease says 0.5.3. Stable releases from v0.6.0

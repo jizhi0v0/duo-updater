@@ -128,6 +128,36 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         XCTAssertEqual(entry.items.last, fixed)
     }
 
+    // MARK: - Royal TSX (stylesheet link before release notes)
+
+    func testRoyalTSXStylesheetLinkDoesNotConsumeFirstListItem() throws {
+        // Royal TSX 6.4.5, official stable appcast (2026-11-28).
+        let html = """
+        <link href="https://royaltsx-v6.royalapps.com/updates_style.css?v=1" type="text/css" rel="stylesheet">
+        <p>Release Date: 2026-09-26<br />
+        Download: https://royaltsx-v6.royalapps.com/updates/royaltsx_6.4.5.1000.dmg</p>
+        <h4 class="bugfix">Bugfixes</h4>
+        <ul>
+        <li>Several fixes that improve macOS 27 compatibility</li>
+        <li>Fixed a bug that could cause the app to freeze when opening Properties in full screen with the dashboard hidden and the navigation panel set to auto-hide</li>
+        <li>Several small bugfixes</li>
+        </ul>
+        """
+        var item = SparkleAppcastItem()
+        item.version = "6.4.5.1000"
+        item.shortVersionString = "6.4.5"
+        item.descriptionHTML = html
+        let changelog = try XCTUnwrap(SparkleAppcastSource.structuredChangelog(
+            from: [item], bundleID: "com.lemonmojo.RoyalTSX.App"))
+        let entry = try XCTUnwrap(changelog.entries.first)
+        XCTAssertEqual(Array(entry.items.suffix(3)), [
+            "Several fixes that improve macOS 27 compatibility",
+            "Fixed a bug that could cause the app to freeze when opening Properties in full screen with the dashboard hidden and the navigation panel set to auto-hide",
+            "Several small bugfixes",
+        ])
+        XCTAssertEqual(Array(entry.content.suffix(4)), [.heading("Bugfixes")] + entry.items.suffix(3).map { .note($0) })
+    }
+
     // MARK: - Fork (flat <ul><li>, no headings)
 
     func testForkFlatListNoHeadingsKeepsAllItemsInOrder() throws {

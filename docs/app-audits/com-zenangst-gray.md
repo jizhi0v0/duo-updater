@@ -15,7 +15,7 @@ Gray 按应用设置 macOS 明暗外观。作者 README 将当前下载直接指
 
 ## 检测、安装与更新说明
 
-GitHub 规则以正式标签比较营销版本，选择该发布的 `Gray.zip`。0.17.0 发布资产包含一份 universal 应用，包内未见嵌套应用、Sparkle 框架或声明的更新 feed。厂商发布完整 ZIP，Duo 用现有安装器校验签名并替换，更新前无需更改 Gray 写入的各应用外观偏好。版本说明直接使用 GitHub 发布正文；0.17.0 的三条变更没有分节标题。[正式版说明及安装包](https://github.com/zenangst/Gray/releases/tag/0.17.0)
+GitHub 规则以正式标签比较营销版本，选择该发布的 `Gray.zip`。安装时核对签名包的营销版本与标签，拒绝同名旧包；多版共用的构建号 1 无法区分发布。0.17.0 发布资产包含一份 universal 应用，包内未见嵌套应用、Sparkle 框架或声明的更新 feed。厂商发布完整 ZIP，Duo 用现有安装器校验签名并替换，更新前无需更改 Gray 写入的各应用外观偏好。版本说明直接使用 GitHub 发布正文；0.17.0 的三条变更没有分节标题。[正式版说明及安装包](https://github.com/zenangst/Gray/releases/tag/0.17.0)
 
 2026-11-28 对上述四份官方实包运行 `channel-verify --expect stable`。0.0.1、0.10.1、0.16.0 均由 GitHub 提示更新至 0.17.0，0.17.0 显示已是最新。四者的日志面板均显示 0.17.0 的一组版本记录、三条正文。
 

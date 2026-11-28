@@ -1,0 +1,81 @@
+import Foundation
+import Testing
+@testable import DuoUpdaterCore
+
+struct FixedNameGitHubPackageTests {
+    private final class Releases: URLProtocol, @unchecked Sendable {
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        override func stopLoading() {}
+
+        override func startLoading() {
+            let url = request.url!
+            let gray = url.path.contains("/zenangst/Gray/")
+            let list = url.lastPathComponent != "latest"
+            let slug = gray ? "zenangst/Gray" : "ParetoSecurity/pareto-mac"
+            let tag = gray ? "0.17.0" : (list ? "v1.7.74" : "v1.22.0")
+            let file = gray ? "Gray.zip" : "ParetoSecurity.dmg"
+            let release = """
+                {"tag_name":"\(tag)","prerelease":\(list),"draft":false,"assets":[
+                  {"name":"\(file)","browser_download_url":"https://github.com/\(slug)/releases/download/\(tag)/\(file)"}
+                ]}
+                """
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data((list ? "[\(release)]" : release).utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+    }
+
+    @Test(arguments: [
+        ("com.zenangst.Gray", ReleaseChannel.stable, "0.17.0", "0.16.0"),
+        ("niteo.co.Pareto", .stable, "1.22.0", "1.21.0"),
+        ("niteo.co.Pareto", .beta, "1.7.74", "1.7.73"),
+    ])
+    func sameIDPackageMustCarryTheSelectedTag(
+        example: (id: String, channel: ReleaseChannel, offered: String, older: String)
+    ) async throws {
+        let dir = try DigestOnlyInstallTests.scratch("fixed-name-release")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rules = GitHubReleaseRegistry.rules.filter { $0.bundleID == example.id }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [Releases.self]
+        let source = GitHubReleasesSource(
+            rules: rules, token: "fixture", session: URLSession(configuration: config))
+        let installed = InstalledApp(
+            name: "App", bundleID: example.id, shortVersion: example.older, buildVersion: "1",
+            path: dir.appendingPathComponent("App.app"), isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: example.channel)
+        let remote = try #require(try await source.latestVersion(for: installed))
+        #expect(remote.shortVersion == example.offered)
+        #expect(remote.releaseChannel == example.channel)
+        for version in [example.older, example.offered] {
+            let app = try await DigestOnlyInstallTests.makeApp(
+                at: dir.appendingPathComponent("\(version)/App.app"), bundleID: example.id,
+                version: version, build: "1", signing: .sealed(identifier: nil))
+            if version == example.offered {
+                try VendorInstaller.verifyOfferedPackageVersion(app: app, remote: remote, expectedBundleID: example.id)
+            } else {
+                do {
+                    try VendorInstaller.verifyOfferedPackageVersion(app: app, remote: remote, expectedBundleID: example.id)
+                    Issue.record("Accepted a sealed, same-ID package carrying the previous version")
+                } catch VendorInstaller.InstallError.packageVersionMismatch(let expected, let downloaded) {
+                    #expect(expected.marketing == example.offered)
+                    #expect(downloaded.marketing == example.older)
+                }
+            }
+        }
+    }
+
+    @Test func paretoMatchesOnlyWholeReleaseTags() {
+        for rule in niteo_co_Pareto.set.githubRules {
+            for tag in ["1.50.0", "v1.22.0", "v1.7.74"] {
+                #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern)
+                    == String(tag.drop(while: { $0 == "v" })))
+            }
+            for tag in ["foo-v1.22.0", "vv1.22.0", "v1.22.0-rc1", "v1.22.0\n"] {
+                #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern) == nil)
+            }
+        }
+    }
+}

@@ -1763,6 +1763,10 @@ public struct GitHubReleasesSource: UpdateSource {
         let isCleanClip = rule.bundleID == com_antiless_cleanclip_mac.bundleID
         let isRune = rule.bundleID == ci_not_rune.bundleID
         let isCutter = rule.bundleID == re_rizin_cutter.bundleID
+        // Gray and Pareto reuse an archive name. Its sealed marketing version
+        // must match the offer even when no build or asset digest is published.
+        let requiresExactPackageVersion = isCutter || rule.bundleID == com_zenangst_Gray.bundleID
+            || rule.bundleID == niteo_co_Pareto.bundleID
         let pinsDMGToTag = isZeaburDesktop || isCleanClip || isRune
             || rule.bundleID == com_burakgon_openscreens.bundleID
 
@@ -2022,7 +2026,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     sourceName: name,
                     requiresManualInstaller: !installable,
                     vendorInstallerKind: installable ? rule.installerKind : nil,
-                    requiresExactPackageVersion: isCutter,
+                    requiresExactPackageVersion: requiresExactPackageVersion,
                     expectedSHA256: digest,
                     installTrust: rule.installTrust,
                     releaseNotesHTML: structured == nil ? body : nil,

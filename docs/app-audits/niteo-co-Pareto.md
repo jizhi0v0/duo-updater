@@ -12,7 +12,7 @@
 
 ## 历史与实测
 
-直接发行的 ID 是 `niteo.co.Pareto`，三个实测 DMG 均无 Sparkle feed。读取该 ID 的标准偏好 `showBeta`，默认关闭。启用后，即使当前为预发行 1.49.1，也应提示后来的正式版 1.50.0。厂商按 GitHub 的 prerelease 标记过滤，不能只按数字推测历史渠道。Homebrew cask 引用同一个直接发行的 DMG。[厂商偏好设置](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Defaults.swift) · [Setapp 版 ID](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Config/App-SetApp.xcconfig)
+直接发行的 ID 是 `niteo.co.Pareto`，三个实测 DMG 均无 Sparkle feed。历史标签包括正式版 `v1.22.0` 和预发行 `v1.7.74`，两轨规则均接受可选的前导 `v`。读取该 ID 的标准偏好 `showBeta`，默认关闭。启用后，即使当前为预发行 1.49.1，也应提示后来的正式版 1.50.0。厂商按 GitHub 的 prerelease 标记过滤，不能只按数字推测历史渠道。Homebrew cask 引用同一个直接发行的 DMG。[厂商偏好设置](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Defaults.swift) · [Setapp 版 ID](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Config/App-SetApp.xcconfig)
 
 | 官方包 | short / build | 签名与架构 |
 |---|---|---|
@@ -23,7 +23,7 @@
 
 ## 一键安装
 
-选择 `ParetoSecurity.dmg`。主程序、登录项及可选的 `ParetoSecurityHelper` 均在 app 内。后者以 SMAppService daemon 注册，LaunchDaemon 的 BundleProgram 指向 `Contents/MacOS/ParetoSecurityHelper`。Firewall 等特权检查会查询 helper 版本，必要时由应用重新注册。最新版的 GitHub 正文含 “What's Changed” 标题和五项变更。[厂商 helper 管理](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Extensions/HelperTool.swift) · [正式发布说明](https://github.com/ParetoSecurity/pareto-mac/releases/tag/1.50.0)
+选择 `ParetoSecurity.dmg`。安装时核对签名包的营销版本与所选标签，拒绝误挂到新发布下的旧 DMG。主程序、登录项及可选的 `ParetoSecurityHelper` 均在 app 内。后者以 SMAppService daemon 注册，LaunchDaemon 的 BundleProgram 指向 `Contents/MacOS/ParetoSecurityHelper`。Firewall 等特权检查会查询 helper 版本，必要时由应用重新注册。最新版的 GitHub 正文含 “What's Changed” 标题和五项变更。[厂商 helper 管理](https://github.com/ParetoSecurity/pareto-mac/blob/1.50.0/Pareto/Extensions/HelperTool.swift) · [正式发布说明](https://github.com/ParetoSecurity/pareto-mac/releases/tag/1.50.0)
 
 ## 夜扫覆盖
 

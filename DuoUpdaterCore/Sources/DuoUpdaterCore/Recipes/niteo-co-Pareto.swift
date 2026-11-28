@@ -19,7 +19,7 @@ enum niteo_co_Pareto {
                 bundleID: bundleID,
                 owner: "ParetoSecurity", repo: "pareto-mac",
                 usePrereleases: channel == .beta,
-                versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+)$"#,
+                versionPattern: #"\Av?([0-9]+\.[0-9]+\.[0-9]+)\z"#,
                 candidateScope: .highestVersion,
                 installAssetPattern: #"^ParetoSecurity\.dmg$"#,
                 installerKind: .dmg,
